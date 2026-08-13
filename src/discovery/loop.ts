@@ -8,8 +8,8 @@ import type {
 } from "../artifact/schema.js";
 import { extractValue } from "../shared/extract.js";
 import { describeCandidate, LocatorResolutionError, resolveLocator } from "../shared/locator.js";
-import { redactValue } from "../guardrails/redact.js";
-import type { RunLogger } from "../logging/logger.js";
+import { redactTranscriptText, redactValue } from "../guardrails/redact.js";
+import type { LogEvent, RunLogger } from "../logging/logger.js";
 import type { DialogEvent } from "./browser-session.js";
 import { observe, renderObservation } from "./observe.js";
 import {
@@ -104,14 +104,28 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
   const outputs: OutputField[] = [];
   const messages: Anthropic.MessageParam[] = [];
 
-  opts.logger.log({ type: "run_start", kind: "discovery", goal: opts.goal, model, maxSteps, timeoutMs });
+  // Sensitive values populated as extract steps succeed (see the "extract"
+  // case below). Every log line is scrubbed against this growing set before
+  // it's written — the model can echo an already-extracted value back in its
+  // own free text at any later point (its `finish` reasoning, in particular),
+  // so redaction has to apply live, per event, not just once at the end of
+  // the run against the full transcript (see cli.ts's separate transcript
+  // redaction pass, which exists for the same reason but operates on the
+  // Anthropic message history rather than this run log).
+  const knownSensitiveValues: (string | number)[] = [];
+  const logger: RunLogger = {
+    filePath: opts.logger.filePath,
+    log: (event) => opts.logger.log(redactLogEvent(event, knownSensitiveValues)),
+  };
+
+  logger.log({ type: "run_start", kind: "discovery", goal: opts.goal, model, maxSteps, timeoutMs });
 
   const initialObs = await observe(opts.page);
   messages.push({
     role: "user",
     content: `Goal: ${opts.goal}\n\nCurrent state:\n${renderObservation(initialObs)}`,
   });
-  opts.logger.log({ type: "observation", url: initialObs.url });
+  logger.log({ type: "observation", url: initialObs.url });
 
   let lastCheckpoints: CheckpointCondition[] = [];
   let iteration = 0;
@@ -143,7 +157,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
       .trim();
 
     if (toolUses.length === 0) {
-      opts.logger.log({ type: "model_no_tool_call", reasoning: reasoningText });
+      logger.log({ type: "model_no_tool_call", reasoning: reasoningText });
       messages.push({
         role: "user",
         content: "You must call exactly one tool per turn. Please choose one of the available tools now.",
@@ -164,7 +178,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
         continue;
       }
 
-      opts.logger.log({
+      logger.log({
         type: "model_decision",
         step: iteration,
         reasoning: reasoningText,
@@ -179,7 +193,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
         content: outcome.resultText,
         is_error: !outcome.ok,
       });
-      opts.logger.log({
+      logger.log({
         type: "action_result",
         step: iteration,
         tool: toolUse.name,
@@ -204,7 +218,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
 
   function finalize(outcome: DiscoveryOutcome, reason: string): DiscoveryResult {
     const checkpoints = lastCheckpoints;
-    opts.logger.log({ type: "run_end", outcome, reason, stepCount: steps.length, outputCount: outputs.length });
+    logger.log({ type: "run_end", outcome, reason, stepCount: steps.length, outputCount: outputs.length });
     return { outcome, reason, steps, checkpoints, outputs, transcript: messages, model };
   }
 
@@ -316,6 +330,12 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
             ...(input.attributeName !== undefined ? { attributeName: input.attributeName } : {}),
             ...(input.transform !== undefined ? { transform: input.transform } : {}),
           });
+          if (input.sensitive) {
+            // Tracked so every subsequent log line — including the model's own
+            // free-text reasoning, which can echo this value back in prose —
+            // gets scrubbed for the rest of the run, not just this one event.
+            knownSensitiveValues.push(value);
+          }
           if (!outputsAcc.some((out) => out.name === input.outputName)) {
             outputsAcc.push({
               name: input.outputName,
@@ -378,7 +398,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
 
     async function observedSuccess(note: string): Promise<{ ok: true; resultText: string; logDetail: string }> {
       const obs = await observe(o.page);
-      opts.logger.log({ type: "observation", url: obs.url });
+      logger.log({ type: "observation", url: obs.url });
       return { ok: true, resultText: `${note}\n\nCurrent state:\n${renderObservation(obs)}`, logDetail: note };
     }
   }
@@ -386,7 +406,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
   function logNewDialogs(o: RunDiscoveryOptions, countBefore: number): void {
     const newDialogs = o.dialogEvents.slice(countBefore);
     for (const d of newDialogs) {
-      o.logger.log({ type: "dialog", dialogType: d.type, message: d.message, accepted: d.accepted });
+      logger.log({ type: "dialog", dialogType: d.type, message: d.message, accepted: d.accepted });
     }
   }
 }
@@ -441,4 +461,18 @@ function redactToolInputForLog(toolName: string, input: unknown): unknown {
   // non-secret parameter values (memberId, deposit amount), never credentials
   // (see credentials.ts). Extracted sensitive values ARE redacted, above.
   return input;
+}
+
+/**
+ * Scrubs a log event against every sensitive value extracted so far in the
+ * run before it's written to disk. Structural: applied once, at the logger
+ * wrapper in runDiscovery, rather than patched into each individual log call
+ * site — a free-text field (the model's `reasoning`, a `finish` tool's
+ * `reason`) can echo an already-extracted value back in prose at any later
+ * point in the run, so every event from here on has to be checked, not just
+ * the one that performed the extraction.
+ */
+function redactLogEvent(event: LogEvent, sensitiveValues: readonly (string | number)[]): LogEvent {
+  if (sensitiveValues.length === 0) return event;
+  return JSON.parse(redactTranscriptText(JSON.stringify(event), sensitiveValues)) as LogEvent;
 }
