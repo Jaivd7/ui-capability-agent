@@ -181,11 +181,19 @@ expected business outcome / recoverable condition / hard failure.
 
 ```ts
 KnownOutcome =
-  | { classification: "business"; checkAfterStepId; detect; outcome: { code, message } }
-  | { classification: "recoverable"; checkAfterStepId; detect; recovery: { action, maxAttempts } }
+  | { classification: "business"; checkAfterStepId?; detect; outcome: { code, message } }
+  | { classification: "recoverable"; checkAfterStepId?; detect; recovery: { action, maxAttempts } }
 ```
 
-Two deliberate design choices here:
+`checkAfterStepId` is optional: omitted means "check after every step," which is
+the common case — a condition like session expiry can plausibly surface after
+any step, so tying its detector to one specific step id would be both
+artificial and fragile (that id isn't even known until after a discovery run
+produces the concrete step sequence). Set it only when a detector should be
+checked at one specific, known point in the flow, to narrow where it's
+checked and reduce the chance of an unrelated match elsewhere.
+
+Two more deliberate design choices here:
 
 1. **Business outcomes live on the artifact; generic recoverable actions live
    in the replay engine's app-level config.** A *business* outcome (e.g.

@@ -270,7 +270,13 @@ const outcomeDetector = {
   id: z.string().min(1),
   description: z.string().min(1),
   // Which step's completion triggers checking for this outcome's signature.
-  checkAfterStepId: z.string().min(1),
+  // Optional: omitted means "check after every step" (a condition like
+  // session expiry can plausibly surface after any step, so this is the
+  // common case). Set it only when a detector should be checked at one
+  // specific, known point — e.g. a validation banner that can only ever
+  // appear right after a particular form submission — since narrowing where
+  // it's checked reduces the chance of an unrelated match elsewhere.
+  checkAfterStepId: z.string().min(1).optional(),
   detect: z.object({
     frame: z.array(FrameLocatorSchema).default([]),
     locator: LocatorChainSchema,
@@ -437,7 +443,7 @@ export const CapabilityArtifactSchema = z
     }
 
     artifact.knownOutcomes.forEach((outcome, i) => {
-      if (!stepIds.has(outcome.checkAfterStepId)) {
+      if (outcome.checkAfterStepId !== undefined && !stepIds.has(outcome.checkAfterStepId)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `knownOutcome "${outcome.id}" references unknown step "${outcome.checkAfterStepId}"`,
