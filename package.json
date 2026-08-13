@@ -11,7 +11,6 @@
     "mock-app": "tsx mock-app/server.ts",
     "discover": "tsx src/discovery/cli.ts",
     "replay": "tsx src/replay/cli.ts",
-    "operator": "tsx src/escalation/operator-cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
