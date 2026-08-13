@@ -141,3 +141,21 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+ASSIGNMENT.md
+LEARNING_NOTES.md
+
+# Env
+.env
+.env.local
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# Build output
+/dist/
+
+# Local capability store scratch (evidence/ is the curated, committed set)
+/capabilities/*.local.json

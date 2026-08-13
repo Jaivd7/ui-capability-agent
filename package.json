@@ -1,0 +1,33 @@
+{
+  "name": "ui-capability-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Computer-use automation system: an LLM discovers a UI flow once, records it as a deterministic, replayable capability artifact, and replays it with no model in the loop.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "mock-app": "tsx mock-app/server.ts",
+    "discover": "tsx src/discovery/cli.ts",
+    "replay": "tsx src/replay/cli.ts",
+    "operator": "tsx src/escalation/operator-cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "playwright": "^1.48.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}
