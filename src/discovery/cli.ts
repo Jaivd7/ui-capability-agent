@@ -73,6 +73,11 @@ async function main() {
           `Human intervention: ${result.humanIntervention.decision} (${result.humanIntervention.actions.length} action(s))`,
         );
       }
+      // A richer signal on failure, independent of whether escalation was
+      // enabled for this run.
+      await session.page.screenshot({ path: join(evidenceDir, `${runId}.failure.png`) }).catch(() => undefined);
+      const html = await session.page.content().catch(() => null);
+      if (html) writeFileSync(join(evidenceDir, `${runId}.failure.dom.html`), html);
       await session.close();
       process.exit(1);
     }

@@ -1,0 +1,25 @@
+{
+  "status": "success",
+  "outputs": {
+    "savingsBalance": "[REDACTED]"
+  },
+  "checkpointsPassed": [
+    "Member detail page shows correct member name",
+    "Account Details iframe shows Savings Balance row"
+  ],
+  "stepsExecuted": 4,
+  "humanIntervention": {
+    "raisedAt": "2026-08-13T19:29:50.003Z",
+    "resolvedAt": "2026-08-13T19:29:57.190Z",
+    "kind": "irreversible_confirmation",
+    "reason": "Step is marked irreversible; current policy blocks irreversible actions from unattended execution.",
+    "decision": "resumed",
+    "actions": [
+      {
+        "timestamp": "2026-08-13T19:29:57.190Z",
+        "type": "approve_step",
+        "detail": "Search button"
+      }
+    ]
+  }
+}

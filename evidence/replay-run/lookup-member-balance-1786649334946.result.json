@@ -1,7 +1,7 @@
 {
   "status": "success",
   "outputs": {
-    "savingsBalance": 3482.1
+    "savingsBalance": "[REDACTED]"
   },
   "checkpointsPassed": [
     "Member detail page shows correct member name",

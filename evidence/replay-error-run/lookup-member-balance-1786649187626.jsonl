@@ -1,0 +1,5 @@
+{"timestamp":"2026-08-13T19:26:27.891Z","type":"run_start","kind":"replay","runId":"lookup-member-balance-1786649187626","capabilityId":"lookup-member-balance","capabilityVersion":1,"params":{"memberId":99999}}
+{"timestamp":"2026-08-13T19:26:27.913Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-13T19:26:29.948Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-13T19:26:29.963Z","type":"known_outcome","outcomeId":"member-not-found","classification":"business"}
+{"timestamp":"2026-08-13T19:26:29.963Z","type":"run_end","status":"business_outcome","code":"MEMBER_NOT_FOUND","outcomeId":"member-not-found"}

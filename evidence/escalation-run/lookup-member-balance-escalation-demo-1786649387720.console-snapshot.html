@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Operator Console</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; color: #1a1a1a; }
+  .banner { background: #fff3cd; border: 1px solid #ffcc00; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; }
+  .meta { color: #555; font-size: 13px; }
+  img { max-width: 100%; border: 1px solid #ccc; border-radius: 4px; margin: 12px 0; }
+  button { padding: 8px 14px; margin-right: 8px; border-radius: 4px; border: 1px solid #888; cursor: pointer; }
+  .danger { background: #ffe0e0; }
+  .safe { background: #e0ffe0; }
+  form.inline { display: inline; }
+  fieldset { margin: 16px 0; }
+  input, select { padding: 4px; margin: 2px; }
+  ul.log { font-size: 12px; color: #444; }
+</style></head>
+<body>
+  <div class="banner">
+    <strong>Automation paused — intervention requested</strong><br/>
+    Run: lookup-member-balance-escalation-demo-1786649387720 (lookup-member-balance-escalation-demo)<br/>
+    Reason: Step is marked irreversible; current policy blocks irreversible actions from unattended execution.
+  </div>
+  <p class="meta">
+    Current URL: http://localhost:4000/members<br/>
+    Step: step-2 — Search button<br/>
+    
+  </p>
+  <img src="/screenshot" alt="current page state" />
+
+  
+  <fieldset>
+    <legend>Pending irreversible action</legend>
+    <p>Search button</p>
+    <p class="meta">role locator, 1 candidate(s)</p>
+    <form class="inline" method="post" action="/approve"><button class="danger" type="submit">Approve &amp; Execute</button></form>
+    <form class="inline" method="post" action="/reject"><button class="safe" type="submit">Reject</button></form>
+  </fieldset>
+
+  <h3>Actions so far</h3>
+  <ul class="log">
+    <li>(none yet)</li>
+  </ul>
+</body></html>

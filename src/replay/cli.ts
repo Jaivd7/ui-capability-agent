@@ -8,7 +8,10 @@ import { createRunLogger } from "../logging/logger.js";
 import { loadGuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
 import { createEscalationHandler } from "../escalation/operator-server.js";
+import { redactValue } from "../guardrails/redact.js";
+import type { CapabilityArtifact } from "../artifact/schema.js";
 import { runReplay, type ParamValue } from "./engine.js";
+import type { ReplayResult } from "./result.js";
 
 interface Args {
   capability: string;
@@ -96,11 +99,28 @@ async function main() {
       ...(escalate ? { escalate: createEscalationHandler(session.page, logger, evidenceOutDir) } : {}),
     });
 
-    writeFileSync(join(evidenceOutDir, `${runId}.result.json`), JSON.stringify(result, null, 2));
+    // The in-memory `result` keeps real values (a real caller invoking this
+    // programmatically needs the actual balance, not a masked one) --
+    // `evidenceResult` is the copy that's actually persisted/printed,
+    // redacted the same way transcripts and run logs already are. Evidence
+    // meant to sit in a public repo gets the same treatment as everything
+    // else this project writes to disk.
+    const evidenceResult = redactResultForEvidence(result, artifact);
+    writeFileSync(join(evidenceOutDir, `${runId}.result.json`), JSON.stringify(evidenceResult, null, 2));
+
+    // A richer signal on failure, independent of whether escalation was
+    // enabled (escalation already captures its own screenshot at the
+    // moment it pauses — this covers the plain, non-interactive failure
+    // path too, since that's the default way replay runs in production).
+    if (result.status === "hard_failure") {
+      await session.page.screenshot({ path: join(evidenceOutDir, `${runId}.failure.png`) }).catch(() => undefined);
+      const html = await session.page.content().catch(() => null);
+      if (html) writeFileSync(join(evidenceOutDir, `${runId}.failure.dom.html`), html);
+    }
 
     console.log(`\nResult: ${result.status}`);
     if (result.status === "success") {
-      console.log("Outputs:", JSON.stringify(result.outputs, null, 2));
+      console.log("Outputs:", JSON.stringify(evidenceResult.status === "success" ? evidenceResult.outputs : {}, null, 2));
     } else if (result.status === "business_outcome") {
       console.log(`${result.code}: ${result.message}`);
     } else {
@@ -117,6 +137,17 @@ async function main() {
   } finally {
     await session.close();
   }
+}
+
+/** Masks any output flagged sensitive in the artifact's contract before the result is written/printed as evidence. */
+function redactResultForEvidence(result: ReplayResult, artifact: CapabilityArtifact): ReplayResult {
+  if (result.status !== "success") return result;
+  const sensitiveNames = new Set(artifact.outputs.filter((o) => o.sensitive).map((o) => o.name));
+  if (sensitiveNames.size === 0) return result;
+  const outputs = Object.fromEntries(
+    Object.entries(result.outputs).map(([k, v]) => [k, redactValue(v, sensitiveNames.has(k))]),
+  );
+  return { ...result, outputs: outputs as Record<string, string | number> };
 }
 
 main().catch((err) => {

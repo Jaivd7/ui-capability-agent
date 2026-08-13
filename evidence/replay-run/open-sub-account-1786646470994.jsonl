@@ -1,9 +1,0 @@
-{"timestamp":"2026-08-13T18:41:11.653Z","type":"run_start","kind":"replay","capabilityId":"open-sub-account","capabilityVersion":1,"params":{"memberId":1001,"accountType":"Standard Savings","openingDeposit":100}}
-{"timestamp":"2026-08-13T18:41:11.671Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
-{"timestamp":"2026-08-13T18:41:14.721Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
-{"timestamp":"2026-08-13T18:41:17.762Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
-{"timestamp":"2026-08-13T18:41:20.804Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
-{"timestamp":"2026-08-13T18:41:23.823Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
-{"timestamp":"2026-08-13T18:41:26.846Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
-{"timestamp":"2026-08-13T18:41:29.892Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
-{"timestamp":"2026-08-13T18:41:32.911Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":[]}

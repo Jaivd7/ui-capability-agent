@@ -1,0 +1,196 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "lookup-member-balance-escalation-demo",
+  "name": "DEMO ONLY: search step marked irreversible, for escalation evidence",
+  "description": "Searches for a member by ID in Meridian Core Banking and extracts their current savings balance.",
+  "version": 1,
+  "contentHash": "81f3a7efdd0eefe58632e5694b07a3baa026c6209f7fa4b15e15cc0e2c3a27b0",
+  "createdAt": "2026-08-13T18:32:11.691Z",
+  "discovery": {
+    "model": "claude-sonnet-5",
+    "discoveredAt": "2026-08-13T18:32:11.691Z"
+  },
+  "target": {
+    "app": "legacy-core-banking",
+    "baseUrl": "http://localhost:4000",
+    "entryRoute": "/members",
+    "tenant": null
+  },
+  "preconditions": {
+    "authRequired": true,
+    "startRoute": "/members"
+  },
+  "inputParams": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "required": true,
+      "description": "Member/account holder ID to search for.",
+      "sensitive": false,
+      "example": "1001"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "savingsBalance",
+      "type": "currency",
+      "description": "Extract savings balance value from Account Details panel",
+      "sensitive": true
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-1",
+      "description": "Member ID search field",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "label",
+          "text": "Member ID",
+          "exact": false,
+          "reason": "Member ID textbox"
+        }
+      ],
+      "type": "fill",
+      "value": {
+        "kind": "param",
+        "param": "memberId"
+      }
+    },
+    {
+      "id": "step-2",
+      "description": "Search button",
+      "retryable": false,
+      "irreversible": true,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": false,
+          "reason": "Submit search for member"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-3",
+      "description": "View link for member 1001",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "View",
+          "exact": false,
+          "reason": "Open member record for 1001"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-4",
+      "description": "Extract savings balance value from Account Details panel",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [
+        {
+          "strategy": "name",
+          "value": "account-detail"
+        }
+      ],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "table tr:has-text('Savings Balance') td:nth-child(2)",
+          "reason": "Savings Balance cell in account detail iframe"
+        }
+      ],
+      "type": "extract",
+      "outputName": "savingsBalance",
+      "read": {
+        "from": "innerText"
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "description": "Member detail page shows correct member name",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "text",
+          "text": "Member: Alicia Gomez",
+          "exact": false,
+          "reason": "Confirms correct member record is open"
+        }
+      ],
+      "assertion": "exists"
+    },
+    {
+      "description": "Account Details iframe shows Savings Balance row",
+      "frame": [
+        {
+          "strategy": "name",
+          "value": "account-detail"
+        }
+      ],
+      "locator": [
+        {
+          "strategy": "text",
+          "text": "Savings Balance",
+          "exact": false,
+          "reason": "Confirms savings balance field is visible in account detail panel"
+        }
+      ],
+      "assertion": "exists"
+    }
+  ],
+  "knownOutcomes": [
+    {
+      "id": "member-not-found",
+      "description": "Search returns no matching member record.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "No member found with that ID.",
+            "exact": false,
+            "reason": "Exact banner text rendered by the search results page when no member matches."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "MEMBER_NOT_FOUND",
+        "message": "No member found with the given ID."
+      }
+    },
+    {
+      "id": "session-expired",
+      "description": "The session expired mid-flow and the app redirected to the login page.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "Your session has expired. Please log in again.",
+            "exact": false,
+            "reason": "Exact banner text rendered on the login page after a forced/natural session expiry."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "reauth",
+        "maxAttempts": 1
+      }
+    }
+  ]
+}

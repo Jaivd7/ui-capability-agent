@@ -1,4 +1,0 @@
-{"timestamp":"2026-08-13T18:40:39.329Z","type":"run_start","kind":"replay","capabilityId":"lookup-member-balance-broken-demo","capabilityVersion":1,"params":{"memberId":1001}}
-{"timestamp":"2026-08-13T18:40:39.349Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
-{"timestamp":"2026-08-13T18:40:51.355Z","type":"step_result","stepId":"step-2","ok":false,"attempt":1,"error":"Could not resolve any locator candidate. Tried 1 candidate(s):\n  [0] role(button, name=\"ThisButtonDoesNotExist\") -> locator.waitFor: Timeout 10000ms exceeded."}
-{"timestamp":"2026-08-13T18:40:53.360Z","type":"run_end","status":"hard_failure","stepId":"step-2","reason":"Step execution failed and no known outcome matched the resulting state."}

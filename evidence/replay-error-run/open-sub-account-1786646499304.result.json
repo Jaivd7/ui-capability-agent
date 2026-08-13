@@ -1,7 +1,0 @@
-{
-  "status": "hard_failure",
-  "stepId": "step-4",
-  "stepDescription": "Open Sub-Account link",
-  "reason": "Step execution failed and no known outcome matched the resulting state.",
-  "observed": "Could not resolve any locator candidate. Tried 1 candidate(s):\n  [0] role(link, name=\"Open Sub-Account\") -> locator.waitFor: Timeout 10000ms exceeded."
-}
