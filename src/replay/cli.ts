@@ -7,6 +7,7 @@ import { startAuthenticatedSession } from "../shared/session.js";
 import { createRunLogger } from "../logging/logger.js";
 import { loadGuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
+import { createEscalationHandler } from "../escalation/operator-server.js";
 import { runReplay, type ParamValue } from "./engine.js";
 
 interface Args {
@@ -14,6 +15,7 @@ interface Args {
   role: "teller" | "readonly";
   params: Record<string, ParamValue>;
   evidenceDir: string;
+  escalate: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -21,7 +23,7 @@ function parseArgs(argv: string[]): Args {
   const capability = capIdx !== -1 ? argv[capIdx + 1] : undefined;
   if (!capability) {
     console.error(
-      "Usage: npm run replay -- --capability <id> [--param name=value ...] [--role teller|readonly] [--evidence-dir replay-run]",
+      "Usage: npm run replay -- --capability <id> [--param name=value ...] [--role teller|readonly] [--evidence-dir replay-run] [--escalate]",
     );
     process.exit(1);
   }
@@ -29,6 +31,7 @@ function parseArgs(argv: string[]): Args {
   const role = (roleIdx !== -1 ? argv[roleIdx + 1] : "teller") as "teller" | "readonly";
   const evidenceDirIdx = argv.indexOf("--evidence-dir");
   const evidenceDir = evidenceDirIdx !== -1 ? argv[evidenceDirIdx + 1]! : "replay-run";
+  const escalate = argv.includes("--escalate");
 
   const params: Record<string, ParamValue> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -44,11 +47,11 @@ function parseArgs(argv: string[]): Args {
     params[name] = /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw;
   }
 
-  return { capability, role, params, evidenceDir };
+  return { capability, role, params, evidenceDir, escalate };
 }
 
 async function main() {
-  const { capability, role, params, evidenceDir } = parseArgs(process.argv.slice(2));
+  const { capability, role, params, evidenceDir, escalate } = parseArgs(process.argv.slice(2));
 
   const artifactPath = join(process.cwd(), "capabilities", `${capability}.json`);
   if (!existsSync(artifactPath)) {
@@ -76,18 +79,21 @@ async function main() {
   const logger = createRunLogger(runId, evidenceOutDir);
 
   console.log(`Replaying "${artifact.id}" v${artifact.version} (run "${runId}")...`);
+  if (escalate) console.log("Escalation enabled: a stuck run will pause and open an operator console.");
   const credentials = role === "teller" ? tellerCredentials() : readonlyCredentials();
   const session = await startAuthenticatedSession(artifact.target.baseUrl, credentials);
 
   try {
     const guardrailsConfig = loadGuardrailsConfig();
     const result = await runReplay({
+      runId,
       artifact,
       params,
       page: session.page,
       dialogEvents: session.dialogEvents,
       logger,
       guardrail: (step, ctx) => evaluateGuardrails(step, ctx, guardrailsConfig),
+      ...(escalate ? { escalate: createEscalationHandler(session.page, logger, evidenceOutDir) } : {}),
     });
 
     writeFileSync(join(evidenceOutDir, `${runId}.result.json`), JSON.stringify(result, null, 2));
@@ -101,6 +107,9 @@ async function main() {
       console.log(`Failed at step "${result.stepId}" (${result.stepDescription}): ${result.reason}`);
       if (result.expected !== undefined) console.log(`  expected: ${result.expected}`);
       if (result.observed !== undefined) console.log(`  observed: ${result.observed}`);
+    }
+    if ("humanIntervention" in result && result.humanIntervention) {
+      console.log(`Human intervention: ${result.humanIntervention.decision} (${result.humanIntervention.actions.length} action(s))`);
     }
     console.log(`\nEvidence saved to ${evidenceOutDir}/${runId}.*`);
 

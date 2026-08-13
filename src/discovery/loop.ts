@@ -9,6 +9,7 @@ import { evaluateGuardrails } from "../guardrails/policy.js";
 import { redactTranscriptText, redactValue } from "../guardrails/redact.js";
 import type { LogEvent, RunLogger } from "../logging/logger.js";
 import type { DialogEvent } from "../shared/session.js";
+import type { EscalationHandler, HumanIntervention, InterventionContext } from "../escalation/types.js";
 import { observe, renderObservation } from "./observe.js";
 import {
   ClickInputSchema,
@@ -30,6 +31,8 @@ export interface DiscoveryParam {
 }
 
 export interface RunDiscoveryOptions {
+  runId: string;
+  capabilityId: string;
   goal: string;
   params: DiscoveryParam[];
   page: Page;
@@ -38,9 +41,22 @@ export interface RunDiscoveryOptions {
   maxSteps?: number;
   timeoutMs?: number;
   model?: string;
+  /**
+   * When set, hitting max_steps/timeout/dead_end raises a "discovery_stuck"
+   * intervention instead of just failing outright — the same pause/cede/
+   * resume mechanism replay uses, applied to the "agent is stuck" trigger
+   * from the brief rather than "replay hit a condition it can't recover
+   * from." A human can complete the goal manually on the same live
+   * session; discovery does not attempt to synthesize a capability from
+   * their actions afterward (see LEARNING_NOTES.md's Phase 5 entry for why
+   * that's a deliberate, documented cut, not an oversight) — a resumed run
+   * ends as `escalated_completed`, recording what the human did, without a
+   * compiled artifact.
+   */
+  escalate?: EscalationHandler;
 }
 
-export type DiscoveryOutcome = "success" | "dead_end" | "max_steps" | "timeout";
+export type DiscoveryOutcome = "success" | "dead_end" | "max_steps" | "timeout" | "escalated_completed" | "escalated_aborted";
 
 export interface DiscoveryResult {
   outcome: DiscoveryOutcome;
@@ -50,6 +66,7 @@ export interface DiscoveryResult {
   outputs: OutputField[];
   transcript: Anthropic.MessageParam[];
   model: string;
+  humanIntervention?: HumanIntervention;
 }
 
 const DEFAULT_MAX_STEPS = 20;
@@ -124,6 +141,28 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
     content: `Goal: ${opts.goal}\n\nCurrent state:\n${renderObservation(initialObs)}`,
   });
   logger.log({ type: "observation", url: initialObs.url });
+
+  // Discovery's tool names don't all match the artifact's step-type
+  // vocabulary 1:1 (select_option/wait_for vs. select/waitFor) — the
+  // allowlist config is keyed on the artifact vocabulary since that's what
+  // replay also uses, so this maps a proposed tool call onto the same
+  // names before checking it against the same policy replay enforces.
+  // Declared here, before the loop that calls executeTool — a `const`
+  // declared textually *after* an infinite while(true) loop is in the
+  // temporal dead zone for the loop's entire lifetime (the loop's body runs
+  // to completion/return before source-order execution would ever reach a
+  // statement below it), so any nested function the loop calls would throw
+  // "Cannot access before initialization" the moment it referenced it. Hit
+  // this for real on the first live discovery run after adding the
+  // guardrail wiring — see LEARNING_NOTES.md's Phase 5 entry.
+  const TOOL_NAME_TO_STEP_TYPE: Record<string, string> = {
+    navigate: "navigate",
+    click: "click",
+    fill: "fill",
+    select_option: "select",
+    wait_for: "waitFor",
+    extract: "extract",
+  };
 
   let lastCheckpoints: CheckpointCondition[] = [];
   let iteration = 0;
@@ -214,25 +253,43 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
     }
   }
 
-  function finalize(outcome: DiscoveryOutcome, reason: string): DiscoveryResult {
+  async function finalize(outcome: DiscoveryOutcome, reason: string): Promise<DiscoveryResult> {
     const checkpoints = lastCheckpoints;
-    logger.log({ type: "run_end", outcome, reason, stepCount: steps.length, outputCount: outputs.length });
-    return { outcome, reason, steps, checkpoints, outputs, transcript: messages, model };
-  }
+    let finalOutcome = outcome;
+    let humanIntervention: HumanIntervention | undefined;
 
-  // Discovery's tool names don't all match the artifact's step-type
-  // vocabulary 1:1 (select_option/wait_for vs. select/waitFor) — the
-  // allowlist config is keyed on the artifact vocabulary since that's what
-  // replay also uses, so this maps a proposed tool call onto the same
-  // names before checking it against the same policy replay enforces.
-  const TOOL_NAME_TO_STEP_TYPE: Record<string, string> = {
-    navigate: "navigate",
-    click: "click",
-    fill: "fill",
-    select_option: "select",
-    wait_for: "waitFor",
-    extract: "extract",
-  };
+    if (outcome !== "success" && opts.escalate) {
+      const raisedAt = new Date().toISOString();
+      const ctx: InterventionContext = {
+        runId: opts.runId,
+        capabilityId: opts.capabilityId,
+        kind: "discovery_stuck",
+        reason,
+        currentUrl: opts.page.url(),
+        goal: opts.goal,
+      };
+      const escalationOutcome = await opts.escalate(ctx);
+      humanIntervention = {
+        raisedAt,
+        resolvedAt: new Date().toISOString(),
+        kind: "discovery_stuck",
+        reason,
+        decision: escalationOutcome.decision,
+        actions: escalationOutcome.actions,
+      };
+      finalOutcome = escalationOutcome.decision === "resumed" ? "escalated_completed" : "escalated_aborted";
+    }
+
+    logger.log({
+      type: "run_end",
+      outcome: finalOutcome,
+      reason,
+      stepCount: steps.length,
+      outputCount: outputs.length,
+      humanIntervened: humanIntervention !== undefined,
+    });
+    return { outcome: finalOutcome, reason, steps, checkpoints, outputs, transcript: messages, model, ...(humanIntervention ? { humanIntervention } : {}) };
+  }
 
   async function executeTool(
     o: RunDiscoveryOptions,

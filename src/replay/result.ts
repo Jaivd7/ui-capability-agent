@@ -11,11 +11,15 @@
  * section for the schema-level half of this design.
  */
 
+import type { HumanIntervention } from "../escalation/types.js";
+
 export interface ReplaySuccess {
   status: "success";
   outputs: Record<string, string | number>;
   checkpointsPassed: string[];
   stepsExecuted: number;
+  /** Set only when a human resolved a hard failure and the flow completed after they acted. */
+  humanIntervention?: HumanIntervention;
 }
 
 export interface ReplayBusinessOutcome {
@@ -39,6 +43,8 @@ export interface ReplayHardFailure {
   reason: string;
   expected?: string;
   observed?: string;
+  /** Set when escalation was offered and the human's actions were recorded, even if they didn't resolve it. */
+  humanIntervention?: HumanIntervention;
 }
 
 export type ReplayResult = ReplaySuccess | ReplayBusinessOutcome | ReplayHardFailure;

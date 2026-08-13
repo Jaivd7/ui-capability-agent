@@ -38,8 +38,15 @@ function summarize(rest: Record<string, unknown>): string {
   const { timestamp: _t, ...fields } = rest;
   const parts = Object.entries(fields)
     .filter(([k]) => k !== "timestamp")
-    .map(([k, v]) => `${k}=${truncate(typeof v === "string" ? v : JSON.stringify(v))}`);
+    .map(([k, v]) => `${k}=${truncate(stringifyField(v))}`);
   return parts.join(" ");
+}
+
+/** JSON.stringify(undefined) returns the *value* undefined, not a string — guard against that and any other non-string result. */
+function stringifyField(v: unknown): string {
+  if (typeof v === "string") return v;
+  const json = JSON.stringify(v);
+  return json === undefined ? String(v) : json;
 }
 
 function truncate(s: string, max = 140): string {

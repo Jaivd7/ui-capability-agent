@@ -7,8 +7,9 @@ import type { DialogEvent } from "../shared/session.js";
 import { redactValue } from "../guardrails/redact.js";
 import type { GuardrailContext, GuardrailDecision } from "../guardrails/policy.js";
 import type { RunLogger } from "../logging/logger.js";
+import type { EscalationHandler, HumanIntervention, InterventionContext } from "../escalation/types.js";
 import { getRecoveryAction } from "./app-config.js";
-import type { ReplayResult } from "./result.js";
+import type { ReplayHardFailure, ReplayResult } from "./result.js";
 
 const ACTION_TIMEOUT_MS = 10_000;
 /** Deliberately short: a knownOutcome detector is usually absent, and a business-as-usual
@@ -30,16 +31,30 @@ type StepOutcome =
   | { kind: "restart_flow" }
   | { kind: "resolved"; result: ReplayResult };
 
+/** What to do next in the main step loop, after a step's outcome (possibly escalation) resolves. */
+type LoopSignal = { kind: "continue" } | { kind: "restart_flow" } | { kind: "return"; result: ReplayResult };
+
 /** Checked before every step executes — see src/guardrails/policy.ts for the concrete policy. */
 export type GuardrailHook = (step: Step, ctx: GuardrailContext) => GuardrailDecision;
 
 export interface ReplayOptions {
+  runId: string;
   artifact: CapabilityArtifact;
   params: Record<string, ParamValue>;
   page: Page;
   dialogEvents: DialogEvent[];
   logger: RunLogger;
   guardrail?: GuardrailHook;
+  /**
+   * When set, a guardrail-blocked irreversible step becomes a human
+   * confirmation request instead of an immediate hard failure, and an
+   * otherwise-terminal hard failure gets one chance for a human to
+   * intervene on the same live session before replay gives up. Allowlist
+   * violations (domain/route/action-type) never go through this — see the
+   * guardrail-check block below for why that's a hard boundary, not a
+   * confirmable one.
+   */
+  escalate?: EscalationHandler;
 }
 
 /**
@@ -55,10 +70,17 @@ export async function runReplay(opts: ReplayOptions): Promise<ReplayResult> {
 
   const outputs: Record<string, string | number> = {};
   const recoveryAttempts = new Map<string, number>();
+  // Records the most recent escalation this run went through, so it can be
+  // attached to the eventual *success* result too (not just a hard
+  // failure) — an approved irreversible step continues the flow normally
+  // afterward, and that success should still show a human was involved,
+  // not just the JSONL log.
+  let lastIntervention: HumanIntervention | undefined;
 
   opts.logger.log({
     type: "run_start",
     kind: "replay",
+    runId: opts.runId,
     capabilityId: opts.artifact.id,
     capabilityVersion: opts.artifact.version,
     params: redactParamsForLog(opts.artifact, opts.params),
@@ -78,25 +100,41 @@ export async function runReplay(opts: ReplayOptions): Promise<ReplayResult> {
         ).toString();
       }
       const guardDecision = opts.guardrail?.(step, guardCtx);
+
+      let outcome: StepOutcome;
       if (guardDecision && !guardDecision.allowed) {
-        const result: ReplayResult = {
-          status: "hard_failure",
-          stepId: step.id,
-          stepDescription: step.description,
-          reason: `Blocked by guardrail: ${guardDecision.reason ?? "not permitted"}.`,
-        };
-        logFinalResult(opts, result);
-        return result;
+        if (guardDecision.code === "irreversible_blocked" && opts.escalate) {
+          const confirmation = await handleIrreversibleConfirmation(opts, step, guardDecision, outputs, recoveryAttempts);
+          outcome = confirmation.outcome;
+          lastIntervention = confirmation.intervention;
+        } else {
+          // Allowlist violations (action type / origin / route) are a hard
+          // boundary and never offered for human override — only the
+          // reversible/irreversible classification has a legitimate
+          // confirmation path. Approving past the allowlist through this
+          // console would defeat the point of having one. See
+          // LEARNING_NOTES.md's Phase 5 entry.
+          const result: ReplayResult = {
+            status: "hard_failure",
+            stepId: step.id,
+            stepDescription: step.description,
+            reason: `Blocked by guardrail: ${guardDecision.reason ?? "not permitted"}.`,
+          };
+          logFinalResult(opts, result);
+          return result;
+        }
+      } else {
+        outcome = await runStepWithRetries(opts, step, outputs, recoveryAttempts);
       }
 
-      const outcome = await runStepWithRetries(opts, step, outputs, recoveryAttempts);
-      if (outcome.kind === "restart_flow") {
+      const signal = await toLoopSignal(opts, outcome, outputs);
+      if (signal.kind === "restart_flow") {
         needsFlowRestart = true;
         break;
       }
-      if (outcome.kind === "resolved") {
-        logFinalResult(opts, outcome.result);
-        return outcome.result;
+      if (signal.kind === "return") {
+        logFinalResult(opts, signal.result);
+        return signal.result;
       }
       // "continue": proceed to the next step.
     }
@@ -107,38 +145,185 @@ export async function runReplay(opts: ReplayOptions): Promise<ReplayResult> {
     // resolution — the flow is done, verify the final checkpoint(s).
     const checkpointResult = await verifyCheckpoints(opts);
     if (checkpointResult) {
-      logFinalResult(opts, checkpointResult);
-      return checkpointResult;
+      const resolved = await resolveHardFailure(opts, checkpointResult, outputs);
+      logFinalResult(opts, resolved);
+      return resolved;
     }
     const missingOutputs = opts.artifact.outputs.filter((o) => !(o.name in outputs));
     if (missingOutputs.length > 0) {
-      const result: ReplayResult = {
+      const failure: ReplayHardFailure = {
         status: "hard_failure",
         stepId: opts.artifact.steps[opts.artifact.steps.length - 1]?.id ?? "(none)",
         stepDescription: "(post-run output check)",
         reason: `Declared output(s) never produced: ${missingOutputs.map((o) => o.name).join(", ")}.`,
       };
-      logFinalResult(opts, result);
-      return result;
+      const resolved = await resolveHardFailure(opts, failure, outputs);
+      logFinalResult(opts, resolved);
+      return resolved;
     }
     const result: ReplayResult = {
       status: "success",
       outputs,
       checkpointsPassed: opts.artifact.checkpoints.map((c) => c.description),
       stepsExecuted: opts.artifact.steps.length,
+      ...(lastIntervention !== undefined ? { humanIntervention: lastIntervention } : {}),
     };
     logFinalResult(opts, result);
     return result;
   }
 
-  const result: ReplayResult = {
+  const failure: ReplayHardFailure = {
     status: "hard_failure",
     stepId: "(flow)",
     stepDescription: "(entire flow)",
     reason: `Exceeded ${MAX_FLOW_RESTARTS} flow restart(s) attempting recovery; giving up.`,
   };
-  logFinalResult(opts, result);
-  return result;
+  const resolved = await resolveHardFailure(opts, failure, outputs);
+  logFinalResult(opts, resolved);
+  return resolved;
+}
+
+async function toLoopSignal(
+  opts: ReplayOptions,
+  outcome: StepOutcome,
+  outputs: Record<string, string | number>,
+): Promise<LoopSignal> {
+  if (outcome.kind === "restart_flow") return { kind: "restart_flow" };
+  if (outcome.kind === "continue") return { kind: "continue" };
+  // A hard failure that already carries a humanIntervention record just
+  // came *from* an escalation decision (e.g. the operator rejected an
+  // irreversible-confirmation request) — don't immediately raise a second
+  // escalation on the failure that resulted from the first one resolving.
+  const alreadyEscalated = outcome.result.status === "hard_failure" && outcome.result.humanIntervention !== undefined;
+  const result =
+    outcome.result.status === "hard_failure" && !alreadyEscalated
+      ? await resolveHardFailure(opts, outcome.result, outputs)
+      : outcome.result;
+  return { kind: "return", result };
+}
+
+/**
+ * A guardrail blocked a step specifically because it's irreversible — the
+ * one violation kind with a legitimate human-confirmation path. Pauses on
+ * the live session, shows the operator exactly what they'd be authorizing,
+ * and only ever executes the step for real if a human explicitly approves
+ * it through the console (never as a silent automatic fallback).
+ */
+async function handleIrreversibleConfirmation(
+  opts: ReplayOptions,
+  step: Step,
+  guardDecision: GuardrailDecision,
+  outputs: Record<string, string | number>,
+  recoveryAttempts: Map<string, number>,
+): Promise<{ outcome: StepOutcome; intervention: HumanIntervention }> {
+  const raisedAt = new Date().toISOString();
+  const ctx: InterventionContext = {
+    runId: opts.runId,
+    capabilityId: opts.artifact.id,
+    kind: "irreversible_confirmation",
+    reason: guardDecision.reason ?? "Step is marked irreversible.",
+    currentUrl: opts.page.url(),
+    currentStepId: step.id,
+    currentStepDescription: step.description,
+    pendingAction: { description: step.description, locatorSummary: summarizeStepTarget(step) },
+  };
+  const escalationOutcome = await opts.escalate!(ctx, () => executeStep(opts, step, outputs));
+  const intervention: HumanIntervention = {
+    raisedAt,
+    resolvedAt: new Date().toISOString(),
+    kind: "irreversible_confirmation",
+    reason: ctx.reason,
+    decision: escalationOutcome.decision,
+    actions: escalationOutcome.actions,
+  };
+
+  if (escalationOutcome.decision === "aborted") {
+    return {
+      intervention,
+      outcome: {
+        kind: "resolved",
+        result: {
+          status: "hard_failure",
+          stepId: step.id,
+          stepDescription: step.description,
+          reason: "Irreversible action rejected by operator.",
+          humanIntervention: intervention,
+        },
+      },
+    };
+  }
+
+  // Approved: executeApprovedStep (passed to opts.escalate above) already
+  // ran the real step — via the exact same executeStep used for every
+  // other step, not a hand-typed console command — so this is exactly as
+  // if the step had succeeded on its own, plus the intervention record.
+  opts.logger.log({ type: "step_result", stepId: step.id, ok: true, attempt: 1, humanApproved: true });
+  const kOutcome = await checkKnownOutcomes(opts, step.id, recoveryAttempts);
+  if (kOutcome.kind === "resolved" && kOutcome.result.status === "hard_failure") {
+    return { intervention, outcome: { kind: "resolved", result: { ...kOutcome.result, humanIntervention: intervention } } };
+  }
+  return { intervention, outcome: kOutcome };
+}
+
+/**
+ * The last chance before a hard failure becomes final: if escalation is
+ * configured, pause on the live session and let a human try to fix
+ * whatever's wrong, then re-verify the artifact's checkpoints from wherever
+ * they leave the page. If the checkpoints now pass, the run completes as a
+ * success (annotated with what the human did); if not, the original
+ * failure stands, still annotated so the evidence shows a human tried.
+ */
+async function resolveHardFailure(
+  opts: ReplayOptions,
+  failure: ReplayHardFailure,
+  outputs: Record<string, string | number>,
+): Promise<ReplayResult> {
+  if (!opts.escalate) return failure;
+
+  const raisedAt = new Date().toISOString();
+  const ctx: InterventionContext = {
+    runId: opts.runId,
+    capabilityId: opts.artifact.id,
+    kind: "replay_hard_failure",
+    reason: failure.reason,
+    currentUrl: opts.page.url(),
+    currentStepId: failure.stepId,
+    currentStepDescription: failure.stepDescription,
+  };
+  const escalationOutcome = await opts.escalate(ctx);
+  const intervention: HumanIntervention = {
+    raisedAt,
+    resolvedAt: new Date().toISOString(),
+    kind: "replay_hard_failure",
+    reason: failure.reason,
+    decision: escalationOutcome.decision,
+    actions: escalationOutcome.actions,
+  };
+
+  if (escalationOutcome.decision === "aborted") {
+    return { ...failure, humanIntervention: intervention };
+  }
+
+  const checkpointResult = await verifyCheckpoints(opts);
+  if (checkpointResult) {
+    return { ...checkpointResult, humanIntervention: intervention };
+  }
+  return {
+    status: "success",
+    outputs,
+    checkpointsPassed: opts.artifact.checkpoints.map((c) => c.description),
+    stepsExecuted: opts.artifact.steps.length,
+    humanIntervention: intervention,
+  };
+}
+
+function summarizeStepTarget(step: Step): string {
+  if (step.type === "navigate") return `navigate -> ${step.urlTemplate}`;
+  if ("locator" in step) {
+    const first = step.locator[0];
+    return first ? `${first.strategy} locator, ${step.locator.length} candidate(s)` : "(no locator)";
+  }
+  return "(no target)";
 }
 
 async function navigateToEntry(opts: ReplayOptions): Promise<void> {
@@ -330,7 +515,7 @@ async function checkKnownOutcomes(
   return { kind: "continue" };
 }
 
-async function verifyCheckpoints(opts: ReplayOptions): Promise<ReplayResult | null> {
+async function verifyCheckpoints(opts: ReplayOptions): Promise<ReplayHardFailure | null> {
   for (const checkpoint of opts.artifact.checkpoints) {
     try {
       await assertCondition(
@@ -393,10 +578,14 @@ function logFinalResult(opts: ReplayOptions, result: ReplayResult): void {
 
 function summarizeResult(result: ReplayResult): Record<string, unknown> {
   if (result.status === "success") {
-    return { stepsExecuted: result.stepsExecuted, outputNames: Object.keys(result.outputs) };
+    return {
+      stepsExecuted: result.stepsExecuted,
+      outputNames: Object.keys(result.outputs),
+      humanIntervened: result.humanIntervention !== undefined,
+    };
   }
   if (result.status === "business_outcome") {
     return { code: result.code, outcomeId: result.outcomeId };
   }
-  return { stepId: result.stepId, reason: result.reason };
+  return { stepId: result.stepId, reason: result.reason, humanIntervened: result.humanIntervention !== undefined };
 }

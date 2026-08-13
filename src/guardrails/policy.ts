@@ -1,8 +1,23 @@
 import type { GuardrailsConfig } from "./config.js";
 
+export type GuardrailViolationCode =
+  | "action_type_not_allowed"
+  | "irreversible_blocked"
+  | "origin_not_allowed"
+  | "route_not_allowed";
+
 export interface GuardrailDecision {
   allowed: boolean;
   reason?: string;
+  /**
+   * Present only when `allowed` is false. Lets a caller distinguish an
+   * allowlist violation (a hard boundary — see engine.ts's escalation
+   * wiring, which never offers human confirmation for these) from
+   * `irreversible_blocked` (the one violation kind that has a legitimate
+   * human-confirmation path, because that's specifically what the
+   * reversible/irreversible classification exists to gate).
+   */
+  code?: GuardrailViolationCode;
 }
 
 /**
@@ -28,7 +43,11 @@ export interface GuardrailContext {
 
 function checkActionType(step: StepLike, config: GuardrailsConfig): GuardrailDecision {
   if (!config.allowedActionTypes.includes(step.type)) {
-    return { allowed: false, reason: `Action type "${step.type}" is not in the allowed action types.` };
+    return {
+      allowed: false,
+      code: "action_type_not_allowed",
+      reason: `Action type "${step.type}" is not in the allowed action types.`,
+    };
   }
   return { allowed: true };
 }
@@ -47,6 +66,7 @@ function checkIrreversible(step: StepLike, config: GuardrailsConfig): GuardrailD
   if (step.irreversible && config.irreversibleActionPolicy === "block") {
     return {
       allowed: false,
+      code: "irreversible_blocked",
       reason: "Step is marked irreversible; current policy blocks irreversible actions from unattended execution.",
     };
   }
@@ -58,14 +78,22 @@ function checkUrl(url: string, config: GuardrailsConfig): GuardrailDecision {
   try {
     parsed = new URL(url);
   } catch {
-    return { allowed: false, reason: `Malformed URL: "${url}".` };
+    return { allowed: false, code: "origin_not_allowed", reason: `Malformed URL: "${url}".` };
   }
   if (!config.allowedOrigins.includes(parsed.origin)) {
-    return { allowed: false, reason: `Origin "${parsed.origin}" is not in the allowed origins.` };
+    return {
+      allowed: false,
+      code: "origin_not_allowed",
+      reason: `Origin "${parsed.origin}" is not in the allowed origins.`,
+    };
   }
   const routeOk = config.allowedRoutePatterns.some((pattern) => new RegExp(pattern).test(parsed.pathname));
   if (!routeOk) {
-    return { allowed: false, reason: `Route "${parsed.pathname}" does not match any allowed route pattern.` };
+    return {
+      allowed: false,
+      code: "route_not_allowed",
+      reason: `Route "${parsed.pathname}" does not match any allowed route pattern.`,
+    };
   }
   return { allowed: true };
 }

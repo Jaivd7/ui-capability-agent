@@ -4,9 +4,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseArtifact, type CapabilityArtifact } from "../artifact/index.js";
 import { readonlyCredentials, tellerCredentials } from "../shared/credentials.js";
 import { startAuthenticatedSession, type BrowserSession } from "../shared/session.js";
-import { createRunLogger } from "../logging/logger.js";
+import { createRunLogger, type LogEvent, type RunLogger } from "../logging/logger.js";
 import { setGuardrailsConfigForTest, type GuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
+import { createEscalationHandler } from "../escalation/operator-server.js";
 import { runReplay } from "./engine.js";
 
 /**
@@ -75,6 +76,7 @@ describe("replay engine (live, against the mock app)", () => {
         const artifact = loadArtifact("lookup-member-balance");
         const logger = createRunLogger("test-success", "/tmp/replay-engine-test");
         const result = await runReplay({
+          runId: `test-run-1`,
           artifact,
           params: { memberId: "1001" },
           page: session.page,
@@ -98,6 +100,7 @@ describe("replay engine (live, against the mock app)", () => {
         const artifact = loadArtifact("lookup-member-balance");
         const logger = createRunLogger("test-business", "/tmp/replay-engine-test");
         const result = await runReplay({
+          runId: `test-run-2`,
           artifact,
           params: { memberId: "99999999" },
           page: session.page,
@@ -139,6 +142,7 @@ describe("replay engine (live, against the mock app)", () => {
         };
         const logger = createRunLogger("test-hard-failure", "/tmp/replay-engine-test");
         const result = await runReplay({
+          runId: `test-run-4`,
           artifact: broken,
           params: { memberId: "1001" },
           page: session.page,
@@ -164,6 +168,7 @@ describe("replay engine (live, against the mock app)", () => {
         const artifact = loadArtifact("open-sub-account");
         const logger = createRunLogger("test-permission-denied", "/tmp/replay-engine-test");
         const result = await runReplay({
+          runId: `test-run-3`,
           artifact,
           params: { memberId: "1001", accountType: "Standard Savings", openingDeposit: "100" },
           page: session.page,
@@ -208,6 +213,7 @@ describe("replay engine (live, against the mock app)", () => {
         };
         const logger = createRunLogger("test-guardrail-irreversible", "/tmp/replay-engine-test");
         const result = await runReplay({
+          runId: `test-run-5`,
           artifact: artifactWithIrreversibleStep,
           params: { memberId: "1001" },
           page: session.page,
@@ -224,5 +230,189 @@ describe("replay engine (live, against the mock app)", () => {
       });
     },
     20_000,
+  );
+
+  /**
+   * Intercepts the `escalation_console_started` log event to learn the
+   * operator console's URL the moment it comes up, without runReplay ever
+   * returning it directly — matching how a real deployment would only
+   * surface the URL through logs/notifications, not a return value, since
+   * runReplay's promise doesn't resolve until *after* escalation ends.
+   */
+  function loggerCapturingConsoleUrl(runId: string): { logger: RunLogger; consoleUrl: Promise<string> } {
+    const base = createRunLogger(runId, "/tmp/replay-engine-test");
+    let resolveUrl!: (url: string) => void;
+    const consoleUrl = new Promise<string>((resolve) => {
+      resolveUrl = resolve;
+    });
+    const logger: RunLogger = {
+      filePath: base.filePath,
+      log: (event: LogEvent) => {
+        base.log(event);
+        if (event.type === "escalation_console_started") resolveUrl(event.consoleUrl as string);
+      },
+    };
+    return { logger, consoleUrl };
+  }
+
+  it(
+    "escalation: a human approves the irreversible step through the real operator console, and the run completes",
+    async () => {
+      await withSession(async (session) => {
+        const artifact = loadArtifact("lookup-member-balance");
+        const dangerousStepId = artifact.steps[1]!.id; // the "Search" click
+        const artifactWithIrreversibleStep: CapabilityArtifact = {
+          ...artifact,
+          steps: artifact.steps.map((s) => (s.id === dangerousStepId ? { ...s, irreversible: true } : s)),
+        };
+        const testGuardrailsConfig: GuardrailsConfig = {
+          allowedOrigins: [BASE_URL],
+          allowedRoutePatterns: ["^/(login|logout|members(/.*)?|dev/expire-session)$"],
+          allowedActionTypes: ["navigate", "click", "fill", "select", "check", "waitFor", "extract"],
+          irreversibleActionPolicy: "block",
+        };
+        setGuardrailsConfigForTest(testGuardrailsConfig);
+
+        const { logger, consoleUrl } = loggerCapturingConsoleUrl("test-escalation-approve");
+        const resultPromise = runReplay({
+          runId: "test-escalation-approve",
+          artifact: artifactWithIrreversibleStep,
+          params: { memberId: "1001" },
+          page: session.page,
+          dialogEvents: session.dialogEvents,
+          logger,
+          guardrail: (step, ctx) => evaluateGuardrails(step, ctx, testGuardrailsConfig),
+          escalate: createEscalationHandler(session.page, logger, "/tmp/replay-engine-test"),
+        });
+
+        // Act as the human operator would: load the console, then approve —
+        // real HTTP calls against the real server the automation opened,
+        // driving the *same* live page the automation was paused on.
+        const url = await consoleUrl;
+        const consoleHtml = await (await fetch(url)).text();
+        expect(consoleHtml).toContain("Approve");
+        expect(consoleHtml).toContain(dangerousStepId);
+
+        const approveRes = await fetch(new URL("/approve", url), { method: "POST" });
+        expect(approveRes.ok).toBe(true);
+
+        const result = await resultPromise;
+        expect(result.status).toBe("success");
+        if (result.status === "success") {
+          expect(result.humanIntervention?.decision).toBe("resumed");
+          expect(result.humanIntervention?.actions.some((a) => a.type === "approve_step")).toBe(true);
+        }
+      });
+    },
+    20_000,
+  );
+
+  it(
+    "escalation: a human rejects the irreversible step, and the run ends as a hard failure with the rejection recorded",
+    async () => {
+      await withSession(async (session) => {
+        const artifact = loadArtifact("lookup-member-balance");
+        const dangerousStepId = artifact.steps[1]!.id;
+        const artifactWithIrreversibleStep: CapabilityArtifact = {
+          ...artifact,
+          steps: artifact.steps.map((s) => (s.id === dangerousStepId ? { ...s, irreversible: true } : s)),
+        };
+        const testGuardrailsConfig: GuardrailsConfig = {
+          allowedOrigins: [BASE_URL],
+          allowedRoutePatterns: ["^/(login|logout|members(/.*)?|dev/expire-session)$"],
+          allowedActionTypes: ["navigate", "click", "fill", "select", "check", "waitFor", "extract"],
+          irreversibleActionPolicy: "block",
+        };
+        setGuardrailsConfigForTest(testGuardrailsConfig);
+
+        const { logger, consoleUrl } = loggerCapturingConsoleUrl("test-escalation-reject");
+        const resultPromise = runReplay({
+          runId: "test-escalation-reject",
+          artifact: artifactWithIrreversibleStep,
+          params: { memberId: "1001" },
+          page: session.page,
+          dialogEvents: session.dialogEvents,
+          logger,
+          guardrail: (step, ctx) => evaluateGuardrails(step, ctx, testGuardrailsConfig),
+          escalate: createEscalationHandler(session.page, logger, "/tmp/replay-engine-test"),
+        });
+
+        const url = await consoleUrl;
+        const rejectRes = await fetch(new URL("/reject", url), { method: "POST" });
+        expect(rejectRes.ok).toBe(true);
+
+        const result = await resultPromise;
+        expect(result.status).toBe("hard_failure");
+        if (result.status === "hard_failure") {
+          expect(result.reason).toMatch(/rejected by operator/i);
+          expect(result.humanIntervention?.decision).toBe("aborted");
+          expect(result.humanIntervention?.actions.some((a) => a.type === "reject")).toBe(true);
+        }
+      });
+    },
+    20_000,
+  );
+
+  it(
+    "escalation: a stuck replay (unrecognized hard failure) is recovered by a human's manual action, then resumes to success",
+    async () => {
+      // Different trigger from the irreversible-confirmation tests above:
+      // this is the "replay hits a condition it can't recover from" case
+      // (brief §3.6), not a guardrail block. Breaks the sub-account flow's
+      // final "Continue" click so automation hard-fails one step short of
+      // the checkpoint, then has the "operator" perform that one click
+      // manually through the console's generic action form (not the
+      // approve/reject confirmation UI) and signal resume.
+      await withSession(async (session) => {
+        const artifact = loadArtifact("open-sub-account");
+        const continueStepId = artifact.steps[artifact.steps.length - 1]!.id;
+        const brokenArtifact: CapabilityArtifact = {
+          ...artifact,
+          steps: artifact.steps.map((s) =>
+            s.id === continueStepId && s.type === "click"
+              ? {
+                  ...s,
+                  locator: [
+                    { strategy: "css", selector: "#doesNotExist", reason: "deliberately broken for this test" },
+                  ],
+                }
+              : s,
+          ),
+        };
+
+        const { logger, consoleUrl } = loggerCapturingConsoleUrl("test-escalation-manual-recovery");
+        const resultPromise = runReplay({
+          runId: "test-escalation-manual-recovery",
+          artifact: brokenArtifact,
+          params: { memberId: "1001", accountType: "Standard Savings", openingDeposit: "100" },
+          page: session.page,
+          dialogEvents: session.dialogEvents,
+          logger,
+          escalate: createEscalationHandler(session.page, logger, "/tmp/replay-engine-test"),
+        });
+
+        const url = await consoleUrl;
+        const consoleHtml = await (await fetch(url)).text();
+        expect(consoleHtml).toContain("Manual action");
+
+        const clickRes = await fetch(new URL("/action", url), {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ type: "click", target: "#continueBtn" }),
+        });
+        expect(clickRes.ok).toBe(true);
+
+        const resumeRes = await fetch(new URL("/resume", url), { method: "POST" });
+        expect(resumeRes.ok).toBe(true);
+
+        const result = await resultPromise;
+        expect(result.status).toBe("success");
+        if (result.status === "success") {
+          expect(result.humanIntervention?.decision).toBe("resumed");
+          expect(result.humanIntervention?.actions.map((a) => a.type)).toEqual(["click", "resume"]);
+        }
+      });
+    },
+    45_000,
   );
 });
