@@ -1,0 +1,6 @@
+{
+  "allowedOrigins": ["http://localhost:4000"],
+  "allowedRoutePatterns": ["^/(login|logout|members(/.*)?|dev/expire-session)$"],
+  "allowedActionTypes": ["navigate", "click", "fill", "select", "check", "waitFor", "extract"],
+  "irreversibleActionPolicy": "block"
+}

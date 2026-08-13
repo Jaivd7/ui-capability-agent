@@ -4,6 +4,8 @@ import type { CheckpointCondition, OutputField, Step } from "../artifact/schema.
 import { assertCondition } from "../shared/assert.js";
 import { extractValue } from "../shared/extract.js";
 import { describeCandidate, LocatorResolutionError, resolveLocator } from "../shared/locator.js";
+import { loadGuardrailsConfig } from "../guardrails/config.js";
+import { evaluateGuardrails } from "../guardrails/policy.js";
 import { redactTranscriptText, redactValue } from "../guardrails/redact.js";
 import type { LogEvent, RunLogger } from "../logging/logger.js";
 import type { DialogEvent } from "../shared/session.js";
@@ -218,6 +220,20 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
     return { outcome, reason, steps, checkpoints, outputs, transcript: messages, model };
   }
 
+  // Discovery's tool names don't all match the artifact's step-type
+  // vocabulary 1:1 (select_option/wait_for vs. select/waitFor) — the
+  // allowlist config is keyed on the artifact vocabulary since that's what
+  // replay also uses, so this maps a proposed tool call onto the same
+  // names before checking it against the same policy replay enforces.
+  const TOOL_NAME_TO_STEP_TYPE: Record<string, string> = {
+    navigate: "navigate",
+    click: "click",
+    fill: "fill",
+    select_option: "select",
+    wait_for: "waitFor",
+    extract: "extract",
+  };
+
   async function executeTool(
     o: RunDiscoveryOptions,
     name: string,
@@ -231,6 +247,21 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
     finished?: { outcome: DiscoveryOutcome; reason: string };
   }> {
     try {
+      const stepType = TOOL_NAME_TO_STEP_TYPE[name];
+      if (stepType) {
+        const currentUrl = o.page.url();
+        const targetUrl = stepType === "navigate" ? guessNavigateTargetUrl(rawInput, currentUrl) : undefined;
+        const guardDecision = evaluateGuardrails(
+          { type: stepType, irreversible: false },
+          { currentUrl, ...(targetUrl !== undefined ? { targetUrl } : {}) },
+          loadGuardrailsConfig(),
+        );
+        if (!guardDecision.allowed) {
+          const reason = `Blocked by guardrail: ${guardDecision.reason ?? "not permitted"}.`;
+          logger.log({ type: "guardrail_blocked", tool: name, reason });
+          return { ok: false, resultText: reason, logDetail: reason };
+        }
+      }
       switch (name) {
         case "navigate": {
           const input = NavigateInputSchema.parse(rawInput);
@@ -407,6 +438,25 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
   }
 }
 
+
+/**
+ * Best-effort peek at a not-yet-validated navigate tool call's target URL,
+ * purely so the guardrail check can run *before* the full zod parse that
+ * happens inside the switch below. If the input is malformed in a way that
+ * defeats this, the guardrail check simply has no targetUrl to evaluate
+ * (falls through on the currentUrl check alone) and the real schema
+ * validation a few lines later reports the malformed input properly.
+ */
+function guessNavigateTargetUrl(rawInput: unknown, currentUrl: string): string | undefined {
+  if (typeof rawInput !== "object" || rawInput === null) return undefined;
+  const url = (rawInput as { url?: unknown }).url;
+  if (typeof url !== "string") return undefined;
+  try {
+    return new URL(url, currentUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
 
 function redactToolInputForLog(toolName: string, input: unknown): unknown {
   if (toolName !== "fill" || typeof input !== "object" || input === null) return input;

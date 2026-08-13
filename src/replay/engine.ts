@@ -5,6 +5,7 @@ import { extractValue } from "../shared/extract.js";
 import { LocatorResolutionError, resolveLocator } from "../shared/locator.js";
 import type { DialogEvent } from "../shared/session.js";
 import { redactValue } from "../guardrails/redact.js";
+import type { GuardrailContext, GuardrailDecision } from "../guardrails/policy.js";
 import type { RunLogger } from "../logging/logger.js";
 import { getRecoveryAction } from "./app-config.js";
 import type { ReplayResult } from "./result.js";
@@ -29,13 +30,8 @@ type StepOutcome =
   | { kind: "restart_flow" }
   | { kind: "resolved"; result: ReplayResult };
 
-export interface GuardrailDecision {
-  allowed: boolean;
-  reason?: string;
-}
-
-/** Extension point Phase 4 populates — checked before every step executes. */
-export type GuardrailHook = (step: Step, params: Record<string, ParamValue>) => GuardrailDecision;
+/** Checked before every step executes — see src/guardrails/policy.ts for the concrete policy. */
+export type GuardrailHook = (step: Step, ctx: GuardrailContext) => GuardrailDecision;
 
 export interface ReplayOptions {
   artifact: CapabilityArtifact;
@@ -74,7 +70,14 @@ export async function runReplay(opts: ReplayOptions): Promise<ReplayResult> {
 
     let needsFlowRestart = false;
     for (const step of opts.artifact.steps) {
-      const guardDecision = opts.guardrail?.(step, opts.params);
+      const guardCtx: GuardrailContext = { currentUrl: opts.page.url() };
+      if (step.type === "navigate") {
+        guardCtx.targetUrl = new URL(
+          substituteUrlTemplate(step.urlTemplate, opts.params),
+          opts.artifact.target.baseUrl,
+        ).toString();
+      }
+      const guardDecision = opts.guardrail?.(step, guardCtx);
       if (guardDecision && !guardDecision.allowed) {
         const result: ReplayResult = {
           status: "hard_failure",

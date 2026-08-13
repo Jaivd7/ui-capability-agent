@@ -5,6 +5,8 @@ import { parseArtifact } from "../artifact/index.js";
 import { readonlyCredentials, tellerCredentials } from "../shared/credentials.js";
 import { startAuthenticatedSession } from "../shared/session.js";
 import { createRunLogger } from "../logging/logger.js";
+import { loadGuardrailsConfig } from "../guardrails/config.js";
+import { evaluateGuardrails } from "../guardrails/policy.js";
 import { runReplay, type ParamValue } from "./engine.js";
 
 interface Args {
@@ -78,12 +80,14 @@ async function main() {
   const session = await startAuthenticatedSession(artifact.target.baseUrl, credentials);
 
   try {
+    const guardrailsConfig = loadGuardrailsConfig();
     const result = await runReplay({
       artifact,
       params,
       page: session.page,
       dialogEvents: session.dialogEvents,
       logger,
+      guardrail: (step, ctx) => evaluateGuardrails(step, ctx, guardrailsConfig),
     });
 
     writeFileSync(join(evidenceOutDir, `${runId}.result.json`), JSON.stringify(result, null, 2));
