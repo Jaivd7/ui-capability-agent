@@ -1,0 +1,7 @@
+{
+  "status": "hard_failure",
+  "stepId": "step-2",
+  "stepDescription": "Search button",
+  "reason": "Step execution failed and no known outcome matched the resulting state.",
+  "observed": "Could not resolve any locator candidate. Tried 1 candidate(s):\n  [0] role(button, name=\"ThisButtonDoesNotExist\") -> locator.waitFor: Timeout 10000ms exceeded."
+}

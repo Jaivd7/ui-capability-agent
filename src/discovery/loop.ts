@@ -1,16 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Page } from "playwright";
-import type {
-  CheckpointCondition,
-  FrameLocator as ArtifactFrameLocator,
-  OutputField,
-  Step,
-} from "../artifact/schema.js";
+import type { CheckpointCondition, OutputField, Step } from "../artifact/schema.js";
+import { assertCondition } from "../shared/assert.js";
 import { extractValue } from "../shared/extract.js";
 import { describeCandidate, LocatorResolutionError, resolveLocator } from "../shared/locator.js";
 import { redactTranscriptText, redactValue } from "../guardrails/redact.js";
 import type { LogEvent, RunLogger } from "../logging/logger.js";
-import type { DialogEvent } from "./browser-session.js";
+import type { DialogEvent } from "../shared/session.js";
 import { observe, renderObservation } from "./observe.js";
 import {
   ClickInputSchema,
@@ -307,7 +303,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
         }
         case "wait_for": {
           const input = WaitForInputSchema.parse(rawInput);
-          await assertCondition(o.page, input.frame, input.locator, input.assertion, input.expected, input.attributeName);
+          await assertCondition(o.page, input.frame, input.locator, input.assertion, input.expected, input.attributeName, ACTION_TIMEOUT_MS);
           stepsAcc.push({
             id: nextStepId(),
             description: input.description,
@@ -374,7 +370,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
           }
           if (input.checkpoints.length > 0) {
             for (const cp of input.checkpoints) {
-              await assertCondition(o.page, cp.frame, cp.locator, cp.assertion, cp.expected, cp.attributeName);
+              await assertCondition(o.page, cp.frame, cp.locator, cp.assertion, cp.expected, cp.attributeName, ACTION_TIMEOUT_MS);
             }
             lastCheckpoints = input.checkpoints;
           }
@@ -411,48 +407,6 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
   }
 }
 
-async function assertCondition(
-  page: Page,
-  frame: ArtifactFrameLocator[],
-  locator: Parameters<typeof resolveLocator>[2],
-  assertion: string,
-  expected: string | undefined,
-  attributeName: string | undefined,
-): Promise<void> {
-  if (assertion === "notExists") {
-    const resolvedOrNull = await resolveLocator(page, frame, locator, { timeoutMs: ACTION_TIMEOUT_MS }).catch(
-      () => null,
-    );
-    if (resolvedOrNull) throw new Error("Expected element to not exist, but it was found.");
-    return;
-  }
-  const resolved = await resolveLocator(page, frame, locator, { timeoutMs: ACTION_TIMEOUT_MS });
-  switch (assertion) {
-    case "exists":
-      return;
-    case "textEquals": {
-      const text = (await resolved.locator.innerText()).trim();
-      if (text !== expected) throw new Error(`Expected text "${expected}", got "${text}".`);
-      return;
-    }
-    case "textContains": {
-      const text = (await resolved.locator.innerText()).trim();
-      if (!expected || !text.includes(expected)) throw new Error(`Expected text to contain "${expected}", got "${text}".`);
-      return;
-    }
-    case "urlMatches": {
-      const url = page.url();
-      if (!expected || !new RegExp(expected).test(url)) throw new Error(`Expected URL to match "${expected}", got "${url}".`);
-      return;
-    }
-    case "attributeEquals": {
-      if (!attributeName) throw new Error("attributeEquals requires attributeName.");
-      const value = await resolved.locator.getAttribute(attributeName);
-      if (value !== expected) throw new Error(`Expected attribute "${attributeName}" to equal "${expected}", got "${value}".`);
-      return;
-    }
-  }
-}
 
 function redactToolInputForLog(toolName: string, input: unknown): unknown {
   if (toolName !== "fill" || typeof input !== "object" || input === null) return input;

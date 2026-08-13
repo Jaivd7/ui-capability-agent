@@ -4,10 +4,10 @@ import { join } from "node:path";
 import type { CapabilityArtifact } from "../artifact/schema.js";
 import { redactTranscriptText } from "../guardrails/redact.js";
 import { createRunLogger } from "../logging/logger.js";
+import { startAuthenticatedSession } from "../shared/session.js";
+import { readonlyCredentials, tellerCredentials } from "../shared/credentials.js";
 import { buildArtifact } from "./build-artifact.js";
-import { startAuthenticatedSession } from "./browser-session.js";
 import { CAPABILITY_PRESETS, resolveTarget } from "./capability-presets.js";
-import { readonlyCredentials, tellerCredentials } from "./credentials.js";
 import { runDiscovery } from "./loop.js";
 
 function parseArgs(argv: string[]): { capability: string; role: "teller" | "readonly" } {

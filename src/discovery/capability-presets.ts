@@ -157,6 +157,17 @@ export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
         },
       },
       {
+        // Two locator candidates, not one: the mock app gates this two
+        // ways. The member-detail page never renders the "Open Sub-Account"
+        // link for a non-teller session (so a replaying flow hits this
+        // first, at the step that would click that link), and the
+        // /sub-account/new route itself also denies non-teller sessions
+        // directly. Found by testing a readonly-role replay and watching it
+        // hard-fail at the link-click step instead of reaching the route-
+        // level text — see LEARNING_NOTES.md's Phase 3 entry. Both
+        // candidates are checked in order; either is conclusive evidence of
+        // the same underlying condition, so this reuses the locator chain's
+        // ordinary fallback mechanism as an OR across detection signals.
         id: "permission-denied",
         description: "The authenticated session does not have the teller role required to open a sub-account.",
         classification: "business",
@@ -165,9 +176,15 @@ export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
           locator: [
             {
               strategy: "text",
+              text: "Sub-account actions require teller role.",
+              exact: false,
+              reason: "UI-level signal: replaces the Open Sub-Account link on the member detail page for non-teller sessions.",
+            },
+            {
+              strategy: "text",
               text: "Permission denied: your role does not permit this action.",
               exact: false,
-              reason: "Exact banner text rendered by the role-gated sub-account route for non-teller sessions.",
+              reason: "Route-level signal: exact banner text rendered by the role-gated sub-account route for a session that reached it directly.",
             },
           ],
         },

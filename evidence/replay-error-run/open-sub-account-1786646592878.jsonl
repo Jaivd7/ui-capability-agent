@@ -1,0 +1,6 @@
+{"timestamp":"2026-08-13T18:43:13.505Z","type":"run_start","kind":"replay","capabilityId":"open-sub-account","capabilityVersion":1,"params":{"memberId":1001,"accountType":"Standard Savings","openingDeposit":100}}
+{"timestamp":"2026-08-13T18:43:13.523Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-13T18:43:16.562Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-13T18:43:19.617Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-13T18:43:21.627Z","type":"known_outcome","outcomeId":"permission-denied","classification":"business"}
+{"timestamp":"2026-08-13T18:43:21.628Z","type":"run_end","status":"business_outcome","code":"PERMISSION_DENIED","outcomeId":"permission-denied"}

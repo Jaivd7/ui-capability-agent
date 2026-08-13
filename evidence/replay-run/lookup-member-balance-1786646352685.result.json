@@ -1,0 +1,11 @@
+{
+  "status": "success",
+  "outputs": {
+    "savingsBalance": 3482.1
+  },
+  "checkpointsPassed": [
+    "Member detail page shows correct member name",
+    "Account Details iframe shows Savings Balance row"
+  ],
+  "stepsExecuted": 4
+}

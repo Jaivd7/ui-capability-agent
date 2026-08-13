@@ -4,7 +4,7 @@
   "name": "Open new sub-account and reach confirmation",
   "description": "Searches for a member, opens a new sub-account of the given type and opening deposit, and stops at the confirmation screen without submitting.",
   "version": 1,
-  "contentHash": "d997971c7e431a67815aaf66c183e5a6cdbcd2656e09bd5c0b8ba9f9913e60c9",
+  "contentHash": "fc1c688c3bcc73116740cd1890675b781d84b0c52e70ab26ddb81b57fcc72424",
   "createdAt": "2026-08-13T18:28:39.384Z",
   "discovery": {
     "model": "claude-sonnet-5",
@@ -270,15 +270,21 @@
     },
     {
       "id": "permission-denied",
-      "description": "The authenticated session does not have the teller role required to open a sub-account.",
+      "description": "The authenticated session does not have the teller role required to open a sub-account. Manifests two ways depending on how far the flow got: the member-detail page never renders the \"Open Sub-Account\" link for a non-teller session (caught first, since step-4 tries to click that link), or -- if the route were reached directly -- the server-side route handler denies it explicitly. Both candidates are checked, first match wins, since either is conclusive evidence of the same underlying condition.",
       "detect": {
         "frame": [],
         "locator": [
           {
             "strategy": "text",
+            "text": "Sub-account actions require teller role.",
+            "exact": false,
+            "reason": "UI-level signal: this replaces the Open Sub-Account link on the member detail page for non-teller sessions, so it's what a replay actually hits first -- found by testing a readonly-role replay and seeing it hard-fail at step-4 instead of hitting the route-level denial text below."
+          },
+          {
+            "strategy": "text",
             "text": "Permission denied: your role does not permit this action.",
             "exact": false,
-            "reason": "Exact banner text rendered by the role-gated sub-account route for non-teller sessions."
+            "reason": "Route-level signal: exact banner text rendered by the role-gated sub-account route itself, for a session that reached it directly (e.g. a capability whose flow starts past the member-detail page)."
           }
         ]
       },

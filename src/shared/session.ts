@@ -1,12 +1,9 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
-import { installDialogAutoAccept } from "../shared/dialogs.js";
 import type { MockCredentials } from "./credentials.js";
+import { type DialogEvent, installDialogAutoAccept } from "./dialogs.js";
+import { performLogin } from "./login.js";
 
-export interface DialogEvent {
-  type: string;
-  message: string;
-  accepted: boolean;
-}
+export type { DialogEvent } from "./dialogs.js";
 
 export interface BrowserSession {
   browser: Browser;
@@ -20,7 +17,9 @@ export interface BrowserSession {
  * Launches a browser and logs in via direct Playwright calls — never via
  * the LLM. See credentials.ts for why: this keeps auth structurally out of
  * both the model's context and the recorded artifact, rather than relying
- * on a redaction pass to scrub it after the fact.
+ * on a redaction pass to scrub it after the fact. Used to bootstrap both a
+ * discovery run and a replay run — both start from the same authenticated
+ * baseline, never as artifact-recorded steps.
  */
 export async function startAuthenticatedSession(
   baseUrl: string,
@@ -34,11 +33,7 @@ export async function startAuthenticatedSession(
   const dialogEvents: DialogEvent[] = [];
   installDialogAutoAccept(page, (info) => dialogEvents.push(info));
 
-  await page.goto(`${baseUrl}/login`);
-  await page.getByLabel("Username").fill(credentials.username);
-  await page.getByLabel("Password").fill(credentials.password);
-  await page.getByRole("button", { name: "Sign In" }).click();
-  await page.waitForURL(/\/members/, { timeout: 10_000 });
+  await performLogin(page, baseUrl, credentials);
 
   return {
     browser,

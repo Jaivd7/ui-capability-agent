@@ -1,5 +1,11 @@
 import type { Page } from "playwright";
 
+export interface DialogEvent {
+  type: string;
+  message: string;
+  accepted: boolean;
+}
+
 /**
  * Native browser dialogs (window.confirm/alert/prompt) are a page-level
  * event, not a DOM element — they don't fit the artifact's knownOutcomes
@@ -17,10 +23,7 @@ import type { Page } from "playwright";
  * model pushes to irreversible-step gating (Phase 4), not to dialog
  * handling — blocking on an OK/Cancel dialog isn't a substitute for that.
  */
-export function installDialogAutoAccept(
-  page: Page,
-  onDialog: (info: { type: string; message: string; accepted: boolean }) => void,
-): void {
+export function installDialogAutoAccept(page: Page, onDialog: (info: DialogEvent) => void): void {
   page.on("dialog", (dialog) => {
     const info = { type: dialog.type(), message: dialog.message(), accepted: true };
     onDialog(info);
