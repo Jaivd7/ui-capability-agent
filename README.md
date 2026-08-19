@@ -1,5 +1,6 @@
 # ui-capability-agent
 
+
 A computer-use automation system for banks/credit unions with no APIs: an LLM
 drives a real UI once to discover a task ("goal → discovery"), the successful
 run is compiled into a typed, versioned, replayable **capability artifact**,
