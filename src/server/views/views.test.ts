@@ -558,6 +558,50 @@ describe("runDetailPage", () => {
     expect(html).toContain("bg-amber-50");
   });
 
+  it("drops the banner once nobody is waiting, whatever escalationPending still holds", () => {
+    // escalationPending is never cleared -- it is the record of what was asked
+    // for. Rendering its call to action against a finished run invites an
+    // operator to take control of a session that no longer exists.
+    const resolved = runRecord({
+      status: "succeeded",
+      escalated: true,
+      escalationPending: {
+        kind: "replay_hard_failure",
+        reason: "Confirm button never appeared",
+        raisedAt: "2026-08-20T10:00:06.000Z",
+        consoleUrl: "/runs/lookup-member-balance-1787246804295/escalation",
+      },
+      humanIntervention: {
+        raisedAt: "2026-08-20T10:00:06.000Z",
+        resolvedAt: "2026-08-20T10:00:20.000Z",
+        kind: "replay_hard_failure",
+        reason: "Confirm button never appeared",
+        decision: "resumed",
+        actions: [],
+      },
+    });
+
+    const html = runDetailPage(resolved, EVENTS, { evidence: [], live: false });
+
+    expect(html).not.toContain("waiting for you");
+    expect(html).not.toContain("Take control");
+    // The history is still on the page, in the section that reports outcomes.
+    expect(html).toContain("Human intervention");
+    expect(html).toContain("Confirm button never appeared");
+  });
+
+  it("gives the live view the full content width rather than the sidebar", () => {
+    // A 1280px capture rendered in a third-width column is unreadable, and
+    // reading it is the entire point while a run is in flight.
+    const html = runDetailPage(runRecord({ status: "running", result: undefined }), EVENTS, {
+      evidence: [],
+      live: true,
+    });
+
+    expect(html).toContain('id="live-screenshot"');
+    expect(html.indexOf('id="live-screenshot"')).toBeLessThan(html.indexOf("lg:grid-cols-3"));
+  });
+
   it("lists human actions and strikes blocked ones through in red", () => {
     const html = runDetailPage(
       runRecord({

@@ -37,6 +37,7 @@ export function runDetailPage(record: RunRecord, events: RunEvent[], opts: RunDe
 
   return `${header(record)}
   ${escalationBanner(record)}
+  ${live ? liveScreenshot(record) : ""}
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
     <div class="space-y-6 lg:col-span-2">
       ${resultSection(record)}
@@ -49,7 +50,6 @@ export function runDetailPage(record: RunRecord, events: RunEvent[], opts: RunDe
     </div>
     <div class="space-y-6">
       ${inputsCard(record)}
-      ${live ? liveScreenshot(record) : ""}
       ${evidenceCard(record, opts.evidence)}
     </div>
   </div>`;
@@ -103,9 +103,19 @@ function header(record: RunRecord): string {
   </div>`;
 }
 
+/**
+ * Only while someone is actually waiting.
+ *
+ * `escalationPending` is deliberately never cleared — it is the record of what
+ * was asked for, and the run detail page's "Human intervention" card reports
+ * what came of it. But `status` is the authority on whether anyone is still
+ * waiting, and rendering a "this run is paused and waiting for you" call to
+ * action against a run that finished ten minutes ago invites an operator to
+ * take control of a session that no longer exists.
+ */
 function escalationBanner(record: RunRecord): string {
   const esc = record.escalationPending;
-  if (!esc) return "";
+  if (!esc || record.status !== "escalation_pending") return "";
   const href = esc.consoleUrl || `/runs/${escapeUrl(record.runId)}/escalation`;
   return `<div class="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4">
     <div class="flex flex-wrap items-start gap-4">
@@ -445,12 +455,24 @@ function boolField(event: RunEvent, key: string): boolean {
 // Live screenshot
 // ---------------------------------------------------------------------------
 
+/**
+ * Full content width, above the two-column grid.
+ *
+ * It used to sit in the right-hand sidebar, which is a third of the page: a
+ * 1280px-wide capture rendered at ~300px, where the point of it is reading a
+ * banking screen someone is watching over your shoulder. The page is a
+ * six-column max width, so out here it renders close to native size.
+ */
 function liveScreenshot(record: RunRecord): string {
   return card(
     "Live view",
-    `<img id="live-screenshot" src="/runs/${escapeUrl(record.runId)}/screenshot" alt="Live screenshot of the browser session"
-       class="w-full rounded-lg border border-slate-200 bg-slate-100">
-     <p class="mt-2 text-xs text-slate-400">Refreshed while the run is in flight.</p>`,
+    `<a href="/runs/${escapeUrl(record.runId)}/screenshot" target="_blank" rel="noreferrer noopener"
+        title="Open this frame full size in a new tab">
+       <img id="live-screenshot" src="/runs/${escapeUrl(record.runId)}/screenshot"
+         alt="Live screenshot of the browser session"
+         class="w-full rounded-lg border border-slate-200 bg-slate-100">
+     </a>
+     <p class="mt-2 text-xs text-slate-400">The browser this run is driving, refreshed while it is in flight. Click to open a frame full size.</p>`,
   );
 }
 
