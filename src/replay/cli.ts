@@ -2,6 +2,7 @@ import "dotenv/config";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArtifact } from "../artifact/index.js";
+import { computeContentHash } from "../artifact/hash.js";
 import { readonlyCredentials, tellerCredentials } from "../shared/credentials.js";
 import { startAuthenticatedSession } from "../shared/session.js";
 import { createRunLogger } from "../logging/logger.js";
@@ -22,6 +23,7 @@ interface Args {
   rawParams: Record<string, string>;
   evidenceDir: string;
   escalate: boolean;
+  allowHashMismatch: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -29,7 +31,7 @@ function parseArgs(argv: string[]): Args {
   const capability = capIdx !== -1 ? argv[capIdx + 1] : undefined;
   if (!capability) {
     console.error(
-      "Usage: npm run replay -- --capability <id> [--param name=value ...] [--role teller|readonly] [--evidence-dir replay-run] [--escalate]",
+      "Usage: npm run replay -- --capability <id> [--param name=value ...] [--role teller|readonly] [--evidence-dir replay-run] [--escalate] [--allow-hash-mismatch]",
     );
     process.exit(1);
   }
@@ -38,6 +40,7 @@ function parseArgs(argv: string[]): Args {
   const evidenceDirIdx = argv.indexOf("--evidence-dir");
   const evidenceDir = evidenceDirIdx !== -1 ? argv[evidenceDirIdx + 1]! : "replay-run";
   const escalate = argv.includes("--escalate");
+  const allowHashMismatch = argv.includes("--allow-hash-mismatch");
 
   const rawParams: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -51,7 +54,7 @@ function parseArgs(argv: string[]): Args {
     rawParams[pair.slice(0, eq)] = pair.slice(eq + 1);
   }
 
-  return { capability, role, rawParams, evidenceDir, escalate };
+  return { capability, role, rawParams, evidenceDir, escalate, allowHashMismatch };
 }
 
 /**
@@ -108,7 +111,9 @@ function coerceOne(name: string, text: string, type: ParamType): ParamValue {
 }
 
 async function main() {
-  const { capability, role, rawParams, evidenceDir, escalate } = parseArgs(process.argv.slice(2));
+  const { capability, role, rawParams, evidenceDir, escalate, allowHashMismatch } = parseArgs(
+    process.argv.slice(2),
+  );
 
   const artifactPath = join(process.cwd(), "capabilities", `${capability}.json`);
   if (!existsSync(artifactPath)) {
@@ -122,6 +127,24 @@ async function main() {
     process.exit(1);
   }
   const artifact = parsed.artifact;
+
+  // contentHash is documented as the drift-detection signal, but nothing ever
+  // recomputed it — an artifact hand-edited after recording replayed happily
+  // with a stale fingerprint, which made the field decorative. Checking it at
+  // load is what turns it into an actual integrity guarantee.
+  const actualHash = computeContentHash(artifact);
+  if (actualHash !== artifact.contentHash) {
+    const detail =
+      `Artifact contentHash does not match its content.\n` +
+      `  recorded: ${artifact.contentHash}\n` +
+      `  actual:   ${actualHash}\n` +
+      `This means the artifact was edited after it was recorded, or was produced by a different compiler.`;
+    if (!allowHashMismatch) {
+      console.error(`${detail}\nRe-record it, or pass --allow-hash-mismatch if the edit was deliberate.`);
+      process.exit(1);
+    }
+    console.warn(`Warning: ${detail}\nContinuing because --allow-hash-mismatch was passed.`);
+  }
 
   const params = coerceParams(artifact, rawParams);
 

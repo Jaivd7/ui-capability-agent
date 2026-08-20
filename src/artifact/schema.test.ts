@@ -84,6 +84,50 @@ describe("CapabilityArtifactSchema", () => {
     expect(computeContentHash(a)).toBe(computeContentHash(b));
   });
 
+  it("computeContentHash ignores a locator's reason", () => {
+    // `reason` is prose for a human reviewer. A re-recording that words it
+    // differently is a byte-identical automaton, and reporting that as drift
+    // is the fastest way to teach people to ignore the drift signal.
+    const a = baseArtifact();
+    const b = baseArtifact();
+    b.steps[0]!.locator[0]!.reason = "a completely different explanation of the same locator";
+    expect(computeContentHash(a)).toBe(computeContentHash(b));
+  });
+
+  it("computeContentHash ignores descriptions", () => {
+    const a = baseArtifact();
+    const b = baseArtifact();
+    b.steps[0]!.description = "Reworded step description";
+    b.checkpoints[0]!.description = "Reworded checkpoint description";
+    expect(computeContentHash(a)).toBe(computeContentHash(b));
+  });
+
+  it("computeContentHash changes when requiredRole changes", () => {
+    // Previously invisible: preconditions were excluded entirely, so a
+    // security-relevant edit produced an identical fingerprint.
+    const a = baseArtifact();
+    const b = baseArtifact();
+    b.preconditions = { ...b.preconditions, requiredRole: "admin" };
+    expect(computeContentHash(a)).not.toBe(computeContentHash(b));
+  });
+
+  it("computeContentHash changes when startRoute changes", () => {
+    const a = baseArtifact();
+    const b = baseArtifact();
+    b.preconditions = { ...b.preconditions, startRoute: "/somewhere-else" };
+    expect(computeContentHash(a)).not.toBe(computeContentHash(b));
+  });
+
+  it("computeContentHash still tracks a business outcome's caller-facing message", () => {
+    // `message` is contract, not commentary — unlike `description`.
+    const a = baseArtifact();
+    const b = baseArtifact();
+    const outcome = b.knownOutcomes[0]!;
+    if (outcome.classification !== "business") throw new Error("fixture changed");
+    outcome.outcome.message = "A different message the caller would see";
+    expect(computeContentHash(a)).not.toBe(computeContentHash(b));
+  });
+
   it("computeContentHash changes when a step's locator changes", () => {
     const a = baseArtifact();
     const b = baseArtifact();

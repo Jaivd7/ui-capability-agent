@@ -3,12 +3,12 @@
   "id": "open-sub-account",
   "name": "Open new sub-account and reach confirmation",
   "description": "Searches for a member, opens a new sub-account of the given type and opening deposit, and stops at the confirmation screen without submitting.",
-  "version": 3,
-  "contentHash": "8a33317427a409cf9ec909a0949c06b545989e6c59f0c6195890e109bcf2f4f8",
-  "createdAt": "2026-08-20T17:32:15.496Z",
+  "version": 4,
+  "contentHash": "f403bb4363143488ae7ecbd9165e1bafb863c27a2518ba5409e1172537f08f9e",
+  "createdAt": "2026-08-20T17:41:13.238Z",
   "discovery": {
     "model": "claude-sonnet-5",
-    "discoveredAt": "2026-08-20T17:32:15.496Z"
+    "discoveredAt": "2026-08-20T17:41:13.238Z"
   },
   "target": {
     "app": "legacy-core-banking",
@@ -51,7 +51,7 @@
   "steps": [
     {
       "id": "step-1",
-      "description": "Member ID search field",
+      "description": "Member ID search box",
       "retryable": false,
       "irreversible": false,
       "frame": [],
@@ -61,7 +61,7 @@
           "role": "textbox",
           "name": "Member ID",
           "exact": false,
-          "reason": "labeled search field"
+          "reason": "the search input field"
         }
       ],
       "type": "fill",
@@ -82,7 +82,7 @@
           "role": "button",
           "name": "Search",
           "exact": false,
-          "reason": "search button"
+          "reason": "submit search"
         }
       ],
       "type": "click"
@@ -123,7 +123,7 @@
     },
     {
       "id": "step-5",
-      "description": "Select ${accountType} account type",
+      "description": "Account Type select",
       "retryable": false,
       "irreversible": false,
       "frame": [],
@@ -133,7 +133,7 @@
           "role": "combobox",
           "name": "Account Type",
           "exact": false,
-          "reason": "account type selector"
+          "reason": "select account type dropdown"
         }
       ],
       "type": "select",
@@ -144,7 +144,7 @@
     },
     {
       "id": "step-6",
-      "description": "Opening deposit amount field",
+      "description": "Opening Deposit Amount textbox",
       "retryable": false,
       "irreversible": false,
       "frame": [],
@@ -154,12 +154,12 @@
           "role": "textbox",
           "name": "",
           "exact": false,
-          "reason": "opening deposit amount textbox in row"
+          "reason": "opening deposit textbox, the only textbox in this form"
         },
         {
           "strategy": "css",
-          "selector": "table tr:nth-child(2) td:nth-child(2) input",
-          "reason": "positional fallback for deposit input"
+          "selector": "table tr:nth-child(2) td input",
+          "reason": "positional fallback for deposit field"
         }
       ],
       "type": "fill",
@@ -188,7 +188,7 @@
   ],
   "checkpoints": [
     {
-      "description": "Heading 'Review Sub-Account Details' is present, confirming the confirmation screen was reached",
+      "description": "On the confirm new sub-account page",
       "frame": [],
       "locator": [
         {
@@ -196,13 +196,13 @@
           "role": "heading",
           "name": "Review Sub-Account Details",
           "exact": false,
-          "reason": "static page heading for the confirmation screen"
+          "reason": "static heading shown only on the confirmation screen"
         }
       ],
       "assertion": "exists"
     },
     {
-      "description": "Account Type cell shows the requested ${accountType} type",
+      "description": "Account type row shows the requested ${accountType} type",
       "frame": [],
       "locator": [
         {
@@ -210,19 +210,14 @@
           "role": "cell",
           "name": "${accountType}",
           "exact": false,
-          "reason": "value cell echoing the selected account type"
-        },
-        {
-          "strategy": "css",
-          "selector": "table tr:nth-child(2) td:nth-child(2)",
-          "reason": "positional fallback for account type value cell"
+          "reason": "value cell echoing the requested account type"
         }
       ],
       "assertion": "textContains",
       "expected": "${accountType}"
     },
     {
-      "description": "Opening Deposit cell shows the requested ${openingDeposit:currency} amount",
+      "description": "Opening deposit row shows the requested ${openingDeposit:currency} amount",
       "frame": [],
       "locator": [
         {
@@ -230,19 +225,14 @@
           "role": "cell",
           "name": "${openingDeposit:currency}",
           "exact": false,
-          "reason": "value cell echoing the entered opening deposit amount"
-        },
-        {
-          "strategy": "css",
-          "selector": "table tr:nth-child(3) td:nth-child(2)",
-          "reason": "positional fallback for opening deposit value cell"
+          "reason": "value cell echoing the requested opening deposit amount"
         }
       ],
       "assertion": "textContains",
       "expected": "${openingDeposit:currency}"
     },
     {
-      "description": "Confirm & Open Account button is present but not yet clicked, verifying we stopped at confirmation screen",
+      "description": "Confirm & Open Account button is present but not yet clicked",
       "frame": [],
       "locator": [
         {
@@ -250,7 +240,7 @@
           "role": "button",
           "name": "Confirm & Open Account",
           "exact": false,
-          "reason": "static button label on confirmation screen"
+          "reason": "static button chrome on the confirmation screen"
         }
       ],
       "assertion": "exists"

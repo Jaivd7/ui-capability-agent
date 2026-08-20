@@ -3,12 +3,12 @@
   "id": "lookup-member-balance",
   "name": "Look up member and read savings balance",
   "description": "Searches for a member by ID in Meridian Core Banking and extracts their current savings balance.",
-  "version": 4,
-  "contentHash": "76269c5d3748c3be143f2389cd4948c58ebae43414d4ab7feacd49700aa7bdc5",
-  "createdAt": "2026-08-20T17:33:10.526Z",
+  "version": 5,
+  "contentHash": "dde94846e83b4ada9597000975e4555898bc9e880f6e5fc79f5272fc99ede0f5",
+  "createdAt": "2026-08-20T17:40:36.246Z",
   "discovery": {
     "model": "claude-sonnet-5",
-    "discoveredAt": "2026-08-20T17:33:10.526Z"
+    "discoveredAt": "2026-08-20T17:40:36.246Z"
   },
   "target": {
     "app": "legacy-core-banking",
@@ -41,7 +41,7 @@
   "steps": [
     {
       "id": "step-1",
-      "description": "Member ID search box",
+      "description": "Member ID search textbox",
       "retryable": false,
       "irreversible": false,
       "frame": [],
@@ -51,7 +51,7 @@
           "role": "textbox",
           "name": "Member ID",
           "exact": false,
-          "reason": "labeled textbox for member id input"
+          "reason": "labeled input for member id search"
         }
       ],
       "type": "fill",
@@ -89,7 +89,7 @@
           "role": "link",
           "name": "View",
           "exact": false,
-          "reason": "link to open member record"
+          "reason": "opens member record for the found member"
         }
       ],
       "type": "click"
@@ -122,7 +122,7 @@
   ],
   "checkpoints": [
     {
-      "description": "URL is on the member detail page for the searched member",
+      "description": "On the member detail page for the searched member",
       "frame": [],
       "locator": [
         {
@@ -130,29 +130,29 @@
           "role": "heading",
           "name": "Member:",
           "exact": false,
-          "reason": "static heading prefix shown on member detail page regardless of member"
-        }
-      ],
-      "assertion": "urlMatches",
-      "expected": "/members/${memberId:regexEscape}"
-    },
-    {
-      "description": "Member heading shows the Member: prefix (static chrome)",
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "role",
-          "role": "heading",
-          "name": "Member:",
-          "exact": false,
-          "reason": "heading prefix is static text present for any member"
+          "reason": "static heading prefix shown for any member detail page"
         }
       ],
       "assertion": "textContains",
       "expected": "Member:"
     },
     {
-      "description": "Savings Balance cell exists and shows a dollar amount in the Account Details panel",
+      "description": "URL reflects the member detail route for the given memberId",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "heading",
+          "name": "Member:",
+          "exact": false,
+          "reason": "used only to anchor the checkpoint; assertion targets the page URL"
+        }
+      ],
+      "assertion": "urlMatches",
+      "expected": "/members/${memberId:regexEscape}"
+    },
+    {
+      "description": "Account Details panel shows a Savings Balance cell with a dollar amount",
       "frame": [
         {
           "strategy": "name",
@@ -164,7 +164,7 @@
           "strategy": "label",
           "text": "Savings Balance",
           "exact": false,
-          "reason": "aria-label uniquely identifies the value cell holding the savings balance"
+          "reason": "cell carrying aria-label Savings Balance holds the value, works regardless of member"
         }
       ],
       "assertion": "textMatches",
