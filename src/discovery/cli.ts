@@ -6,10 +6,10 @@ import { createRunLogger } from "../logging/logger.js";
 import { startAuthenticatedSession } from "../shared/session.js";
 import type { Page } from "playwright";
 import type { ParamValue } from "../artifact/template.js";
-import { credentialsForRole, type SessionRole } from "../shared/credentials.js";
+import { isKnownRole, listRoles, resolveTargetFor } from "../apps/index.js";
 import { createEscalationHandler } from "../escalation/operator-server.js";
 import { buildArtifact } from "./build-artifact.js";
-import { CAPABILITY_PRESETS, resolveTarget } from "./capability-presets.js";
+import { CAPABILITY_PRESETS } from "./capability-presets.js";
 import { runDiscovery, type DiscoveryResult } from "./loop.js";
 import { formatScoreReport, scoreRecording } from "./score-recording.js";
 // Importing the replay engine here does not put an LLM anywhere near replay —
@@ -23,14 +23,15 @@ import type { CapabilityArtifact } from "../artifact/schema.js";
 
 function parseArgs(argv: string[]): {
   capability: string;
-  role: "teller" | "readonly";
+  role: string;
   escalate: boolean;
   verify: boolean;
 } {
   const capIdx = argv.indexOf("--capability");
   const capability = capIdx !== -1 ? argv[capIdx + 1] : undefined;
   const roleIdx = argv.indexOf("--role");
-  const role = roleIdx !== -1 ? argv[roleIdx + 1] : "teller";
+  // Validated against the preset's app below — role vocabularies are per-app.
+  const role = roleIdx !== -1 ? argv[roleIdx + 1] : "";
   if (capability !== undefined && capability.startsWith("--")) {
     console.error(`--capability requires a value, got "${capability}"`);
     process.exit(1);
@@ -55,20 +56,32 @@ async function main() {
   const preset = CAPABILITY_PRESETS[capabilityId]!;
 
   const runId = `${preset.id}-${Date.now()}`;
-  const evidenceDir = join(process.cwd(), "evidence", "discovery-run");
+  const evidenceDir = join(process.cwd(), "evidence", preset.app, "discovery-run");
   mkdirSync(evidenceDir, { recursive: true });
   const logger = createRunLogger(runId, evidenceDir);
 
   console.log(`Starting discovery run "${runId}" for capability "${preset.id}"...`);
   if (escalate) console.log("Escalation enabled: getting stuck will pause and open an operator console.");
-  const credentials = credentialsForRole(role);
-  const target = resolveTarget();
-  const session = await startAuthenticatedSession(target.baseUrl, credentials);
+  const target = resolveTargetFor(preset.app);
+  const resolvedRole = role || listRoles(preset.app)[0]!;
+  if (!isKnownRole(preset.app, resolvedRole)) {
+    console.error(
+      `--role "${resolvedRole}" is not a role of app "${preset.app}". Known roles: ${listRoles(preset.app).join(", ")}.`,
+    );
+    process.exit(1);
+  }
+  const session = await startAuthenticatedSession({
+    app: preset.app,
+    role: resolvedRole,
+    baseUrl: target.baseUrl,
+  });
 
   try {
     const result = await runDiscovery({
       runId,
       capabilityId: preset.id,
+      target,
+      sessionRole: resolvedRole,
       goal: preset.goal,
       params: preset.params,
       page: session.page,
@@ -102,7 +115,7 @@ async function main() {
       process.exit(1);
     }
 
-    const capabilitiesDir = join(process.cwd(), "capabilities");
+    const capabilitiesDir = join(process.cwd(), "capabilities", preset.app);
     const artifactPath = join(capabilitiesDir, `${preset.id}.json`);
 
     let built;
@@ -218,11 +231,11 @@ async function runDifferentialProbe(
   page: Page,
   evidenceDir: string,
   runId: string,
-  sessionRole: SessionRole,
+  sessionRole: string,
 ): Promise<ReplayResult | undefined> {
   console.log(`\nVerifying the recording against a different argument set: ${JSON.stringify(params)}`);
   const probeLogger = createRunLogger(`${runId}.probe`, evidenceDir);
-  const guardrailsConfig = loadGuardrailsConfig();
+  const guardrailsConfig = loadGuardrailsConfig(artifact.target.app);
   try {
     return await runReplay({
       runId: `${runId}-probe`,

@@ -1,0 +1,10 @@
+{"timestamp":"2026-08-20T19:41:29.764Z","type":"run_start","kind":"replay","runId":"lookup-member-balance-1787254889561","capabilityId":"lookup-member-balance","capabilityVersion":5,"app":"legacy-core-banking","baseUrl":"http://localhost:4000","role":"teller","params":{"memberId":"1002"}}
+{"timestamp":"2026-08-20T19:41:29.785Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T19:41:31.840Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T19:41:33.881Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T19:41:35.908Z","type":"extracted","stepId":"step-4","outputName":"savingsBalance","value":"[REDACTED]"}
+{"timestamp":"2026-08-20T19:41:35.908Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T19:41:37.924Z","type":"checkpoint_passed","description":"On the member detail page for the searched member"}
+{"timestamp":"2026-08-20T19:41:37.927Z","type":"checkpoint_passed","description":"URL reflects the member detail route for the given memberId"}
+{"timestamp":"2026-08-20T19:41:37.934Z","type":"checkpoint_passed","description":"Account Details panel shows a Savings Balance cell with a dollar amount"}
+{"timestamp":"2026-08-20T19:41:37.934Z","type":"run_end","status":"success","stepsExecuted":4,"outputNames":["savingsBalance"],"humanIntervened":false}

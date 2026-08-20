@@ -2,7 +2,6 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseArtifact, type CapabilityArtifact } from "../artifact/index.js";
-import { credentialsForRole, readonlyCredentials, type SessionRole } from "../shared/credentials.js";
 import { startAuthenticatedSession, type BrowserSession } from "../shared/session.js";
 import { createRunLogger, type LogEvent, type RunLogger } from "../logging/logger.js";
 import { setGuardrailsConfigForTest, type GuardrailsConfig } from "../guardrails/config.js";
@@ -26,7 +25,7 @@ const BASE_URL = `http://localhost:${TEST_PORT}`;
 let serverProcess: ChildProcess;
 
 function loadArtifact(id: string): CapabilityArtifact {
-  const raw = JSON.parse(readFileSync(new URL(`../../capabilities/${id}.json`, import.meta.url), "utf-8"));
+  const raw = JSON.parse(readFileSync(new URL(`../../capabilities/legacy-core-banking/${id}.json`, import.meta.url), "utf-8"));
   raw.target = { ...raw.target, baseUrl: BASE_URL };
   const result = parseArtifact(raw);
   if (!result.success) throw new Error(result.errors.join("\n"));
@@ -71,10 +70,10 @@ function capturingLogger(runId: string, sink: LogEvent[]): RunLogger {
 
 async function withSession(
   fn: (session: BrowserSession) => Promise<void>,
-  role: SessionRole = "teller",
+  role = "teller",
 ): Promise<void> {
   process.env.HEADLESS = "true";
-  const session = await startAuthenticatedSession(BASE_URL, credentialsForRole(role));
+  const session = await startAuthenticatedSession({ app: "legacy-core-banking", role, baseUrl: BASE_URL });
   try {
     await fn(session);
   } finally {
@@ -383,7 +382,7 @@ describe("replay engine (live, against the mock app)", () => {
     "permission denied: a readonly session gets a clean business outcome, not a hard failure",
     async () => {
       process.env.HEADLESS = "true";
-      const session = await startAuthenticatedSession(BASE_URL, readonlyCredentials());
+      const session = await startAuthenticatedSession({ app: "legacy-core-banking", role: "readonly", baseUrl: BASE_URL });
       try {
         const artifact = loadArtifact("open-sub-account");
         const logger = createRunLogger("test-permission-denied", "/tmp/replay-engine-test");
@@ -421,7 +420,7 @@ describe("replay engine (live, against the mock app)", () => {
         allowedActionTypes: ["navigate", "click", "fill", "select", "check", "waitFor", "extract"],
         irreversibleActionPolicy: "block",
       };
-      setGuardrailsConfigForTest(testGuardrailsConfig);
+      setGuardrailsConfigForTest("legacy-core-banking", testGuardrailsConfig);
 
       await withSession(async (session) => {
         const artifact = loadArtifact("lookup-member-balance");
@@ -489,7 +488,7 @@ describe("replay engine (live, against the mock app)", () => {
           allowedActionTypes: ["navigate", "click", "fill", "select", "check", "waitFor", "extract"],
           irreversibleActionPolicy: "block",
         };
-        setGuardrailsConfigForTest(testGuardrailsConfig);
+        setGuardrailsConfigForTest("legacy-core-banking", testGuardrailsConfig);
 
         const { logger, consoleUrl } = loggerCapturingConsoleUrl("test-escalation-approve");
         const resultPromise = runReplay({
@@ -540,7 +539,7 @@ describe("replay engine (live, against the mock app)", () => {
           allowedActionTypes: ["navigate", "click", "fill", "select", "check", "waitFor", "extract"],
           irreversibleActionPolicy: "block",
         };
-        setGuardrailsConfigForTest(testGuardrailsConfig);
+        setGuardrailsConfigForTest("legacy-core-banking", testGuardrailsConfig);
 
         const { logger, consoleUrl } = loggerCapturingConsoleUrl("test-escalation-reject");
         const resultPromise = runReplay({

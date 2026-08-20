@@ -4,12 +4,12 @@ import { assertCondition, detectorMatches } from "../shared/assert.js";
 import { extractValue } from "../shared/extract.js";
 import { resolveLocator } from "../shared/locator.js";
 import type { FrameLocator, LocatorChain } from "../artifact/schema.js";
-import type { SessionRole } from "../shared/credentials.js";
 import { redactValue } from "../guardrails/redact.js";
 import type { GuardrailContext, GuardrailDecision } from "../guardrails/policy.js";
 import type { RunLogger } from "../logging/logger.js";
 import type { EscalationHandler, HumanIntervention, InterventionContext } from "../escalation/types.js";
 import { getRecoveryAction } from "./app-config.js";
+import { listRoles } from "../apps/index.js";
 import { materializeArtifact } from "./materialize.js";
 import type { ReplayHardFailure, ReplayResult } from "./result.js";
 
@@ -61,7 +61,7 @@ export interface ReplayOptions {
    * the same privilege on recovery, and to fail fast when the artifact
    * declares a `requiredRole` the session doesn't have.
    */
-  sessionRole?: SessionRole;
+  sessionRole?: string;
   guardrail?: GuardrailHook;
   /**
    * When set, a guardrail-blocked irreversible step becomes a human
@@ -106,26 +106,12 @@ export async function runReplay(rawOpts: ReplayOptions): Promise<ReplayResult> {
 
   const roleFailure = checkRequiredRole(opts);
   if (roleFailure) {
-    opts.logger.log({
-      type: "run_start",
-      kind: "replay",
-      runId: opts.runId,
-      capabilityId: opts.artifact.id,
-      capabilityVersion: opts.artifact.version,
-      params: redactParamsForLog(opts.artifact, opts.params),
-    });
+    logRunStart(opts);
     logFinalResult(opts, roleFailure);
     return roleFailure;
   }
 
-  opts.logger.log({
-    type: "run_start",
-    kind: "replay",
-    runId: opts.runId,
-    capabilityId: opts.artifact.id,
-    capabilityVersion: opts.artifact.version,
-    params: redactParamsForLog(opts.artifact, opts.params),
-  });
+  logRunStart(opts);
 
   for (let flowAttempt = 1; flowAttempt <= MAX_FLOW_RESTARTS + 1; flowAttempt++) {
     await navigateToEntry(opts);
@@ -369,6 +355,25 @@ async function resolveHardFailure(
   };
 }
 
+/**
+ * One emitter for both exits. These were two identical object literals, which
+ * is how the `app`/`baseUrl`/`role` fields a run-history view needs came to be
+ * missing from a log that already carried everything else.
+ */
+function logRunStart(opts: ReplayOptions): void {
+  opts.logger.log({
+    type: "run_start",
+    kind: "replay",
+    runId: opts.runId,
+    capabilityId: opts.artifact.id,
+    capabilityVersion: opts.artifact.version,
+    app: opts.artifact.target.app,
+    baseUrl: opts.artifact.target.baseUrl,
+    role: opts.sessionRole ?? defaultRoleFor(opts.artifact.target.app),
+    params: redactParamsForLog(opts.artifact, opts.params),
+  });
+}
+
 function missingOutputsFailure(
   opts: ReplayOptions,
   outputs: Record<string, string | number>,
@@ -381,6 +386,15 @@ function missingOutputsFailure(
     stepDescription: "(post-run output check)",
     reason: `Declared output(s) never produced: ${missing.map((o) => o.name).join(", ")}.`,
   };
+}
+
+/**
+ * Only reached when a caller invoked runReplay without declaring the role its
+ * session holds. The first role an app declares is its least-privileged
+ * ordinary operator by convention.
+ */
+function defaultRoleFor(app: string): string {
+  return listRoles(app)[0] ?? "teller";
 }
 
 function summarizeStepTarget(step: Step): string {
@@ -623,14 +637,18 @@ async function checkKnownOutcomes(
         },
       };
     }
-    recoveryAttempts.set(outcome.id, used + 1);
+    const attempt = used + 1;
+    recoveryAttempts.set(outcome.id, attempt);
     opts.logger.log({ type: "known_outcome", outcomeId: outcome.id, classification: "recoverable", action: outcome.recovery.action });
 
     const action = getRecoveryAction(opts.artifact.target.app, outcome.recovery.action);
     await action.run({
       page: opts.page,
       target: opts.artifact.target,
-      sessionRole: opts.sessionRole ?? "teller",
+      sessionRole: opts.sessionRole ?? defaultRoleFor(opts.artifact.target.app),
+      // The engine already counts these, so an action that backs off between
+      // attempts doesn't need state of its own.
+      attempt,
     });
 
     // "retry_step" used to map to "continue", which advanced the main loop to

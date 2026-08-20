@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Page } from "playwright";
-import type { CheckpointCondition, OutputField, Step } from "../artifact/schema.js";
+import type { CheckpointCondition, OutputField, Step, Target } from "../artifact/schema.js";
 import { assertCondition } from "../shared/assert.js";
 import { applyTransform, readRaw } from "../shared/extract.js";
 import { describeCandidate, LocatorResolutionError, resolveLocator } from "../shared/locator.js";
@@ -35,6 +35,15 @@ export interface DiscoveryParam {
 export interface RunDiscoveryOptions {
   runId: string;
   capabilityId: string;
+  /**
+   * Which app this run is recording against. Previously implicit — a
+   * module-level factory resolved the one target that existed — which meant
+   * neither the guardrail lookup nor the run log could say which system a run
+   * had touched.
+   */
+  target: Target;
+  /** The role the session authenticated as, recorded for provenance. */
+  sessionRole: string;
   goal: string;
   params: DiscoveryParam[];
   page: Page;
@@ -181,7 +190,23 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
     log: (event) => opts.logger.log(redactLogEvent(event, knownSensitiveValues)),
   };
 
-  logger.log({ type: "run_start", kind: "discovery", goal: opts.goal, model, maxSteps, timeoutMs });
+  logger.log({
+    type: "run_start",
+    kind: "discovery",
+    // runId/capabilityId/app/baseUrl/role were all absent, so a discovery run
+    // in a history view could not be attributed to a capability or a target
+    // except by parsing its filename — which worked only by accident of how
+    // runIds happen to be composed.
+    runId: opts.runId,
+    capabilityId: opts.capabilityId,
+    app: opts.target.app,
+    baseUrl: opts.target.baseUrl,
+    role: opts.sessionRole,
+    goal: opts.goal,
+    model,
+    maxSteps,
+    timeoutMs,
+  });
 
   const initialObs = await observe(opts.page);
   messages.push({
@@ -331,6 +356,11 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
     logger.log({
       type: "run_end",
       outcome: finalOutcome,
+      // Replay logs `status` and discovery logs `outcome`. Rather than rename
+      // either (replay's is already correct and already committed in
+      // evidence/), discovery additionally emits `status` in replay's
+      // vocabulary so one reader can classify both without branching.
+      status: finalOutcome === "success" || finalOutcome === "escalated_completed" ? "success" : "hard_failure",
       reason,
       stepCount: steps.length,
       outputCount: outputs.length,
@@ -359,7 +389,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
         const guardDecision = evaluateGuardrails(
           { type: stepType, irreversible: false },
           { currentUrl, ...(targetUrl !== undefined ? { targetUrl } : {}) },
-          loadGuardrailsConfig(),
+          loadGuardrailsConfig(o.target.app),
         );
         if (!guardDecision.allowed) {
           const reason = `Blocked by guardrail: ${guardDecision.reason ?? "not permitted"}.`;

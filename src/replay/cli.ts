@@ -1,23 +1,22 @@
 import "dotenv/config";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseArtifact } from "../artifact/index.js";
-import { computeContentHash } from "../artifact/hash.js";
-import { credentialsForRole, isSessionRole, type SessionRole } from "../shared/credentials.js";
+import { isKnownRole, listRoles } from "../apps/index.js";
 import { startAuthenticatedSession } from "../shared/session.js";
 import { createRunLogger } from "../logging/logger.js";
 import { loadGuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
 import { createEscalationHandler } from "../escalation/operator-server.js";
 import { redactValue } from "../guardrails/redact.js";
-import type { CapabilityArtifact, ParamType } from "../artifact/schema.js";
-import type { ParamValue } from "../artifact/template.js";
+import type { CapabilityArtifact } from "../artifact/schema.js";
 import { runReplay } from "./engine.js";
+import { CapabilityLoadError, loadCapabilityById } from "./load-capability.js";
+import { ParamValidationError, validateInvocation } from "./coerce.js";
 import type { ReplayResult } from "./result.js";
 
 interface Args {
   capability: string;
-  role: SessionRole;
+  role: string;
   /** Kept as raw strings here; coerced per the artifact's declared param types
    * once the artifact is loaded (see coerceParams). */
   rawParams: Record<string, string>;
@@ -52,12 +51,9 @@ function parseArgs(argv: string[]): Args {
   }
   // An unchecked cast here meant `--role telller` silently authenticated as
   // readonly and the run failed later with a confusing PERMISSION_DENIED.
-  const rawRole = flagValue(argv, "--role") ?? "teller";
-  if (!isSessionRole(rawRole)) {
-    console.error(`--role must be "teller" or "readonly", got "${rawRole}"`);
-    process.exit(1);
-  }
-  const role: SessionRole = rawRole;
+  // Validated against the target app's own role vocabulary once the artifact
+  // is loaded — role names are a property of the app, not of the engine.
+  const role = flagValue(argv, "--role") ?? "";
   const evidenceDir = flagValue(argv, "--evidence-dir") ?? "replay-run";
   const escalate = argv.includes("--escalate");
   const allowHashMismatch = argv.includes("--allow-hash-mismatch");
@@ -77,123 +73,70 @@ function parseArgs(argv: string[]): Args {
   return { capability, role, rawParams, evidenceDir, escalate, allowHashMismatch };
 }
 
-/**
- * Coerces CLI strings using the artifact's own declared param types rather
- * than guessing from the text. The previous "looks numeric -> Number()" rule
- * turned `--param memberId=0042` into 42 for a param declared `string` — a
- * silent corruption that was harmless while params only reached `fill`, and
- * is not harmless now that they also reach locators, URLs and assertions.
- */
-function coerceParams(
-  artifact: CapabilityArtifact,
-  raw: Record<string, string>,
-): Record<string, ParamValue> {
-  const declared = new Map(artifact.inputParams.map((p) => [p.name, p.type]));
-  const out: Record<string, ParamValue> = {};
-  for (const [name, text] of Object.entries(raw)) {
-    const type = declared.get(name);
-    if (type === undefined) {
-      console.warn(`Warning: --param ${name} is not declared by this capability; passing through as a string.`);
-      out[name] = text;
-      continue;
-    }
-    out[name] = coerceOne(name, text, type);
-  }
-  return out;
-}
-
-function coerceOne(name: string, text: string, type: ParamType): ParamValue {
-  switch (type) {
-    case "string":
-    case "date":
-      // Left verbatim on purpose: leading zeros, formatting and locale are all
-      // meaningful to the app, and the artifact declared this as text.
-      return text;
-    case "boolean": {
-      const lowered = text.trim().toLowerCase();
-      if (["true", "1", "yes"].includes(lowered)) return true;
-      if (["false", "0", "no"].includes(lowered)) return false;
-      console.error(`--param ${name} must be a boolean (true/false), got "${text}"`);
-      return process.exit(1);
-    }
-    case "number":
-    case "currency": {
-      const cleaned = text.replace(/[$,\s]/g, "");
-      // Number("") is 0, not NaN — check emptiness before parsing.
-      const value = cleaned === "" ? Number.NaN : Number(cleaned);
-      if (!Number.isFinite(value)) {
-        console.error(`--param ${name} must be a ${type}, got "${text}"`);
-        return process.exit(1);
-      }
-      return value;
-    }
-  }
-}
-
 async function main() {
   const { capability, role, rawParams, evidenceDir, escalate, allowHashMismatch } = parseArgs(
     process.argv.slice(2),
   );
 
-  const artifactPath = join(process.cwd(), "capabilities", `${capability}.json`);
-  if (!existsSync(artifactPath)) {
-    console.error(`No capability artifact at ${artifactPath}. Run discovery first.`);
-    process.exit(1);
-  }
-  const raw = JSON.parse(readFileSync(artifactPath, "utf-8"));
-  const parsed = parseArtifact(raw);
-  if (!parsed.success) {
-    console.error(`Artifact failed schema validation:\n${parsed.errors.join("\n")}`);
-    process.exit(1);
-  }
-  const artifact = parsed.artifact;
-
-  // contentHash is documented as the drift-detection signal, but nothing ever
-  // recomputed it — an artifact hand-edited after recording replayed happily
-  // with a stale fingerprint, which made the field decorative. Checking it at
-  // load is what turns it into an actual integrity guarantee.
-  const actualHash = computeContentHash(artifact);
-  if (actualHash !== artifact.contentHash) {
-    const detail =
-      `Artifact contentHash does not match its content.\n` +
-      `  recorded: ${artifact.contentHash}\n` +
-      `  actual:   ${actualHash}\n` +
-      `This means the artifact was edited after it was recorded, or was produced by a different compiler.`;
-    if (!allowHashMismatch) {
-      console.error(`${detail}\nRe-record it, or pass --allow-hash-mismatch if the edit was deliberate.`);
+  let artifact;
+  try {
+    artifact = loadCapabilityById(capability, { allowHashMismatch });
+  } catch (err) {
+    if (err instanceof CapabilityLoadError) {
+      console.error(err.message);
+      if (err.detail) console.error(err.detail);
+      if (err.code === "hash_mismatch") {
+        console.error("Re-record it, or pass --allow-hash-mismatch if the edit was deliberate.");
+      }
       process.exit(1);
     }
-    console.warn(`Warning: ${detail}\nContinuing because --allow-hash-mismatch was passed.`);
+    throw err;
+  }
+  if (allowHashMismatch) {
+    console.warn("Warning: --allow-hash-mismatch was passed; the artifact's contentHash was not enforced.");
   }
 
-  const params = coerceParams(artifact, rawParams);
-
-  for (const p of artifact.inputParams) {
-    if (p.required && !(p.name in params)) {
-      console.error(`Missing required --param ${p.name} (${p.type}). Example: ${p.example ?? "n/a"}`);
+  let params;
+  try {
+    params = validateInvocation(artifact, rawParams).params;
+  } catch (err) {
+    if (err instanceof ParamValidationError) {
+      for (const f of err.fields) console.error(`--param ${f.name} ${f.problem}`);
       process.exit(1);
     }
+    throw err;
   }
 
   const runId = `${artifact.id}-${Date.now()}`;
-  const evidenceOutDir = join(process.cwd(), "evidence", evidenceDir);
+  const evidenceOutDir = join(process.cwd(), "evidence", artifact.target.app, evidenceDir);
   mkdirSync(evidenceOutDir, { recursive: true });
   const logger = createRunLogger(runId, evidenceOutDir);
 
   console.log(`Replaying "${artifact.id}" v${artifact.version} (run "${runId}")...`);
   if (escalate) console.log("Escalation enabled: a stuck run will pause and open an operator console.");
-  const credentials = credentialsForRole(role);
-  const session = await startAuthenticatedSession(artifact.target.baseUrl, credentials);
+  const app = artifact.target.app;
+  const resolvedRole = role || listRoles(app)[0]!;
+  if (!isKnownRole(app, resolvedRole)) {
+    console.error(
+      `--role "${resolvedRole}" is not a role of app "${app}". Known roles: ${listRoles(app).join(", ")}.`,
+    );
+    process.exit(1);
+  }
+  const session = await startAuthenticatedSession({
+    app,
+    role: resolvedRole,
+    baseUrl: artifact.target.baseUrl,
+  });
 
   try {
-    const guardrailsConfig = loadGuardrailsConfig();
+    const guardrailsConfig = loadGuardrailsConfig(app);
     const result = await runReplay({
       runId,
       artifact,
       params,
       page: session.page,
       logger,
-      sessionRole: role,
+      sessionRole: resolvedRole,
       guardrail: (step, ctx) => evaluateGuardrails(step, ctx, guardrailsConfig),
       ...(escalate ? { escalate: createEscalationHandler(session.page, logger, evidenceOutDir) } : {}),
     });

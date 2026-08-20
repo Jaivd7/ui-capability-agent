@@ -1,9 +1,16 @@
-import type { CapabilityArtifact, Target } from "../artifact/schema.js";
+import type { CapabilityArtifact } from "../artifact/schema.js";
 import type { DiscoveryParam } from "./loop.js";
 import type { ParamValue } from "../artifact/template.js";
 
 export interface CapabilityPreset {
   id: string;
+  /**
+   * Which target this capability is recorded against. Used to be implicit,
+   * because there was only one app and a module-level `target()` factory; with
+   * two, a preset that doesn't say which app it belongs to would silently
+   * record against whichever one the environment happened to resolve.
+   */
+  app: string;
   name: string;
   description: string;
   goal: string;
@@ -25,20 +32,6 @@ export interface CapabilityPreset {
   verifyParams: Record<string, ParamValue>;
 }
 
-function target(): Target {
-  const port = process.env.MOCK_APP_PORT ?? "4000";
-  return {
-    app: "legacy-core-banking",
-    baseUrl: process.env.MOCK_APP_BASE_URL ?? `http://localhost:${port}`,
-    entryRoute: "/members",
-    tenant: null,
-  };
-}
-
-export function resolveTarget(): Target {
-  return target();
-}
-
 /**
  * knownOutcomes are hand-authored against the mock app's exact, verified
  * banner text/markup (see LEARNING_NOTES.md's Phase 2 entry for why this
@@ -50,6 +43,7 @@ export function resolveTarget(): Target {
 export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
   "lookup-member-balance": {
     id: "lookup-member-balance",
+    app: "legacy-core-banking",
     name: "Look up member and read savings balance",
     description:
       "Searches for a member by ID in Meridian Core Banking and extracts their current savings balance.",
@@ -110,6 +104,7 @@ export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
   },
   "open-sub-account": {
     id: "open-sub-account",
+    app: "legacy-core-banking",
     name: "Open new sub-account and reach confirmation",
     description:
       "Searches for a member, opens a new sub-account of the given type and opening deposit, and stops at the confirmation screen without submitting.",

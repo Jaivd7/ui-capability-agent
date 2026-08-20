@@ -250,7 +250,7 @@ describe("the committed capability artifacts", () => {
 
   it.each(ids)("%s: every templated string round-trips to its recorded example", (id) => {
     const raw = JSON.parse(
-      readFileSync(join(process.cwd(), "capabilities", `${id}.json`), "utf-8"),
+      readFileSync(join(process.cwd(), "capabilities", "legacy-core-banking", `${id}.json`), "utf-8"),
     );
     const parsed = parseArtifact(raw);
     expect(parsed.success).toBe(true);

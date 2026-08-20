@@ -1,0 +1,12 @@
+{
+  "status": "success",
+  "outputs": {
+    "savingsBalance": "[REDACTED]"
+  },
+  "checkpointsPassed": [
+    "On the member detail page for the searched member",
+    "URL reflects the member detail route for the given memberId",
+    "Account Details panel shows a Savings Balance cell with a dollar amount"
+  ],
+  "stepsExecuted": 4
+}

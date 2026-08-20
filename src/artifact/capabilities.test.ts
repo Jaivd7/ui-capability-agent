@@ -24,13 +24,25 @@ import { renderTemplate, type ParamValue } from "./template.js";
 const CAPABILITIES_DIR = join(process.cwd(), "capabilities");
 const CURRENCY_LITERAL = /\$\s?[\d,]+\.\d{2}/;
 
-const ids = readdirSync(CAPABILITIES_DIR)
-  .filter((f) => f.endsWith(".json"))
-  .map((f) => f.replace(/\.json$/, ""));
+// Capabilities are namespaced by app, so this walks every app directory —
+// which also means these invariants automatically cover a second target
+// without anyone remembering to extend them.
+const refs = readdirSync(CAPABILITIES_DIR, { withFileTypes: true })
+  .filter((e) => e.isDirectory())
+  .flatMap((appDir) =>
+    readdirSync(join(CAPABILITIES_DIR, appDir.name))
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => ({
+        label: `${appDir.name}/${f.replace(/\.json$/, "")}`,
+        path: join(CAPABILITIES_DIR, appDir.name, f),
+      })),
+  );
+const ids = refs.map((r) => r.label);
 
-function load(id: string) {
-  const parsed = parseArtifact(JSON.parse(readFileSync(join(CAPABILITIES_DIR, `${id}.json`), "utf-8")));
-  if (!parsed.success) throw new Error(`${id}: ${parsed.errors.join("\n")}`);
+function load(label: string) {
+  const ref = refs.find((r) => r.label === label)!;
+  const parsed = parseArtifact(JSON.parse(readFileSync(ref.path, "utf-8")));
+  if (!parsed.success) throw new Error(`${label}: ${parsed.errors.join("\n")}`);
   return parsed.artifact;
 }
 
