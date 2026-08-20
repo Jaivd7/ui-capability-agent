@@ -1,4 +1,5 @@
 import type { HumanAction, InterventionContext } from "./types.js";
+import { encodePick, type PageTarget } from "./page-targets.js";
 
 /**
  * The operator console's HTML.
@@ -14,8 +15,28 @@ import type { HumanAction, InterventionContext } from "./types.js";
  */
 export interface ConsoleViewOptions {
   basePath: string;
+  /**
+   * What the live page currently offers, enumerated per render.
+   *
+   * The console used to ask the operator to type a CSS selector, which on a
+   * target with no ids or test IDs meant they had to already know the markup
+   * of a page they can only see as a screenshot. Passing the page's own
+   * controls in turns that into picking from a list. Absent (or empty) falls
+   * back to the raw selector field, which is still there for anything the
+   * enumeration cannot reach.
+   */
+  targets?: PageTarget[];
   /** How long this run has been waiting, so an operator can see they are on a clock. */
   waitingMs: number;
+  /**
+   * Where the page is *now*, if it has moved since the run paused.
+   *
+   * `ctx.currentUrl` is frozen at the moment the intervention was raised. That
+   * was accurate when the operator could not easily move the page; now that
+   * clicking and navigating are one dropdown away, a header labelled "Current
+   * URL" showing a stale one is actively misleading.
+   */
+  currentUrl?: string;
   /** Rendered when the last action was refused by policy. */
   notice?: { tone: "error" | "warn"; message: string };
 }
@@ -41,6 +62,11 @@ export function renderConsole(
   fieldset { margin: 16px 0; }
   input, select { padding: 4px; margin: 2px; }
   ul.log { font-size: 12px; color: #444; }
+  form.row { margin: 6px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  form.row label { display: flex; gap: 6px; align-items: center; }
+  select { max-width: 380px; }
+  details { margin: 16px 0; }
+  summary { cursor: pointer; font-size: 13px; color: #555; }
 </style></head>
 <body>
   <div class="banner">
@@ -57,7 +83,7 @@ export function renderConsole(
   }
   <p class="meta">
     Waiting for ${Math.round(opts.waitingMs / 1000)}s. This session can time out while you decide.<br/>
-    Current URL: ${escape(ctx.currentUrl)}<br/>
+    Current URL: ${escape(opts.currentUrl ?? ctx.currentUrl)}<br/>
     ${ctx.currentStepId ? `Step: ${escape(ctx.currentStepId)} — ${escape(ctx.currentStepDescription ?? "")}<br/>` : ""}
     ${ctx.goal ? `Goal: ${escape(ctx.goal)}<br/>` : ""}
   </p>
@@ -74,24 +100,13 @@ export function renderConsole(
     <form class="inline" method="post" action="${basePath}/reject"><button class="safe" type="submit">Reject</button></form>
   </fieldset>`
       : `
+  ${manualActionPanel(basePath, opts.targets ?? [])}
   <fieldset>
-    <legend>Manual action</legend>
-    <form method="post" action="${basePath}/action">
-      <select name="type">
-        <option value="click">click</option>
-        <option value="fill">fill</option>
-        <option value="select">select</option>
-        <option value="navigate">navigate</option>
-      </select>
-      <input name="target" placeholder="CSS selector (click/fill/select)" size="28" />
-      <input name="value" placeholder="value / URL (fill/select/navigate)" size="24" />
-      <button type="submit">Perform Action</button>
-    </form>
-  </fieldset>
-  <fieldset>
-    <legend>When done</legend>
-    <form class="inline" method="post" action="${basePath}/resume"><button class="safe" type="submit">Resume Automation</button></form>
-    <form class="inline" method="post" action="${basePath}/abort"><button class="danger" type="submit">Abort Run</button></form>
+    <legend>When you are done</legend>
+    <form class="inline" method="post" action="${basePath}/resume"><button class="safe" type="submit">Hand back to automation</button></form>
+    <form class="inline" method="post" action="${basePath}/abort"><button class="danger" type="submit">Abort run</button></form>
+    <p class="meta">Handing back re-checks the capability's own checkpoints from wherever you leave the page.
+    It does not re-run steps, so a capability whose outputs were never extracted still reports a failure — with what you did recorded against it.</p>
   </fieldset>`
   }
 
@@ -100,6 +115,118 @@ export function renderConsole(
     ${actions.map((a) => `<li>[${escape(a.timestamp)}] ${escape(a.type)}: ${escape(a.detail)}</li>`).join("") || "<li>(none yet)</li>"}
   </ul>
 </body></html>`;
+}
+
+/**
+ * The manual-action panel: one small form per verb, each showing only the
+ * inputs that verb needs.
+ *
+ * The single generic form this replaces asked for a CSS selector, an action
+ * type and a value all at once, and left it to the operator to work out which
+ * two of the three applied. Worse, it asked a human staring at a screenshot to
+ * author a selector against markup with no ids, no test IDs and no labels.
+ *
+ * Every option below is read off the live page at render time, so this works
+ * on a page and an application this code has never seen — nothing about any
+ * target is written down here.
+ */
+function manualActionPanel(basePath: string, targets: PageTarget[]): string {
+  const clickable = targets.filter((t) => t.kind === "click");
+  const fillable = targets.filter((t) => t.kind === "fill");
+  const selectable = targets.filter((t) => t.kind === "select");
+
+  return `
+  <fieldset>
+    <legend>Do something on this page</legend>
+    ${
+      targets.length === 0
+        ? `<p class="meta">No controls could be read off this page &mdash; it may still be loading, or its
+           controls may be somewhere the reader cannot reach (a nested frame, a canvas, a shadow root).
+           Use the raw selector below.</p>`
+        : ""
+    }
+    ${
+      clickable.length
+        ? `<form method="post" action="${basePath}/action" class="row">
+             <input type="hidden" name="type" value="click" />
+             <label>Click <select name="pick">${optionsFor(clickable)}</select></label>
+             <button type="submit">Click it</button>
+           </form>`
+        : ""
+    }
+    ${
+      fillable.length
+        ? `<form method="post" action="${basePath}/action" class="row">
+             <input type="hidden" name="type" value="fill" />
+             <label>Type into <select name="pick">${optionsFor(fillable)}</select></label>
+             <label>the value <input name="value" size="24" /></label>
+             <button type="submit">Fill it</button>
+           </form>`
+        : ""
+    }
+    ${selectable.map((target) => selectRow(basePath, target)).join("")}
+  </fieldset>
+
+  <fieldset>
+    <legend>Go to another page</legend>
+    <form method="post" action="${basePath}/action" class="row">
+      <input type="hidden" name="type" value="navigate" />
+      <input name="value" size="34" placeholder="/menu" />
+      <button type="submit">Go</button>
+    </form>
+    <p class="meta">Only paths on this application are permitted; anything else is refused and recorded.</p>
+  </fieldset>
+
+  <details>
+    <summary>Raw selector (for anything not listed above)</summary>
+    <form method="post" action="${basePath}/action" class="row">
+      <select name="type">
+        <option value="click">click</option>
+        <option value="fill">fill</option>
+        <option value="select">select</option>
+        <option value="navigate">navigate</option>
+      </select>
+      <input name="target" placeholder="CSS selector" size="28" />
+      <input name="value" placeholder="value / URL" size="20" />
+      <button type="submit">Perform action</button>
+    </form>
+    <p class="meta">A selector matching more than one element is refused rather than guessed at.</p>
+  </details>`;
+}
+
+/**
+ * A select gets its own row, with the option list the page itself declares.
+ *
+ * A single "pick a control, then pick an option" pair would need the second
+ * dropdown to repopulate from the first, which means client-side scripting.
+ * This console has none and does not need any: a page has a handful of selects,
+ * and one row each is both simpler to build and less to explain.
+ *
+ * The values are the option's `value` attribute, never its visible text —
+ * on this kind of app a share's label embeds a balance that changes whenever
+ * money moves, while its value is stable.
+ */
+function selectRow(basePath: string, target: PageTarget): string {
+  const options = (target.options ?? [])
+    .map((o) => `<option value="${escape(o.value)}">${escape(o.label)}</option>`)
+    .join("");
+  return `<form method="post" action="${basePath}/action" class="row">
+    <input type="hidden" name="type" value="select" />
+    <input type="hidden" name="pick" value="${escape(encodePick(target))}" />
+    <label>Set <strong>${escape(labelOf(target))}</strong> to <select name="value">${options}</select></label>
+    <button type="submit">Set it</button>
+  </form>`;
+}
+
+function optionsFor(targets: PageTarget[]): string {
+  return targets
+    .map((t) => `<option value="${escape(encodePick(t))}">${escape(labelOf(t))}</option>`)
+    .join("");
+}
+
+/** The frame is part of the identity as far as a reader is concerned. */
+function labelOf(target: PageTarget): string {
+  return target.frameLabel ? `${target.label}  (in frame: ${target.frameLabel})` : target.label;
 }
 
 function escape(s: string): string {

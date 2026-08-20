@@ -38,3 +38,224 @@ export function collectFormControls(): RawFormControl[] {
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Operator console: enumerating what a human can act on
+// ---------------------------------------------------------------------------
+
+export interface RawPickerOption {
+  value: string;
+  label: string;
+}
+
+export interface RawPickerTarget {
+  kind: "click" | "fill" | "select";
+  /** What the operator reads. Never a selector. */
+  label: string;
+  /** A CSS selector verified unique *within this document*. */
+  selector: string;
+  /** Present for `select` only: the option values the page itself offers. */
+  options?: RawPickerOption[];
+}
+
+/**
+ * Collects everything on the page a human could act on, as (label, selector)
+ * pairs.
+ *
+ * A sibling of `collectFormControls` rather than an extension of it, because
+ * the consumer is different and so are the rules. That one feeds the discovery
+ * model, which locates elements by their submission contract, so it skips
+ * anything without a `name` and skips hidden fields as a matter of policy. A
+ * human picking from a list needs the opposite: every control they can see,
+ * named or not — a legacy form with an unnamed input is precisely the case
+ * this project exists for — and each one needs a *label they can recognise*,
+ * which the model never needed because it reads the accessibility tree.
+ *
+ * Nothing here knows anything about any particular application. The two
+ * algorithms that make that true are `describe` and `uniqueSelector` below.
+ */
+export function collectPickerTargets(): RawPickerTarget[] {
+  const CLICKABLE =
+    'a[href], button, input[type="submit"], input[type="button"], input[type="image"], input[type="reset"], [role="button"], [role="link"]';
+  const NON_TEXT_INPUT = ["hidden", "submit", "button", "image", "reset", "file"];
+
+  function visible(el: Element): boolean {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return false;
+    const style = window.getComputedStyle(el);
+    if (style.visibility === "hidden" || style.display === "none") return false;
+    // A disabled control is on screen but not actionable; offering it produces
+    // a Playwright timeout the operator has no way to interpret.
+    return !(el as HTMLInputElement).disabled;
+  }
+
+  function clean(text: string | null | undefined): string {
+    return (text ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  }
+
+  /**
+   * The label fallback chain, most meaningful first.
+   *
+   * The interesting rung is the table anchor. A server-rendered legacy app
+   * routinely has no <label> anywhere and lays a form out as a table, so the
+   * only thing identifying a field is the text in the cell to its left. That
+   * is the same content-anchoring insight the recording scorer landed on, used
+   * here for a human instead of for a locator.
+   */
+  function describe(el: Element): string {
+    const aria = clean(el.getAttribute("aria-label"));
+    if (aria) return aria;
+
+    const labelledBy = el.getAttribute("aria-labelledby");
+    if (labelledBy) {
+      const referenced = labelledBy
+        .split(/\s+/)
+        .map((id) => clean(el.ownerDocument.getElementById(id)?.textContent))
+        .filter(Boolean)
+        .join(" ");
+      if (referenced) return referenced;
+    }
+
+    const id = el.getAttribute("id");
+    if (id) {
+      const forLabel = clean(el.ownerDocument.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent);
+      if (forLabel) return forLabel;
+    }
+    const wrapping = clean(el.closest("label")?.textContent);
+    if (wrapping) return wrapping;
+
+    // A link or a button *is* its text. A form control's textContent is
+    // something else entirely — for a <select> it is every option
+    // concatenated, which produced labels like
+    // "MAIN-001 - Main OfficeWEST-014 - WestsideEAST-022 - Eastgate".
+    const tag = el.tagName.toLowerCase();
+    if (tag !== "select" && tag !== "input" && tag !== "textarea") {
+      const own = clean(el.textContent);
+      if (own) return own;
+    }
+
+    // How a legacy form labels its submit button: the text is the value.
+    const value = clean(el.getAttribute("value"));
+    if (value && tag === "input") return value;
+
+    for (const attr of ["placeholder", "title", "alt"]) {
+      const found = clean(el.getAttribute(attr));
+      if (found) return found;
+    }
+
+    // Table anchor: the cell to the left, else the row's first cell.
+    const cell = el.closest("td, th");
+    if (cell) {
+      const previous = clean(cell.previousElementSibling?.textContent);
+      if (previous) return previous;
+      const firstInRow = clean(cell.closest("tr")?.querySelector("td, th")?.textContent);
+      if (firstInRow) return firstInRow;
+    }
+
+    const name = clean(el.getAttribute("name"));
+    if (name) return name;
+
+    const type = el.getAttribute("type");
+    return `${el.tagName.toLowerCase()}${type ? `[${type}]` : ""}`;
+  }
+
+  function quote(value: string): string {
+    return value.replace(/["\\]/g, "\\$&");
+  }
+
+  /**
+   * A structural path, used only when the element offers no stable anchor of
+   * its own. Verbose by design — it is the candidate of last resort, and it
+   * being obviously positional is useful information to whoever reads the log.
+   */
+  function structuralPath(el: Element): string {
+    const segments: string[] = [];
+    let node: Element | null = el;
+    while (node && node.tagName.toLowerCase() !== "html") {
+      const tag = node.tagName.toLowerCase();
+      const parent: Element | null = node.parentElement;
+      if (!parent) {
+        segments.unshift(tag);
+        break;
+      }
+      const twins = Array.from(parent.children).filter((c) => c.tagName === node!.tagName);
+      segments.unshift(twins.length > 1 ? `${tag}:nth-of-type(${twins.indexOf(node) + 1})` : tag);
+      node = parent;
+      if (tag === "body") break;
+    }
+    return segments.join(" > ");
+  }
+
+  /**
+   * The first candidate that matches exactly one element in this document.
+   *
+   * Ordered by how much meaning the anchor carries, not by syntax: an `id`, a
+   * `name` (the form's submission contract, and the most stable thing on a
+   * legacy form), the `href` a link points at, the `value` a submit button
+   * carries — and only then a positional path. Uniqueness is *verified* rather
+   * than assumed, because the action policy refuses an ambiguous selector and
+   * an operator should never be offered a choice that will be refused.
+   */
+  function uniqueSelector(el: Element): string | null {
+    const doc = el.ownerDocument;
+    const tag = el.tagName.toLowerCase();
+    const candidates: string[] = [];
+
+    const id = el.getAttribute("id");
+    if (id) candidates.push(`[id="${quote(id)}"]`);
+
+    const name = el.getAttribute("name");
+    if (name) {
+      const type = el.getAttribute("type");
+      candidates.push(type ? `${tag}[name="${quote(name)}"][type="${quote(type)}"]` : `${tag}[name="${quote(name)}"]`);
+    }
+
+    const href = el.getAttribute("href");
+    if (href) candidates.push(`a[href="${quote(href)}"]`);
+
+    const value = el.getAttribute("value");
+    const type = el.getAttribute("type");
+    if (value && tag === "input" && type) candidates.push(`input[type="${quote(type)}"][value="${quote(value)}"]`);
+
+    candidates.push(structuralPath(el));
+
+    for (const candidate of candidates) {
+      try {
+        if (doc.querySelectorAll(candidate).length === 1) return candidate;
+      } catch {
+        // A malformed candidate (an attribute value that defeats the quoting)
+        // is skipped rather than thrown: the structural path always follows.
+      }
+    }
+    return null;
+  }
+
+  const seen = new Set<string>();
+  const targets: RawPickerTarget[] = [];
+
+  function add(el: Element, kind: RawPickerTarget["kind"], options?: RawPickerOption[]): void {
+    if (!visible(el)) return;
+    const selector = uniqueSelector(el);
+    if (!selector || seen.has(selector)) return;
+    seen.add(selector);
+    targets.push({ kind, label: describe(el), selector, ...(options ? { options } : {}) });
+  }
+
+  for (const el of Array.from(document.querySelectorAll(CLICKABLE))) add(el, "click");
+
+  for (const el of Array.from(document.querySelectorAll("input, textarea"))) {
+    const type = (el.getAttribute("type") ?? "text").toLowerCase();
+    if (el.tagName.toLowerCase() === "input" && NON_TEXT_INPUT.includes(type)) continue;
+    add(el, "fill");
+  }
+
+  for (const el of Array.from(document.querySelectorAll("select"))) {
+    const options = Array.from((el as HTMLSelectElement).options).map((o) => ({
+      value: o.value,
+      label: clean(o.textContent) || o.value,
+    }));
+    add(el, "select", options);
+  }
+
+  return targets;
+}

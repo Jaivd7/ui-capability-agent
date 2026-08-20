@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
-import type { CapabilityArtifact } from "../artifact/schema.js";
+import type { CapabilityArtifact, FrameLocator } from "../artifact/schema.js";
+import { resolveFrameRoot } from "../shared/locator.js";
 import type { GuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
 import { redactValue } from "../guardrails/redact.js";
@@ -57,6 +58,15 @@ export interface HumanActionRequest {
   type?: string;
   target?: string;
   value?: string;
+  /**
+   * Which document the target lives in, empty or absent for the main one.
+   *
+   * Comes from the console's picker, which enumerates iframes as well as the
+   * top document — a legacy frameset is one of the surfaces this project
+   * exists for, and a console that could only reach the outer document would
+   * be unable to fix exactly those pages.
+   */
+  frame?: FrameLocator[];
 }
 
 export type HumanActionDecision =
@@ -148,13 +158,17 @@ export async function performHumanAction(
 ): Promise<PerformedAction> {
   const target = req.target ?? "";
   const value = req.value ?? "";
+  // Page-level for the main document, frame-scoped otherwise. CSS cannot cross
+  // a frame boundary, so this is the only way a target inside one is reachable.
+  const root = resolveFrameRoot(page, req.frame ?? []);
+  const locator = root.locator(target);
 
   if (kind !== "navigate") {
     // Mirrors resolveLocator's requireUnique. `page.click` silently takes the
     // first of several matches, which is the exact behaviour that produced a
     // wrong balance earlier in this project; an operator deserves the same
     // protection a recorded step gets.
-    const count = await page.locator(target).count();
+    const count = await locator.count();
     if (count > 1) {
       throw new HumanActionError(
         "selector_ambiguous",
@@ -168,13 +182,13 @@ export async function performHumanAction(
 
   switch (kind) {
     case "click":
-      await page.click(target, { timeout: 5000 });
+      await locator.click({ timeout: 5000 });
       break;
     case "fill":
-      await page.fill(target, value, { timeout: 5000 });
+      await locator.fill(value, { timeout: 5000 });
       break;
     case "select":
-      await page.selectOption(target, value, { timeout: 5000 });
+      await locator.selectOption(value, { timeout: 5000 });
       break;
     case "navigate":
       await page.goto(new URL(value, page.url()).toString(), { timeout: 10_000 });

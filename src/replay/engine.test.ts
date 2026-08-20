@@ -607,7 +607,13 @@ describe("replay engine (live, against the mock app)", () => {
 
         const url = await consoleUrl;
         const consoleHtml = await (await fetch(url)).text();
-        expect(consoleHtml).toContain("Manual action");
+        // Asserted as behaviour rather than copy: the console offers a way to
+        // act, and its picker enumerated this page's own controls — including
+        // the button this test is about to click, which it found without
+        // anything here telling it the button exists.
+        expect(consoleHtml).toContain("/action");
+        expect(consoleHtml).toContain('name="pick"');
+        expect(consoleHtml).toContain("continueBtn");
 
         const clickRes = await fetch(`${url}/action`, {
           method: "POST",

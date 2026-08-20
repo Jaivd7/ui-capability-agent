@@ -6,6 +6,7 @@ import {
   targetsIrreversibleStep,
 } from "./action-policy.js";
 import { renderConsole } from "./console-view.js";
+import { decodePick, describePageTargets } from "./page-targets.js";
 import type { InterventionRegistry, PendingIntervention } from "./intervention-registry.js";
 
 /**
@@ -37,14 +38,22 @@ export function escalationRouter(registry: InterventionRegistry): Router {
 
   const basePath = (runId: string) => `/runs/${runId}/escalation`;
 
-  router.get("/", (req, res) => {
+  router.get("/", async (req, res) => {
     const pending = resolvePending(req, res);
     if (!pending) return;
     const notice = typeof req.query.notice === "string" ? req.query.notice : undefined;
+    // Read fresh on every render, never cached: the operator's last action may
+    // have navigated, and a picker listing the previous page's controls would
+    // be worse than no picker at all. A failure here degrades the console to
+    // its raw selector field rather than taking it down — the run is paused
+    // and a human is waiting, which is the worst possible moment to 500.
+    const targets = await describePageTargets(pending.page).catch(() => []);
     res.send(
       renderConsole(pending.context, pending.actions, {
         basePath: basePath(pending.runId),
         waitingMs: Date.now() - new Date(pending.raisedAt).getTime(),
+        currentUrl: pending.page.url(),
+        targets,
         ...(notice ? { notice: { tone: "error" as const, message: notice } } : {}),
       }),
     );
@@ -71,7 +80,16 @@ export function escalationRouter(registry: InterventionRegistry): Router {
   router.post("/action", async (req, res) => {
     const pending = resolvePending(req, res);
     if (!pending) return;
-    const body = (req.body ?? {}) as { type?: string; target?: string; value?: string };
+    const raw = (req.body ?? {}) as { type?: string; target?: string; value?: string; pick?: string };
+    // A picked target carries its own selector and frame; the raw selector
+    // field carries only a selector, in the main document. Either way what
+    // reaches the policy below is the same shape, so the picker is an input
+    // method and not a second code path with its own rules.
+    const picked = decodePick(raw.pick);
+    const body = {
+      ...raw,
+      ...(picked ? { target: picked.selector, frame: picked.frame } : {}),
+    };
 
     // Policy first, always. This is the check the console used to skip
     // entirely, which made a paused run a way to drive an authenticated
