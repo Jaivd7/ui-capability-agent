@@ -159,7 +159,7 @@ export function createRunExecutor(deps: RunExecutorDeps): RunExecutor {
       runId,
       capabilityId: artifact.id,
       status: "running",
-      statusUrl: `/api/runs/${runId}`,
+      statusUrl: `/api/runs/${runId}/status`,
       runUrl: `/runs/${runId}`,
       warnings,
     };
