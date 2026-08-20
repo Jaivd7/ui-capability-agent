@@ -1,0 +1,26 @@
+{"timestamp":"2026-08-20T22:42:28.896Z","type":"run_start","kind":"replay","runId":"meridian-funds-transfer-1787265748543","capabilityId":"meridian-funds-transfer","capabilityVersion":2,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"100987","fromShareCode":"S0070-12","toShareCode":"S0001-13","amount":10,"memo":"test"}}
+{"timestamp":"2026-08-20T22:42:28.998Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:42:35.024Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:42:41.088Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:42:47.238Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:42:53.253Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:42:59.275Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:43:05.297Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:43:11.318Z","type":"step_result","stepId":"step-8","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:43:17.410Z","type":"step_result","stepId":"step-9","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:43:23.547Z","type":"step_result","stepId":"step-10","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:43:29.570Z","type":"locator_resolved","stepId":"step-11","candidateIndex":1,"strategy":"css","matchCount":1,"usedFallback":true}
+{"timestamp":"2026-08-20T22:43:29.572Z","type":"extracted","stepId":"step-11","outputName":"confirmationNumber","value":"C[REDACTED]4"}
+{"timestamp":"2026-08-20T22:43:29.572Z","type":"step_result","stepId":"step-11","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:43:35.601Z","type":"locator_resolved","stepId":"step-12","candidateIndex":1,"strategy":"css","matchCount":1,"usedFallback":true}
+{"timestamp":"2026-08-20T22:43:35.603Z","type":"extracted","stepId":"step-12","outputName":"fromNewBalance","value":"$[REDACTED])"}
+{"timestamp":"2026-08-20T22:43:35.603Z","type":"step_result","stepId":"step-12","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:43:41.632Z","type":"locator_resolved","stepId":"step-13","candidateIndex":1,"strategy":"css","matchCount":1,"usedFallback":true}
+{"timestamp":"2026-08-20T22:43:41.634Z","type":"extracted","stepId":"step-13","outputName":"toNewBalance","value":"$[REDACTED])"}
+{"timestamp":"2026-08-20T22:43:41.635Z","type":"step_result","stepId":"step-13","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:43:47.654Z","type":"checkpoint_passed","description":"URL reflects the posted transfer page for the specified member"}
+{"timestamp":"2026-08-20T22:43:47.659Z","type":"checkpoint_passed","description":"Posted screen shows heading confirming transaction completion (static chrome)"}
+{"timestamp":"2026-08-20T22:43:47.666Z","type":"checkpoint_passed","description":"Posted screen shows the Amount label with the exact amount entered"}
+{"timestamp":"2026-08-20T22:43:47.670Z","type":"checkpoint_passed","description":"Posted screen amount cell (sibling of Amount: label) shows the exact input amount"}
+{"timestamp":"2026-08-20T22:43:47.675Z","type":"checkpoint_passed","description":"Posted screen shows a Confirmation number field (static label)"}
+{"timestamp":"2026-08-20T22:43:47.675Z","type":"run_end","status":"success","stepsExecuted":13,"outputNames":["confirmationNumber","fromNewBalance","toNewBalance"],"humanIntervened":false}

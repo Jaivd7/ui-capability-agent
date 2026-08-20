@@ -1,0 +1,16 @@
+{
+  "status": "success",
+  "outputs": {
+    "confirmationNumber": "C[REDACTED]4",
+    "fromNewBalance": "$[REDACTED])",
+    "toNewBalance": "$[REDACTED])"
+  },
+  "checkpointsPassed": [
+    "URL reflects the posted transfer page for the specified member",
+    "Posted screen shows heading confirming transaction completion (static chrome)",
+    "Posted screen shows the Amount label with the exact amount entered",
+    "Posted screen amount cell (sibling of Amount: label) shows the exact input amount",
+    "Posted screen shows a Confirmation number field (static label)"
+  ],
+  "stepsExecuted": 13
+}

@@ -1,0 +1,40 @@
+{
+  "status": "hard_failure",
+  "stepId": "step-2",
+  "stepDescription": "Extract Share ID for the row matching member number + shareCode",
+  "reason": "Step execution failed and no known outcome matched the resulting state.",
+  "observed": "Could not resolve any locator candidate. Tried 2 candidate(s):\n  [0] role(cell, name=\"101555-BOGUS-9\") -> locator.waitFor: Timeout 5000ms exceeded.\n  [1] xpath(\"//table//tr[td[1][normalize-space(text())='101555-BOGUS-9']]/td[1]\") -> locator.waitFor: Timeout 5000ms exceeded.",
+  "humanIntervention": {
+    "raisedAt": "2026-08-20T23:09:30.097Z",
+    "resolvedAt": "2026-08-20T23:10:38.793Z",
+    "kind": "replay_hard_failure",
+    "reason": "Step execution failed and no known outcome matched the resulting state.",
+    "decision": "aborted",
+    "actions": [
+      {
+        "timestamp": "2026-08-20T23:09:46.416Z",
+        "type": "click",
+        "detail": "click \"a[href=\"/members/101555/transfer\"]\"",
+        "target": "a[href=\"/members/101555/transfer\"]"
+      },
+      {
+        "timestamp": "2026-08-20T23:10:21.477Z",
+        "type": "fill",
+        "detail": "fill \"input[name=\"amount\"][type=\"text\"]\" = 5[REDACTED]0",
+        "target": "input[name=\"amount\"][type=\"text\"]"
+      },
+      {
+        "timestamp": "2026-08-20T23:10:21.516Z",
+        "type": "select",
+        "detail": "select \"select[name=\"from\"]\" = \"101555-MMKT-3\"",
+        "target": "select[name=\"from\"]",
+        "value": "101555-MMKT-3"
+      },
+      {
+        "timestamp": "2026-08-20T23:10:38.790Z",
+        "type": "abort",
+        "detail": "operator signaled abort"
+      }
+    ]
+  }
+}

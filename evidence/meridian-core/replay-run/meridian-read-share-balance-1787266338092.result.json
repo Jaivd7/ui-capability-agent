@@ -1,0 +1,53 @@
+{
+  "status": "hard_failure",
+  "stepId": "step-2",
+  "stepDescription": "Extract Share ID for the row matching member number + shareCode",
+  "reason": "Step execution failed and no known outcome matched the resulting state.",
+  "observed": "Could not resolve any locator candidate. Tried 2 candidate(s):\n  [0] role(cell, name=\"101555-BOGUS-9\") -> locator.waitFor: Timeout 5000ms exceeded.\n  [1] xpath(\"//table//tr[td[1][normalize-space(text())='101555-BOGUS-9']]/td[1]\") -> locator.waitFor: Timeout 5000ms exceeded.",
+  "humanIntervention": {
+    "raisedAt": "2026-08-20T22:52:35.539Z",
+    "resolvedAt": "2026-08-20T22:56:21.818Z",
+    "kind": "replay_hard_failure",
+    "reason": "Step execution failed and no known outcome matched the resulting state.",
+    "decision": "aborted",
+    "actions": [
+      {
+        "timestamp": "2026-08-20T22:55:43.033Z",
+        "type": "click",
+        "detail": "failed: \"settings\" matches nothing on this page.",
+        "target": "settings",
+        "blocked": true,
+        "blockReason": "selector_not_found"
+      },
+      {
+        "timestamp": "2026-08-20T22:55:51.700Z",
+        "type": "click",
+        "detail": "failed: \"System Settings\" matches nothing on this page.",
+        "target": "System Settings",
+        "blocked": true,
+        "blockReason": "selector_not_found"
+      },
+      {
+        "timestamp": "2026-08-20T22:56:04.815Z",
+        "type": "click",
+        "detail": "failed: \"System Settings\" matches nothing on this page.",
+        "target": "System Settings",
+        "blocked": true,
+        "blockReason": "selector_not_found"
+      },
+      {
+        "timestamp": "2026-08-20T22:56:14.322Z",
+        "type": "click",
+        "detail": "failed: \"Open New Share\" matches nothing on this page.",
+        "target": "Open New Share",
+        "blocked": true,
+        "blockReason": "selector_not_found"
+      },
+      {
+        "timestamp": "2026-08-20T22:56:21.814Z",
+        "type": "abort",
+        "detail": "operator signaled abort"
+      }
+    ]
+  }
+}

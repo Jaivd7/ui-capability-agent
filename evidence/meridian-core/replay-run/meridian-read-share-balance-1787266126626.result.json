@@ -1,0 +1,72 @@
+{
+  "status": "hard_failure",
+  "stepId": "(checkpoint)",
+  "stepDescription": "URL reflects the member record page for the given memberId",
+  "reason": "Checkpoint not met: URL reflects the member record page for the given memberId",
+  "observed": "Expected URL to match \"/members/101555\", got \"https://web-sample.interface-hiring.com/menu\".",
+  "humanIntervention": {
+    "raisedAt": "2026-08-20T22:49:04.206Z",
+    "resolvedAt": "2026-08-20T22:49:36.001Z",
+    "kind": "replay_hard_failure",
+    "reason": "Step execution failed and no known outcome matched the resulting state.",
+    "decision": "resumed",
+    "actions": [
+      {
+        "timestamp": "2026-08-20T22:49:25.127Z",
+        "type": "navigate",
+        "detail": "refused: Route \"/settings\" does not match any allowed route pattern.",
+        "blocked": true,
+        "blockReason": "route_not_allowed"
+      },
+      {
+        "timestamp": "2026-08-20T22:49:25.264Z",
+        "type": "navigate",
+        "detail": "refused: Origin \"https://evil.example.com\" is not in the allowed origins.",
+        "blocked": true,
+        "blockReason": "origin_not_allowed"
+      },
+      {
+        "timestamp": "2026-08-20T22:49:25.294Z",
+        "type": "navigate",
+        "detail": "refused: Only http and https URLs are permitted.",
+        "blocked": true,
+        "blockReason": "unsafe_scheme"
+      },
+      {
+        "timestamp": "2026-08-20T22:49:25.325Z",
+        "type": "click",
+        "detail": "failed: \"td\" matches 47 elements. Narrow it — the console will not guess which one you meant.",
+        "target": "td",
+        "blocked": true,
+        "blockReason": "selector_ambiguous"
+      },
+      {
+        "timestamp": "2026-08-20T22:49:25.348Z",
+        "type": "click",
+        "detail": "failed: \"#nope\" matches nothing on this page.",
+        "target": "#nope",
+        "blocked": true,
+        "blockReason": "selector_not_found"
+      },
+      {
+        "timestamp": "2026-08-20T22:49:25.370Z",
+        "type": "evaluate",
+        "detail": "refused: \"evaluate\" is not an action this console performs.",
+        "target": "x",
+        "blocked": true,
+        "blockReason": "action_kind_not_allowed"
+      },
+      {
+        "timestamp": "2026-08-20T22:49:25.451Z",
+        "type": "click",
+        "detail": "click \"a[href='/menu']\"",
+        "target": "a[href='/menu']"
+      },
+      {
+        "timestamp": "2026-08-20T22:49:36.000Z",
+        "type": "resume",
+        "detail": "operator signaled resume"
+      }
+    ]
+  }
+}
