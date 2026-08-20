@@ -59,10 +59,17 @@ export interface TemplateRef {
 }
 
 /**
- * Matches either the `$${` escape or a well-formed placeholder. Anything that
+ * Matches either the `${{` escape or a well-formed placeholder. Anything that
  * doesn't match here is literal text by definition — see property 3 above.
+ *
+ * The escape is `${{` rather than the more obvious `$${` because the latter is
+ * ambiguous in exactly the case that matters: a regex assertion ending in a
+ * literal `\$` immediately followed by a placeholder produces `$${`, which a
+ * scanner cannot tell from an escaped `${`. `{` is not a legal first character
+ * of an identifier, so `${{` can never be the start of a placeholder and the
+ * two readings never collide.
  */
-const SCANNER = /\$\$\{|\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([A-Za-z][A-Za-z0-9_]*))?\}/g;
+const SCANNER = /\$\{\{|\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([A-Za-z][A-Za-z0-9_]*))?\}/g;
 
 function isParamFormat(s: string): s is ParamFormat {
   return (PARAM_FORMATS as readonly string[]).includes(s);
@@ -79,7 +86,7 @@ export function parseTemplate(s: string): { refs: TemplateRef[]; unknownFormats:
   const unknownFormats: string[] = [];
   for (const match of s.matchAll(SCANNER)) {
     const [source, param, format] = match;
-    if (param === undefined) continue; // the `$${` escape
+    if (param === undefined) continue; // the `${{` escape
     if (format !== undefined && !isParamFormat(format)) {
       unknownFormats.push(format);
       continue;
@@ -99,7 +106,7 @@ export function hasTemplate(s: string): boolean {
  * `renderTemplate(escapeLiteral(s), {}, w) === s` for any `s`.
  */
 export function escapeLiteral(s: string): string {
-  return s.split("${").join("$${");
+  return s.split("${").join("${{");
 }
 
 /**
@@ -163,7 +170,7 @@ export function renderTemplate(s: string, params: Record<string, ParamValue>, wh
     cursor = start + source.length;
 
     if (param === undefined) {
-      out += "${"; // the `$${` escape
+      out += "${"; // the `${{` escape
       continue;
     }
     if (rawFormat !== undefined && !isParamFormat(rawFormat)) {

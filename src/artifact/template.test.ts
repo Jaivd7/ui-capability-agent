@@ -54,8 +54,15 @@ describe("renderTemplate", () => {
     expect(renderTemplate(input, {}, W)).toBe(expected);
   });
 
-  it("treats $${ as an escaped literal ${", () => {
-    expect(renderTemplate("$${memberId}", { memberId: "1001" }, W)).toBe("${memberId}");
+  it("treats ${{ as an escaped literal ${", () => {
+    expect(renderTemplate("${{memberId}", { memberId: "1001" }, W)).toBe("${memberId}");
+  });
+
+  it("still substitutes a placeholder that directly follows a literal $", () => {
+    // The reason the escape is `${{` and not `$${`: a regex assertion ending
+    // in a literal `\$` followed by a placeholder would otherwise read as an
+    // escape and silently stop substituting.
+    expect(renderTemplate("^\\$${amount}\\.00$", { amount: "100" }, W)).toBe("^\\$100\\.00$");
   });
 
   it("never re-scans substituted output", () => {
@@ -66,7 +73,7 @@ describe("renderTemplate", () => {
 });
 
 describe("escapeLiteral", () => {
-  it.each(["plain", "${x}", "$${x}", "a ${x} b ${y}", "$", "${"])(
+  it.each(["plain", "${x}", "$${x}", "${{x}", "a ${x} b ${y}", "$", "${", "^\\$100\\.00$"])(
     "round-trips %s through renderTemplate",
     (literal) => {
       expect(renderTemplate(escapeLiteral(literal), {}, W)).toBe(literal);
@@ -131,7 +138,7 @@ describe("parseTemplate", () => {
   });
 
   it("ignores the escape sequence", () => {
-    expect(parseTemplate("$${notAParam}").refs).toEqual([]);
+    expect(parseTemplate("${{notAParam}").refs).toEqual([]);
   });
 });
 

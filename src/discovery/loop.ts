@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Page } from "playwright";
 import type { CheckpointCondition, OutputField, Step } from "../artifact/schema.js";
 import { assertCondition } from "../shared/assert.js";
-import { extractValue } from "../shared/extract.js";
+import { applyTransform, readRaw } from "../shared/extract.js";
 import { describeCandidate, LocatorResolutionError, resolveLocator } from "../shared/locator.js";
 import { loadGuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
@@ -21,6 +21,7 @@ import {
   WaitForInputSchema,
 } from "./tool-input-schemas.js";
 import { DISCOVERY_TOOLS } from "./tools.js";
+import type { ExtractedRecord } from "./generalize.js";
 
 export interface DiscoveryParam {
   name: string;
@@ -66,6 +67,13 @@ export interface DiscoveryResult {
   outputs: OutputField[];
   transcript: Anthropic.MessageParam[];
   model: string;
+  /**
+   * What this run actually read off the page, keyed by outputName. Consumed
+   * by the artifact compiler to refuse emitting page data into checkpoints or
+   * locators, and by the finish-time checkpoint gate — then dropped. Never
+   * persisted anywhere: this is the leak-detection input, not evidence.
+   */
+  extractedValues: Record<string, ExtractedRecord>;
   humanIntervention?: HumanIntervention;
 }
 
@@ -117,6 +125,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
 
   const steps: Step[] = [];
   const outputs: OutputField[] = [];
+  const extractedValues: Record<string, ExtractedRecord> = {};
   const messages: Anthropic.MessageParam[] = [];
 
   // Sensitive values populated as extract steps succeed (see the "extract"
@@ -288,7 +297,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
       outputCount: outputs.length,
       humanIntervened: humanIntervention !== undefined,
     });
-    return { outcome: finalOutcome, reason, steps, checkpoints, outputs, transcript: messages, model, ...(humanIntervention ? { humanIntervention } : {}) };
+    return { outcome: finalOutcome, reason, steps, checkpoints, outputs, transcript: messages, model, extractedValues, ...(humanIntervention ? { humanIntervention } : {}) };
   }
 
   async function executeTool(
@@ -409,16 +418,25 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
         case "extract": {
           const input = ExtractInputSchema.parse(rawInput);
           const resolved = await resolveLocator(o.page, input.frame, input.locator, { timeoutMs: ACTION_TIMEOUT_MS });
-          const value = await extractValue(resolved.locator, {
+          const readSpec = {
             from: input.from,
             ...(input.attributeName !== undefined ? { attributeName: input.attributeName } : {}),
             ...(input.transform !== undefined ? { transform: input.transform } : {}),
-          });
+          };
+          // Split rather than calling extractValue, because the compiler's
+          // leak check needs the *raw* page text too: a currency output
+          // transforms "$3482.10" into the number 3482.1, and String(3482.1)
+          // is not a substring of the string that actually leaks.
+          const raw = await readRaw(resolved.locator, readSpec);
+          const value = applyTransform(raw, readSpec.transform);
+          extractedValues[input.outputName] = { raw, value, sensitive: input.sensitive };
           if (input.sensitive) {
             // Tracked so every subsequent log line — including the model's own
             // free-text reasoning, which can echo this value back in prose —
             // gets scrubbed for the rest of the run, not just this one event.
-            knownSensitiveValues.push(value);
+            // Both forms: scrubbing only the transformed value would leave the
+            // raw "$3482.10" to survive on any path the currency regex misses.
+            knownSensitiveValues.push(value, raw.trim());
           }
           if (!outputsAcc.some((out) => out.name === input.outputName)) {
             outputsAcc.push({
@@ -435,11 +453,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
             frame: input.frame,
             locator: input.locator,
             outputName: input.outputName,
-            read: {
-              from: input.from,
-              ...(input.attributeName !== undefined ? { attributeName: input.attributeName } : {}),
-              ...(input.transform !== undefined ? { transform: input.transform } : {}),
-            },
+            read: readSpec,
             retryable: false,
             irreversible: false,
           });

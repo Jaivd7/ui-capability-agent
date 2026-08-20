@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { CapabilityArtifact } from "../artifact/schema.js";
 import { redactTranscriptText } from "../guardrails/redact.js";
 import { createRunLogger } from "../logging/logger.js";
 import { startAuthenticatedSession } from "../shared/session.js";
@@ -9,7 +8,7 @@ import { readonlyCredentials, tellerCredentials } from "../shared/credentials.js
 import { createEscalationHandler } from "../escalation/operator-server.js";
 import { buildArtifact } from "./build-artifact.js";
 import { CAPABILITY_PRESETS, resolveTarget } from "./capability-presets.js";
-import { runDiscovery } from "./loop.js";
+import { runDiscovery, type DiscoveryResult } from "./loop.js";
 
 function parseArgs(argv: string[]): { capability: string; role: "teller" | "readonly"; escalate: boolean } {
   const capIdx = argv.indexOf("--capability");
@@ -57,7 +56,7 @@ async function main() {
       ...(escalate ? { escalate: createEscalationHandler(session.page, logger, evidenceDir) } : {}),
     });
 
-    const knownSensitiveValues = collectSensitiveValues(result.outputs, result.transcript);
+    const knownSensitiveValues = sensitiveValuesFrom(result.extractedValues);
     const redactedTranscript = JSON.parse(
       redactTranscriptText(JSON.stringify(result.transcript, null, 2), knownSensitiveValues),
     );
@@ -82,7 +81,7 @@ async function main() {
       process.exit(1);
     }
 
-    const artifact: CapabilityArtifact = buildArtifact({
+    const { artifact, compileFindings } = buildArtifact({
       id: preset.id,
       name: preset.name,
       description: preset.description,
@@ -100,6 +99,13 @@ async function main() {
     writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
     writeFileSync(join(evidenceDir, `${runId}.artifact.json`), JSON.stringify(artifact, null, 2));
 
+    if (compileFindings.length > 0) {
+      console.log("\nCompiler notes:");
+      for (const f of compileFindings) {
+        console.log(`  ${f.severity.toUpperCase()} ${f.where}: ${f.message}`);
+      }
+    }
+
     console.log(`\nDiscovery succeeded in ${result.steps.length} step(s).`);
     console.log(`Artifact saved to ${artifactPath}`);
     console.log(`Evidence saved to ${evidenceDir}/${runId}.*`);
@@ -108,17 +114,26 @@ async function main() {
   }
 }
 
-/** Pulls every sensitive output's runtime value out of the transcript so it can be redacted before persisting. */
-function collectSensitiveValues(outputs: { name: string; sensitive: boolean }[], transcript: unknown): (string | number)[] {
-  const sensitiveNames = new Set(outputs.filter((o) => o.sensitive).map((o) => o.name));
-  if (sensitiveNames.size === 0) return [];
-  const text = JSON.stringify(transcript);
+/**
+ * The real runtime values to scrub from the transcript before it is written.
+ *
+ * This used to regex-scrape the transcript for "Extracted <name> = (...)" —
+ * which never worked: the loop masks that string with redactValue before the
+ * model ever sees it, so the scrape recovered the literal text "[REDACTED]"
+ * and fed *that* to the redactor. The transcript came out clean because of
+ * redactTranscriptText's blanket currency regex, not because of this
+ * function. The loop now returns what it actually read (raw and transformed
+ * forms both, since a currency output's number form is not a substring of its
+ * "$3,482.10" page form), so there is no scraping and no implicit coupling to
+ * a log-line format.
+ */
+function sensitiveValuesFrom(extracted: DiscoveryResult["extractedValues"]): (string | number)[] {
   const values: (string | number)[] = [];
-  for (const name of sensitiveNames) {
-    const match = new RegExp(`Extracted ${name} = ([^.\\\\]+)\\.`).exec(text);
-    if (match?.[1]) values.push(match[1]);
+  for (const record of Object.values(extracted)) {
+    if (!record.sensitive) continue;
+    values.push(record.value, record.raw.trim());
   }
-  return values;
+  return values.filter((v) => String(v) !== "");
 }
 
 main().catch((err) => {
