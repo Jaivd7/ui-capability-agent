@@ -1,0 +1,16 @@
+{"timestamp":"2026-08-20T22:17:24.347Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-number-1787264243970","capabilityId":"meridian-find-member-by-number","capabilityVersion":1,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"100987"}}
+{"timestamp":"2026-08-20T22:17:24.459Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:17:27.984Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:17:31.561Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:17:35.138Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:17:38.652Z","type":"extracted","stepId":"step-5","outputName":"memberName","value":"T[REDACTED]n"}
+{"timestamp":"2026-08-20T22:17:38.652Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:17:42.294Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:17:45.811Z","type":"extracted","stepId":"step-7","outputName":"shareCount","value":11}
+{"timestamp":"2026-08-20T22:17:45.812Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:17:49.399Z","type":"step_result","stepId":"step-8","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:17:52.913Z","type":"checkpoint_passed","description":"URL reflects the opened member record for the searched member"}
+{"timestamp":"2026-08-20T22:17:52.915Z","type":"checkpoint_passed","description":"Member record heading is present, confirming record page loaded"}
+{"timestamp":"2026-08-20T22:17:52.916Z","type":"checkpoint_passed","description":"SHARES / BALANCES section heading is present, confirming the shares table is shown"}
+{"timestamp":"2026-08-20T22:17:52.925Z","type":"checkpoint_passed","description":"Shares table column header 'Share ID' is present, confirming the table structure used to count share rows"}
+{"timestamp":"2026-08-20T22:17:52.925Z","type":"run_end","status":"success","stepsExecuted":8,"outputNames":["memberName","shareCount"],"humanIntervened":false}

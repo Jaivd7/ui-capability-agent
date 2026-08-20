@@ -1,5 +1,6 @@
 import { createBrowserPool, type BrowserPool } from "./runtime/browser-pool.js";
 import { createCatalog } from "./runtime/catalog.js";
+import { createLiveView } from "./runtime/live-view.js";
 import { createRunExecutor } from "./runtime/run-executor.js";
 import { createRunRegistry } from "./runtime/run-registry.js";
 import type { ServerDeps } from "./types.js";
@@ -28,11 +29,15 @@ export async function buildDeps(): Promise<BuiltDeps> {
   await runs.rebuildFromDisk();
   const pool = createBrowserPool();
   const interventions = createInterventionRegistry();
+  // Written by the executor, read by the run page. Both sides take it as a
+  // dependency so neither has to know the other exists.
+  const liveView = createLiveView();
 
   const executor = createRunExecutor({
     catalog,
     runs,
     pool,
+    liveView,
     // The console is a few routes on *this* server now, so the handler only
     // needs to know where it is mounted. Nothing is started per run.
     escalate: ({ evidenceDir, page, logger, app, artifact }) =>
@@ -61,5 +66,5 @@ export async function buildDeps(): Promise<BuiltDeps> {
       }),
   });
 
-  return { catalog, runs, executor, pool, interventions };
+  return { catalog, runs, executor, pool, interventions, liveView };
 }

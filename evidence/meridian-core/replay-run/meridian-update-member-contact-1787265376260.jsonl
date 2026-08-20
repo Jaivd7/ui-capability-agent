@@ -1,0 +1,18 @@
+{"timestamp":"2026-08-20T22:36:17.216Z","type":"run_start","kind":"replay","runId":"meridian-update-member-contact-1787265376260","capabilityId":"meridian-update-member-contact","capabilityVersion":2,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"100987","email":"a[REDACTED]m","phone":"9[REDACTED]0","address":"2[REDACTED]s"}}
+{"timestamp":"2026-08-20T22:36:17.311Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:36:22.340Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:36:27.416Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:36:32.497Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:36:37.518Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:36:42.543Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:36:47.569Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:36:52.605Z","type":"escalation_raised","runId":"meridian-update-member-contact-1787265376260","kind":"irreversible_confirmation","reason":"Step is marked irreversible and no monetary amount could be resolved for it, so it is treated as above the 100 approval threshold.","currentUrl":"https://web-sample.interface-hiring.com/members/100987/update","currentStepId":"step-8","screenshotPath":"/Users/jaidamani/Desktop/Projects/interface.ai take-home/evidence/meridian-core/replay-run/meridian-update-member-contact-1787265376260.escalation.png"}
+{"timestamp":"2026-08-20T22:36:52.606Z","type":"escalation_console_started","runId":"meridian-update-member-contact-1787265376260","consoleUrl":"/runs/meridian-update-member-contact-1787265376260/escalation"}
+{"timestamp":"2026-08-20T22:37:00.549Z","type":"human_action","runId":"meridian-update-member-contact-1787265376260","actionType":"approve_step","detail":"Save Changes button"}
+{"timestamp":"2026-08-20T22:37:00.550Z","type":"escalation_resolved","runId":"meridian-update-member-contact-1787265376260","decision":"resumed","actionCount":1}
+{"timestamp":"2026-08-20T22:37:00.551Z","type":"step_result","stepId":"step-8","ok":true,"attempt":1,"humanApproved":true}
+{"timestamp":"2026-08-20T22:37:05.571Z","type":"checkpoint_passed","description":"URL still reflects the updated member's record (contains the memberId parameter) on the update route"}
+{"timestamp":"2026-08-20T22:37:05.578Z","type":"checkpoint_passed","description":"Confirmation heading indicates the update succeeded"}
+{"timestamp":"2026-08-20T22:37:05.582Z","type":"checkpoint_passed","description":"Confirmation text explicitly states changes were saved"}
+{"timestamp":"2026-08-20T22:37:05.587Z","type":"checkpoint_passed","description":"Confirmation message references the searched member number (input parameter)"}
+{"timestamp":"2026-08-20T22:37:05.587Z","type":"run_end","status":"success","stepsExecuted":8,"outputNames":[],"humanIntervened":true}

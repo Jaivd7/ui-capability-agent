@@ -1,0 +1,18 @@
+{
+  "status": "success",
+  "outputs": {
+    "memberName": "T[REDACTED]n",
+    "email": "a[REDACTED]m",
+    "phone": "5[REDACTED]2",
+    "address": "2[REDACTED]s",
+    "balance": "[REDACTED]",
+    "status": "OPEN"
+  },
+  "checkpointsPassed": [
+    "Confirm we are on the member record page for the given member number",
+    "Confirm the member number label is present on the page",
+    "Confirm the SHARES / BALANCES table row for the target share ID exists",
+    "Confirm the E-mail label is present on the member record page"
+  ],
+  "stepsExecuted": 7
+}

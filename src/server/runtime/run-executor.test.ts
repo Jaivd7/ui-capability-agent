@@ -12,6 +12,7 @@ import {
   type CatalogEntryDetail,
   type RunQuery,
   type RunRecord,
+  type LiveView,
   type RunRegistry,
   type RunSummary,
 } from "../types.js";
@@ -353,5 +354,121 @@ describe("createRunExecutor", () => {
 
     gate.resolve(SUCCESS);
     await executor.drain(1000);
+  });
+  /**
+   * The live view is a lifetime problem, not a rendering one: a page published
+   * after the run ends is a handle to a closed context, and a page never
+   * published is a broken image for the whole run.
+   */
+  describe("live view", () => {
+    function trackingLiveView() {
+      const events: string[] = [];
+      const pages = new Map<string, unknown>();
+      const liveView: LiveView = {
+        register(runId, page) {
+          events.push(`register:${runId}`);
+          pages.set(runId, page);
+        },
+        release(runId) {
+          events.push(`release:${runId}`);
+          pages.delete(runId);
+        },
+        has: (runId) => pages.has(runId),
+        screenshot: async () => undefined,
+      };
+      return { liveView, events, pages };
+    }
+
+    function makeWithLiveView(replay: ReplayFn, liveView: LiveView, pool: StubPool = stubPool()) {
+      const runs = stubRegistry();
+      const executor = createRunExecutor({
+        catalog: stubCatalog(artifact),
+        runs,
+        pool,
+        replay,
+        liveView,
+        evidenceRoot,
+      });
+      return { executor, runs, pool };
+    }
+
+    it("publishes the run's page while it is in flight and withdraws it after", async () => {
+      const { liveView, events } = trackingLiveView();
+      const gate = deferred<ReplayResult>();
+      const { executor } = makeWithLiveView(() => gate.promise, liveView);
+
+      const accepted = await executor.invoke({ capabilityId: artifact.id, params: { memberId: "1001" } });
+      expect(liveView.has(accepted.runId)).toBe(true);
+
+      gate.resolve(SUCCESS);
+      await executor.drain(1000);
+
+      expect(liveView.has(accepted.runId)).toBe(false);
+      expect(events).toEqual([`register:${accepted.runId}`, `release:${accepted.runId}`]);
+    });
+
+    it("withdraws the page when the run fails, not only when it succeeds", async () => {
+      const { liveView } = trackingLiveView();
+      const { executor, runs } = makeWithLiveView(async () => {
+        throw new Error("the engine threw");
+      }, liveView);
+
+      const accepted = await executor.invoke({ capabilityId: artifact.id, params: { memberId: "1001" } });
+      await executor.drain(1000);
+
+      expect(runs.records.get(accepted.runId)?.status).toBe("failed");
+      expect(liveView.has(accepted.runId)).toBe(false);
+    });
+
+    it("publishes nothing when the session could not be acquired", async () => {
+      const { liveView, events } = trackingLiveView();
+      // A failed login never yields a page, so there is nothing to show and
+      // nothing to withdraw — the placeholder is the honest answer here.
+      const { executor } = makeWithLiveView(
+        async () => SUCCESS,
+        liveView,
+        stubPool({ failAcquire: new Error("login failed") }),
+      );
+
+      await executor.invoke({ capabilityId: artifact.id, params: { memberId: "1001" } });
+      await executor.drain(1000);
+
+      expect(events.filter((e) => e.startsWith("register:"))).toEqual([]);
+    });
+
+    it("withdraws the page before the context is closed", async () => {
+      // Ordering matters: a registered page whose context has already been
+      // destroyed costs every subsequent request a capture timeout to discover
+      // what the registry could have said immediately.
+      const order: string[] = [];
+      const pool = stubPool();
+      const wrapped: StubPool = {
+        ...pool,
+        async acquire(o) {
+          const session = await pool.acquire(o);
+          return {
+            ...session,
+            release: async () => {
+              order.push("context-closed");
+              await session.release();
+            },
+          };
+        },
+      };
+      const { liveView } = trackingLiveView();
+      const spied: LiveView = {
+        ...liveView,
+        release(runId) {
+          order.push("page-withdrawn");
+          liveView.release(runId);
+        },
+      };
+      const { executor } = makeWithLiveView(async () => SUCCESS, spied, wrapped);
+
+      await executor.invoke({ capabilityId: artifact.id, params: { memberId: "1001" } });
+      await executor.drain(1000);
+
+      expect(order).toEqual(["page-withdrawn", "context-closed"]);
+    });
   });
 });

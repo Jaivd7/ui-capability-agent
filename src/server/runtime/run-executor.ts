@@ -17,6 +17,7 @@ import {
   type EscalationSummary,
   type InvokeAccepted,
   type InvokeRequest,
+  type LiveView,
   type ParamValue,
   type RunExecutor,
   type RunRecord,
@@ -64,6 +65,12 @@ export interface RunExecutorDeps {
     app: string;
     artifact: CapabilityArtifact;
   }) => EscalationHandler | undefined;
+  /**
+   * Where the run's page is published so the dashboard can screenshot it while
+   * it works. Optional: a server composed without one simply has no live view,
+   * and every other path is unaffected.
+   */
+  liveView?: LiveView;
   /** Defaults to the real engine; overridden in tests. */
   replay?: ReplayFn;
   /** Defaults to `<cwd>/evidence`. Overridden in tests so they don't write into the repo. */
@@ -222,6 +229,11 @@ export function createRunExecutor(deps: RunExecutorDeps): RunExecutor {
         role: ctx.role,
         baseUrl: artifact.target.baseUrl,
       });
+      // Published as soon as there is something to look at, which is before the
+      // first step runs: the login and the opening navigation are exactly the
+      // part of a run a reviewer most wants to watch, and they are also the
+      // part that takes longest to reach a recognisable page.
+      deps.liveView?.register(runId, session.page);
 
       const guardrailsConfig = loadGuardrailsConfig(artifact.target.app);
       const escalate = ctx.escalateEnabled
@@ -321,6 +333,12 @@ export function createRunExecutor(deps: RunExecutorDeps): RunExecutor {
     } finally {
       // 10. Unconditional. A context that outlives its run is a leaked login
       //     session against the target, not just leaked memory.
+      //
+      //     Unpublished *before* the close, not after: a screenshot request
+      //     that resolves the page a moment before it is destroyed fails
+      //     harmlessly, but leaving a closed page registered would make every
+      //     later request pay a timeout to discover the same thing.
+      deps.liveView?.release(runId);
       await session?.release();
     }
   }

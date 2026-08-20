@@ -1,0 +1,15 @@
+{"timestamp":"2026-08-20T21:56:25.212Z","type":"run_start","kind":"replay","runId":"meridian-read-member-record-1787262950699-probe","capabilityId":"meridian-read-member-record","capabilityVersion":2,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"101555"}}
+{"timestamp":"2026-08-20T21:56:25.349Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:56:28.869Z","type":"extracted","stepId":"step-2","outputName":"memberName","value":"H[REDACTED]e"}
+{"timestamp":"2026-08-20T21:56:28.870Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:56:32.384Z","type":"extracted","stepId":"step-3","outputName":"email","value":"g[REDACTED]m"}
+{"timestamp":"2026-08-20T21:56:32.385Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:56:35.893Z","type":"extracted","stepId":"step-4","outputName":"phone","value":"5[REDACTED]9"}
+{"timestamp":"2026-08-20T21:56:35.893Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:56:39.410Z","type":"extracted","stepId":"step-5","outputName":"address","value":"1[REDACTED]t"}
+{"timestamp":"2026-08-20T21:56:39.411Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:56:42.922Z","type":"checkpoint_passed","description":"URL is the member record page for the requested member number"}
+{"timestamp":"2026-08-20T21:56:42.930Z","type":"checkpoint_passed","description":"Page shows the MEMBER RECORD heading"}
+{"timestamp":"2026-08-20T21:56:42.941Z","type":"checkpoint_passed","description":"Member No. label cell is present, confirming member identifier field is shown"}
+{"timestamp":"2026-08-20T21:56:42.949Z","type":"checkpoint_passed","description":"Address label cell exists on the record, confirming the mailing address field is present"}
+{"timestamp":"2026-08-20T21:56:42.949Z","type":"run_end","status":"success","stepsExecuted":5,"outputNames":["memberName","email","phone","address"],"humanIntervened":false}

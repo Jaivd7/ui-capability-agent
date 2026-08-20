@@ -253,10 +253,33 @@ export interface RunExecutor {
   drain(timeoutMs: number): Promise<void>;
 }
 
+/**
+ * The live browser page of whichever run is in flight, for the run page's
+ * "Live view".
+ *
+ * Kept out of `RunRecord` deliberately: a record is JSON the API serializes to
+ * callers, and a Playwright handle is neither serializable nor something an API
+ * client should reach. The executor owns the lifetime — registered when it
+ * acquires a session, released before that session is closed — so a runId that
+ * is absent here has no live page *by definition*, whatever its status says.
+ */
+export interface LiveView {
+  register(runId: string, page: import("playwright").Page): void;
+  release(runId: string): void;
+  has(runId: string): boolean;
+  /** A PNG of the run's current page, or undefined when there is no frame to give. */
+  screenshot(runId: string): Promise<Buffer | undefined>;
+}
+
 export interface ServerDeps {
   catalog: Catalog;
   runs: RunRegistry;
   executor: RunExecutor;
+  /**
+   * Optional so the app can be composed without a browser — the view tests and
+   * the executor tests both build deps by hand, and neither has a page to show.
+   */
+  liveView?: LiveView;
   /** Base path the dashboard is mounted at, for building links. */
   basePath?: string;
 }

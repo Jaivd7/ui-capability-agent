@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "outputs": {
+    "shareId": "101555-S0001",
+    "balance": "[REDACTED]",
+    "status": "HOLD [HOLD]"
+  },
+  "checkpointsPassed": [
+    "URL reflects the member record page for the given memberId",
+    "Member Record heading is present, confirming correct page type",
+    "SHARES / BALANCES section heading text is present",
+    "The Share ID column header exists in the shares table, confirming table structure"
+  ],
+  "stepsExecuted": 4
+}

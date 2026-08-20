@@ -1,0 +1,21 @@
+{
+  "status": "hard_failure",
+  "stepId": "step-1",
+  "stepDescription": "(recoverable condition \"session-expired\")",
+  "reason": "Recoverable condition \"session-expired\" detected but exhausted its 1 recovery attempt(s).",
+  "humanIntervention": {
+    "raisedAt": "2026-08-20T22:04:14.433Z",
+    "resolvedAt": "2026-08-20T22:06:19.696Z",
+    "kind": "replay_hard_failure",
+    "reason": "Recoverable condition \"session-expired\" detected but exhausted its 1 recovery attempt(s).",
+    "decision": "aborted",
+    "actions": [
+      {
+        "timestamp": "2026-08-20T22:06:19.694Z",
+        "type": "abort",
+        "detail": "The session expired while awaiting operator input; this run cannot safely resume. Re-invoke the capability.",
+        "blocked": true
+      }
+    ]
+  }
+}

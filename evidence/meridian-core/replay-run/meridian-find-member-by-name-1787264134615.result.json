@@ -1,0 +1,13 @@
+{
+  "status": "success",
+  "outputs": {
+    "memberId": "1[REDACTED]7",
+    "memberName": "T[REDACTED]n"
+  },
+  "checkpointsPassed": [
+    "URL is on a member record page (member number in path)",
+    "URL matches the member record route pattern",
+    "The Name field on the opened record contains the searched last name 'Turing'"
+  ],
+  "stepsExecuted": 7
+}

@@ -87,11 +87,39 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
   "meridian-read-member-record": {
     id: "meridian-read-member-record",
     app: "meridian-core",
-    name: "Read member record and share balance",
+    name: "Read member record",
     description:
-      "Reads a member's contact details and the balance and status of one of their shares. Pairs with the update-contact capability, which needs those current values.",
+      "Reads a member's name and contact details. Pairs with the update-contact capability, which needs those current values.",
     goal:
-      "Navigate directly to the member record page for the member identified by the memberId parameter (the URL is /members/ followed by that member number). Extract the member's full name as memberName, their e-mail address as email, their phone number as phone, and their mailing address as address. Then, from the SHARES / BALANCES table, find the row whose Share ID is the member number followed by a hyphen and the shareCode parameter, and extract that row's Balance as balance and its Status as status.",
+      "Navigate directly to the member record page for the member identified by the memberId parameter (the URL is /members/ followed by that member number). Extract the member's full name as memberName, their e-mail address as email, their phone number as phone, and their mailing address as address.",
+    params: [
+      { name: "memberId", type: "string", exampleValue: MEMBER, sensitive: false, description: "Member number." },
+    ],
+    preconditions: { authRequired: true, startRoute: "/menu" },
+    verifyParams: { memberId: "101555" },
+    knownOutcomes: meridianOutcomes(),
+  },
+
+  /**
+   * Split out from the record read rather than folded into it.
+   *
+   * The two were one capability with a required `shareCode`, on the grounds
+   * that §2.1 lists "Member record / balance" as a single function. That was
+   * fitting the contract to my own constraint (no list output type, so only
+   * one share can be read) instead of to the caller: someone who wants a
+   * member's e-mail should not have to name a share, and — worse — should not
+   * have to already know a *valid* one, since a wrong suffix makes the run
+   * hard-fail on a locator that finds nothing. Two capabilities, each asking
+   * only for what it needs.
+   */
+  "meridian-read-share-balance": {
+    id: "meridian-read-share-balance",
+    app: "meridian-core",
+    name: "Read a share's balance and status",
+    description:
+      "Reads the balance and status of one of a member's shares, identified by its share-code suffix (S0001, S0070, MMKT, CERT, or a numbered variant such as MMKT-4).",
+    goal:
+      "Navigate directly to the member record page for the member identified by the memberId parameter (the URL is /members/ followed by that member number). In the SHARES / BALANCES table, find the row whose Share ID is the member number followed by a hyphen and the shareCode parameter, and extract that row's Balance as balance and its Status as status. Also extract the Share ID itself as shareId.",
     params: [
       { name: "memberId", type: "string", exampleValue: MEMBER, sensitive: false, description: "Member number." },
       {
@@ -99,7 +127,7 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
         type: "string",
         exampleValue: "S0070",
         sensitive: false,
-        description: "Share suffix identifying which share to read, e.g. S0001, S0070, MMKT, CERT.",
+        description: "Share suffix identifying which share to read, e.g. S0001, S0070, MMKT, CERT, MMKT-4.",
       },
     ],
     preconditions: { authRequired: true, startRoute: "/menu" },

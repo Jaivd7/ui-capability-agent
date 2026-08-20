@@ -1,0 +1,88 @@
+{
+  "capabilityId": "meridian-read-share-balance",
+  "score": 68,
+  "grade": "C",
+  "metrics": {
+    "steps": 4,
+    "chains": 6,
+    "meanChainDepth": 1.2,
+    "singleCandidateChains": 5,
+    "brittleRootedChains": 0,
+    "brittleOnlyChains": 0,
+    "checkpoints": 4,
+    "structuralCheckpoints": 4,
+    "paramsDeclared": 2,
+    "paramsBoundInSteps": 2,
+    "paramsAssertedInCheckpoints": 1,
+    "outputs": 3,
+    "outputsVerified": 0
+  },
+  "findings": [
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "info",
+      "code": "param_unverified",
+      "where": "inputParams.shareCode",
+      "message": "used by a step but asserted by no checkpoint, so a wrong-target run would still pass"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.shareId",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.balance",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.status",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "error",
+      "code": "differential_probe_failed",
+      "where": "(differential probe)",
+      "message": "replaying with {\"memberId\":\"101555\",\"shareCode\":\"S0001\"} gave hard_failure — Extract Balance value for the row matching member number + shareCode: Step execution failed and no known outcome matched the resulting state.",
+      "suggestion": "this flow passed live moments ago with the recorded arguments, so something in it is fitted to those arguments rather than to the app"
+    }
+  ]
+}

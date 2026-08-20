@@ -4,6 +4,7 @@ import { ParamValidationError } from "../replay/coerce.js";
 import { invokeError } from "./api.js";
 import { CapabilityNotFoundError } from "./runtime/run-executor.js";
 import { listAvailableEvidence } from "./runtime/evidence-reader.js";
+import { livePlaceholderSvg } from "./runtime/live-view.js";
 import { layout } from "./views/layout.js";
 import { catalogPage } from "./views/pages/catalog.js";
 import { invokePage } from "./views/pages/invoke.js";
@@ -174,6 +175,36 @@ export function createUiRouter(deps: ServerDeps): Router {
         ...(live ? { pollScript: pollScript({ runId: record.runId }) } : {}),
       }),
     );
+  });
+
+  /**
+   * The frame behind the run page's "Live view".
+   *
+   * A UI route rather than an API one: `/api` is the contract an agent invokes
+   * a capability through, and what the browser happens to be showing a human
+   * mid-run is not part of that contract. The run page is the only caller.
+   *
+   * Never cached. The poll script cache-busts with a timestamp, but the
+   * server-rendered `<img>` does not, and a cached first frame would leave the
+   * live view frozen on the login screen for the whole run.
+   */
+  ui.get("/runs/:runId/screenshot", async (req, res) => {
+    const record = deps.runs.get(req.params.runId);
+    res.setHeader("Cache-Control", "no-store");
+    if (!record) return res.status(404).type("text/plain").send("No such run.");
+
+    const png = await deps.liveView?.screenshot(req.params.runId);
+    if (png) return res.type("image/png").send(png);
+
+    return res
+      .type("image/svg+xml")
+      .send(
+        livePlaceholderSvg(
+          isTerminalStatus(record.status)
+            ? "This run has finished — the browser session is closed."
+            : "Waiting for the browser session to open…",
+        ),
+      );
   });
 
   ui.get("/faults", async (_req, res) => {

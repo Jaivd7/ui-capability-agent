@@ -1,0 +1,14 @@
+{
+  "status": "success",
+  "outputs": {
+    "confirmationNumber": "C[REDACTED]9",
+    "newShareId": "1[REDACTED]3"
+  },
+  "checkpointsPassed": [
+    "URL indicates we landed on the share opened success page",
+    "Success screen shows a Confirmation label static text",
+    "Success screen shows the New Share ID label static text",
+    "Success screen shows the opening balance matching the deposit parameter entered"
+  ],
+  "stepsExecuted": 10
+}

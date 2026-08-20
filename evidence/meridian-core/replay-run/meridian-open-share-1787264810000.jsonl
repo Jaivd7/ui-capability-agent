@@ -1,0 +1,18 @@
+{"timestamp":"2026-08-20T22:26:50.408Z","type":"run_start","kind":"replay","runId":"meridian-open-share-1787264810000","capabilityId":"meridian-open-share","capabilityVersion":1,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"100987","shareType":"S0001","deposit":42}}
+{"timestamp":"2026-08-20T22:26:50.513Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:26:55.536Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:27:00.627Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:27:05.757Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:27:10.781Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:27:15.794Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:27:20.881Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:27:26.045Z","type":"step_result","stepId":"step-8","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:27:31.058Z","type":"extracted","stepId":"step-9","outputName":"confirmationNumber","value":"C[REDACTED]9"}
+{"timestamp":"2026-08-20T22:27:31.058Z","type":"step_result","stepId":"step-9","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:27:36.073Z","type":"extracted","stepId":"step-10","outputName":"newShareId","value":"1[REDACTED]3"}
+{"timestamp":"2026-08-20T22:27:36.073Z","type":"step_result","stepId":"step-10","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:27:41.092Z","type":"checkpoint_passed","description":"URL indicates we landed on the share opened success page"}
+{"timestamp":"2026-08-20T22:27:41.101Z","type":"checkpoint_passed","description":"Success screen shows a Confirmation label static text"}
+{"timestamp":"2026-08-20T22:27:41.108Z","type":"checkpoint_passed","description":"Success screen shows the New Share ID label static text"}
+{"timestamp":"2026-08-20T22:27:41.115Z","type":"checkpoint_passed","description":"Success screen shows the opening balance matching the deposit parameter entered"}
+{"timestamp":"2026-08-20T22:27:41.116Z","type":"run_end","status":"success","stepsExecuted":10,"outputNames":["confirmationNumber","newShareId"],"humanIntervened":false}

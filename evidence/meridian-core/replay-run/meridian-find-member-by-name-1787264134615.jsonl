@@ -1,0 +1,14 @@
+{"timestamp":"2026-08-20T22:15:35.525Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-name-1787264134615","capabilityId":"meridian-find-member-by-name","capabilityVersion":3,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"lastName":"Turing"}}
+{"timestamp":"2026-08-20T22:15:35.746Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:15:39.788Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:15:43.816Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:15:47.891Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:15:52.028Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:15:56.049Z","type":"extracted","stepId":"step-6","outputName":"memberId","value":"1[REDACTED]7"}
+{"timestamp":"2026-08-20T22:15:56.049Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:16:00.058Z","type":"extracted","stepId":"step-7","outputName":"memberName","value":"T[REDACTED]n"}
+{"timestamp":"2026-08-20T22:16:00.059Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:16:04.069Z","type":"checkpoint_passed","description":"URL is on a member record page (member number in path)"}
+{"timestamp":"2026-08-20T22:16:04.073Z","type":"checkpoint_passed","description":"URL matches the member record route pattern"}
+{"timestamp":"2026-08-20T22:16:04.076Z","type":"checkpoint_passed","description":"The Name field on the opened record contains the searched last name 'Turing'"}
+{"timestamp":"2026-08-20T22:16:04.076Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":["memberId","memberName"],"humanIntervened":false}

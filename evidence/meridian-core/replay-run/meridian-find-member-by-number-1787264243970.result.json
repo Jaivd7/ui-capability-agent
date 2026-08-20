@@ -1,0 +1,14 @@
+{
+  "status": "success",
+  "outputs": {
+    "memberName": "T[REDACTED]n",
+    "shareCount": 11
+  },
+  "checkpointsPassed": [
+    "URL reflects the opened member record for the searched member",
+    "Member record heading is present, confirming record page loaded",
+    "SHARES / BALANCES section heading is present, confirming the shares table is shown",
+    "Shares table column header 'Share ID' is present, confirming the table structure used to count share rows"
+  ],
+  "stepsExecuted": 8
+}

@@ -1,0 +1,13 @@
+{"timestamp":"2026-08-20T22:30:18.141Z","type":"run_start","kind":"replay","runId":"meridian-read-share-balance-1787265017578","capabilityId":"meridian-read-share-balance","capabilityVersion":1,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"101555","shareCode":"S0001"}}
+{"timestamp":"2026-08-20T22:30:18.215Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:30:21.740Z","type":"extracted","stepId":"step-2","outputName":"shareId","value":"101555-S0001"}
+{"timestamp":"2026-08-20T22:30:21.741Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:30:25.256Z","type":"extracted","stepId":"step-3","outputName":"balance","value":"[REDACTED]"}
+{"timestamp":"2026-08-20T22:30:25.256Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:30:28.768Z","type":"extracted","stepId":"step-4","outputName":"status","value":"HOLD [HOLD]"}
+{"timestamp":"2026-08-20T22:30:28.769Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T22:30:32.278Z","type":"checkpoint_passed","description":"URL reflects the member record page for the given memberId"}
+{"timestamp":"2026-08-20T22:30:32.282Z","type":"checkpoint_passed","description":"Member Record heading is present, confirming correct page type"}
+{"timestamp":"2026-08-20T22:30:32.285Z","type":"checkpoint_passed","description":"SHARES / BALANCES section heading text is present"}
+{"timestamp":"2026-08-20T22:30:32.288Z","type":"checkpoint_passed","description":"The Share ID column header exists in the shares table, confirming table structure"}
+{"timestamp":"2026-08-20T22:30:32.289Z","type":"run_end","status":"success","stepsExecuted":4,"outputNames":["shareId","balance","status"],"humanIntervened":false}

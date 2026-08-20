@@ -1,14 +1,14 @@
 {
   "schemaVersion": "1.1.0",
-  "id": "meridian-read-member-record",
-  "name": "Read member record",
-  "description": "Reads a member's name and contact details. Pairs with the update-contact capability, which needs those current values.",
-  "version": 2,
-  "contentHash": "62bac3dc6fdc14400d5b885f0948704a5f338080ca091fc1dc5ba80d9e00f2da",
-  "createdAt": "2026-08-20T21:56:25.198Z",
+  "id": "meridian-read-share-balance",
+  "name": "Read a share's balance and status",
+  "description": "Reads the balance and status of one of a member's shares, identified by its share-code suffix (S0001, S0070, MMKT, CERT, or a numbered variant such as MMKT-4).",
+  "version": 1,
+  "contentHash": "03cb7857ec2dde347e5a2e85517525851dd94b85855809114b91008ee293bb0a",
+  "createdAt": "2026-08-20T21:57:25.907Z",
   "discovery": {
     "model": "claude-sonnet-5",
-    "discoveredAt": "2026-08-20T21:56:25.198Z"
+    "discoveredAt": "2026-08-20T21:57:25.907Z"
   },
   "target": {
     "app": "meridian-core",
@@ -28,32 +28,34 @@
       "description": "Member number.",
       "sensitive": false,
       "example": "100234"
+    },
+    {
+      "name": "shareCode",
+      "type": "string",
+      "required": true,
+      "description": "Share suffix identifying which share to read, e.g. S0001, S0070, MMKT, CERT, MMKT-4.",
+      "sensitive": false,
+      "example": "S0070"
     }
   ],
   "outputs": [
     {
-      "name": "memberName",
+      "name": "shareId",
       "type": "string",
-      "description": "Member's full name from Member Record page",
+      "description": "Extract Share ID for the row matching member number + shareCode",
+      "sensitive": false
+    },
+    {
+      "name": "balance",
+      "type": "currency",
+      "description": "Extract Balance value for the row matching member number + shareCode",
       "sensitive": true
     },
     {
-      "name": "email",
+      "name": "status",
       "type": "string",
-      "description": "Member's email address from Member Record page",
-      "sensitive": true
-    },
-    {
-      "name": "phone",
-      "type": "string",
-      "description": "Member's phone number from Member Record page",
-      "sensitive": true
-    },
-    {
-      "name": "address",
-      "type": "string",
-      "description": "Member's mailing address from Member Record page",
-      "sensitive": true
+      "description": "Extract Status text for the row matching member number + shareCode",
+      "sensitive": false
     }
   ],
   "steps": [
@@ -67,76 +69,64 @@
     },
     {
       "id": "step-2",
-      "description": "Member's full name from Member Record page",
+      "description": "Extract Share ID for the row matching member number + shareCode",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
+          "strategy": "role",
+          "role": "cell",
+          "name": "${memberId}-${shareCode}",
+          "exact": true,
+          "reason": "Share ID cell exact match on its own text, unique within shares table"
+        },
+        {
           "strategy": "xpath",
-          "expression": "//td[normalize-space(text())='Name:']/following-sibling::td[1]",
-          "reason": "the value cell immediately follows the static 'Name:' label cell in the member record table"
+          "expression": "//table//tr[td[1][normalize-space(text())='${memberId}-${shareCode}']]/td[1]",
+          "reason": "positional fallback: first cell of row whose first cell text matches the share id pattern"
         }
       ],
       "type": "extract",
-      "outputName": "memberName",
+      "outputName": "shareId",
       "read": {
         "from": "innerText"
       }
     },
     {
       "id": "step-3",
-      "description": "Member's email address from Member Record page",
+      "description": "Extract Balance value for the row matching member number + shareCode",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
           "strategy": "xpath",
-          "expression": "//td[normalize-space(text())='E-mail:']/following-sibling::td[1]",
-          "reason": "the value cell immediately follows the static 'E-mail:' label cell in the member record table"
+          "expression": "//table//tr[td[1][normalize-space(text())='${memberId}-${shareCode}']]/td[3]",
+          "reason": "Balance cell (3rd column) in the row identified by the target Share ID"
         }
       ],
       "type": "extract",
-      "outputName": "email",
+      "outputName": "balance",
       "read": {
         "from": "innerText"
       }
     },
     {
       "id": "step-4",
-      "description": "Member's phone number from Member Record page",
+      "description": "Extract Status text for the row matching member number + shareCode",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
           "strategy": "xpath",
-          "expression": "//td[normalize-space(text())='Phone:']/following-sibling::td[1]",
-          "reason": "the value cell immediately follows the static 'Phone:' label cell in the member record table"
+          "expression": "//table//tr[td[1][normalize-space(text())='${memberId}-${shareCode}']]/td[4]",
+          "reason": "Status cell (4th column) in the row identified by the target Share ID"
         }
       ],
       "type": "extract",
-      "outputName": "phone",
-      "read": {
-        "from": "innerText"
-      }
-    },
-    {
-      "id": "step-5",
-      "description": "Member's mailing address from Member Record page",
-      "retryable": false,
-      "irreversible": false,
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "xpath",
-          "expression": "//td[normalize-space(text())='Address:']/following-sibling::td[1]",
-          "reason": "the value cell immediately follows the static 'Address:' label cell in the member record table"
-        }
-      ],
-      "type": "extract",
-      "outputName": "address",
+      "outputName": "status",
       "read": {
         "from": "innerText"
       }
@@ -144,20 +134,20 @@
   ],
   "checkpoints": [
     {
-      "description": "URL is the member record page for the requested member number",
+      "description": "URL reflects the member record page for the given memberId",
       "frame": [],
       "locator": [
         {
           "strategy": "css",
           "selector": "body",
-          "reason": "the URL itself is what is being asserted, so any stable top-level element works as the locator"
+          "reason": "URL check applies to the whole page"
         }
       ],
       "assertion": "urlMatches",
       "expected": "/members/${memberId:regexEscape}"
     },
     {
-      "description": "Page shows the MEMBER RECORD heading",
+      "description": "Member Record heading is present, confirming correct page type",
       "frame": [],
       "locator": [
         {
@@ -171,29 +161,28 @@
       "assertion": "exists"
     },
     {
-      "description": "Member No. label cell is present, confirming member identifier field is shown",
+      "description": "SHARES / BALANCES section heading text is present",
       "frame": [],
       "locator": [
         {
-          "strategy": "role",
-          "role": "cell",
-          "name": "Member No.:",
+          "strategy": "text",
+          "text": "SHARES / BALANCES",
           "exact": false,
-          "reason": "static label cell present in the member record table for every member"
+          "reason": "static section label present on every member record page"
         }
       ],
       "assertion": "exists"
     },
     {
-      "description": "Address label cell exists on the record, confirming the mailing address field is present",
+      "description": "The Share ID column header exists in the shares table, confirming table structure",
       "frame": [],
       "locator": [
         {
           "strategy": "role",
           "role": "cell",
-          "name": "Address:",
-          "exact": false,
-          "reason": "static label cell present in the member record table for every member"
+          "name": "Share ID",
+          "exact": true,
+          "reason": "static column heading in the shares table"
         }
       ],
       "assertion": "exists"
