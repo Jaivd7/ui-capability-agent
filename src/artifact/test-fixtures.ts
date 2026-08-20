@@ -24,7 +24,10 @@ export function baseArtifact(): CapabilityArtifact {
     },
     preconditions: { authRequired: true, startRoute: "/members" },
     inputParams: [
-      { name: "memberId", type: "string", required: true, sensitive: false },
+      // `example` is always set on a compiled artifact (it comes from the
+      // preset's exampleValue) and several checks key off it, so the fixture
+      // carries one too.
+      { name: "memberId", type: "string", required: true, sensitive: false, example: "1001" },
     ],
     outputs: [
       { name: "savingsBalance", type: "currency", sensitive: true },

@@ -1,5 +1,6 @@
 import type { CapabilityArtifact, Target } from "../artifact/schema.js";
 import type { DiscoveryParam } from "./loop.js";
+import type { ParamValue } from "../artifact/template.js";
 
 export interface CapabilityPreset {
   id: string;
@@ -9,6 +10,19 @@ export interface CapabilityPreset {
   params: DiscoveryParam[];
   preconditions: CapabilityArtifact["preconditions"];
   knownOutcomes: CapabilityArtifact["knownOutcomes"];
+  /**
+   * A *different* valid argument set, used for the differential probe: the
+   * freshly compiled artifact is replayed with these, with no LLM, on the same
+   * live session. Anything that fails is fitted to the recording rather than
+   * to the app, since the identical flow passed live seconds earlier.
+   *
+   * This is the only mechanism that catches a checkpoint asserting page data
+   * the compiler cannot recognise as such — a member's *name* is neither a
+   * parameter nor an extracted value, so from one recording it is
+   * indistinguishable from static page chrome. Deliberately picked to differ
+   * in every dimension the capability accepts.
+   */
+  verifyParams: Record<string, ParamValue>;
 }
 
 function target(): Target {
@@ -54,6 +68,9 @@ export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
       },
     ],
     preconditions: { authRequired: true, startRoute: "/members" },
+    // A different member, with a different name and a different balance —
+    // which is what makes a checkpoint asserting either of those fail.
+    verifyParams: { memberId: "1002" },
     knownOutcomes: [
       {
         id: "member-not-found",
@@ -122,6 +139,10 @@ export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
       },
     ],
     preconditions: { authRequired: true, startRoute: "/members", requiredRole: "teller" },
+    // 1500 rather than a round 250 on purpose: the app renders
+    // `$${n.toFixed(2)}` with no thousands separator, so this is also the
+    // probe that would catch a currency formatter that groups.
+    verifyParams: { memberId: "1003", accountType: "Holiday Club", openingDeposit: 1500 },
     knownOutcomes: [
       {
         id: "member-not-found",
