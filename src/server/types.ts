@@ -249,6 +249,11 @@ export interface Catalog {
 
 export interface RunExecutor {
   invoke(req: InvokeRequest): Promise<InvokeAccepted>;
+  /**
+   * Re-record a capability with the LLM in the loop. Shares the single-flight
+   * lock with `invoke`: one browser session, one run, whichever kind.
+   */
+  discover(req: { capabilityId: string; role?: string; escalate?: boolean }): Promise<InvokeAccepted>;
   /** Resolves when no run is in flight. Used by graceful shutdown. */
   drain(timeoutMs: number): Promise<void>;
 }

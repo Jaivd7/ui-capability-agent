@@ -220,6 +220,25 @@ function styleFor(event: RunEvent): EventStyle {
       return { label: "human", tone: "bg-violet-50 text-violet-700 ring-violet-600/20", glyph: "&#128100;" };
     case "extracted":
       return { label: "extracted", tone: "bg-blue-50 text-blue-700 ring-blue-600/20", glyph: "&#8659;" };
+    // Discovery's vocabulary. The model's turn is styled to stand out from
+    // everything else on the page, because on a discovery run it *is* the page:
+    // watching the reasoning arrive is the point of the tab.
+    case "model_decision":
+      return { label: "model", tone: "bg-indigo-50 text-indigo-700 ring-indigo-600/25", glyph: "&#9679;" };
+    case "model_no_tool_call":
+      return { label: "model", tone: "bg-amber-50 text-amber-800 ring-amber-600/30", glyph: "&#9679;" };
+    case "action_result":
+      return boolField(event, "ok")
+        ? { label: "acted", tone: "bg-emerald-50 text-emerald-700 ring-emerald-600/20", glyph: "&#10003;" }
+        : { label: "acted", tone: "bg-red-50 text-red-700 ring-red-600/20", glyph: "&#10007;" };
+    case "observation":
+      return { label: "observed", tone: "bg-slate-100 text-slate-600 ring-slate-400/25", glyph: "&#128065;" };
+    case "checkpoint_rejected":
+      return { label: "refused", tone: "bg-amber-50 text-amber-800 ring-amber-600/30", glyph: "&#9888;" };
+    case "guardrail_blocked":
+      return { label: "guardrail", tone: "bg-red-50 text-red-700 ring-red-600/20", glyph: "&#9940;" };
+    case "recording_score":
+      return { label: "scored", tone: "bg-violet-50 text-violet-700 ring-violet-600/20", glyph: "&#9733;" };
     case "run_start":
       return { label: "run start", tone: "bg-slate-100 text-slate-600 ring-slate-400/25", glyph: "&#9654;" };
     case "run_end":
@@ -287,6 +306,46 @@ export function describeEvent(event: RunEvent): string {
     case "extracted":
       parts.push(`${stringField(event, "outputName") ?? "output"} = ${stringField(event, "value") ?? ""}`);
       break;
+    case "model_decision": {
+      // Ordered for someone watching this arrive live: the verb, then the
+      // model's own description of what it is doing, then how it chose to
+      // find the element, then why. The raw locator chain is JSON and would
+      // otherwise be the only thing that fits on the line.
+      const input = isRecord(event["input"]) ? event["input"] : {};
+      parts.push(stringField(event, "tool") ?? "?");
+      if (typeof input["description"] === "string") parts.push(input["description"]);
+      const locator = summarizeLocator(input["locator"]);
+      if (locator) parts.push(locator);
+      const rest = summarizeInput(input, ["description", "locator"]);
+      if (rest) parts.push(rest);
+      const reasoning = stringField(event, "reasoning");
+      if (reasoning) parts.push(`"${reasoning}"`);
+      break;
+    }
+    case "model_no_tool_call":
+      parts.push(`turn produced no tool call: ${stringField(event, "text") ?? "(no text)"}`);
+      break;
+    case "action_result":
+      parts.push(stringField(event, "tool") ?? "action");
+      if (!boolField(event, "ok")) parts.push(`failed: ${stringField(event, "detail") ?? "unknown"}`);
+      else if (stringField(event, "detail")) parts.push(stringField(event, "detail")!);
+      break;
+    case "observation":
+      parts.push(stringField(event, "url") ?? "");
+      break;
+    case "checkpoint_rejected":
+      parts.push(`checkpoint refused at record time: ${stringField(event, "reason") ?? ""}`);
+      break;
+    case "guardrail_blocked":
+      parts.push(`${stringField(event, "tool") ?? "action"} blocked: ${stringField(event, "reason") ?? ""}`);
+      break;
+    case "recording_score":
+      parts.push(
+        `grade ${stringField(event, "grade") ?? "?"} (${stringField(event, "score") ?? "?"}) — ${
+          stringField(event, "errors") ?? 0
+        } error(s), ${stringField(event, "warnings") ?? 0} warning(s)`,
+      );
+      break;
     default: {
       const fields = Object.entries(event)
         .filter(([k]) => k !== "type" && k !== "timestamp" && k !== "index")
@@ -295,7 +354,10 @@ export function describeEvent(event: RunEvent): string {
       parts.push(fields.join(" "));
     }
   }
-  return parts.filter(Boolean).join(" · ");
+  // Collapsed to one line: several events quote multi-line text back at us —
+  // a zod validation error, a scraped page fragment — and a timeline row is a
+  // single line by construction. The full text is always in the JSONL.
+  return parts.filter(Boolean).join(" · ").replace(/\s+/g, " ").trim();
 }
 
 function timelineRow(event: RunEvent, previousTimestamp: string | undefined): string {
@@ -322,6 +384,47 @@ function elapsed(previous: string | undefined, current: string): string {
   const b = Date.parse(current);
   if (Number.isNaN(a) || Number.isNaN(b)) return "";
   return `+${duration(Math.max(0, b - a))}`;
+}
+
+/** A tool call's remaining arguments on one line, long values clipped. */
+function summarizeInput(input: Record<string, unknown>, omit: string[] = []): string {
+  return Object.entries(input)
+    .filter(([k]) => !omit.includes(k))
+    .map(([k, v]) => {
+      const text = typeof v === "string" ? v : JSON.stringify(v);
+      return `${k}=${text && text.length > 60 ? `${text.slice(0, 60)}…` : text}`;
+    })
+    .join(", ");
+}
+
+/**
+ * The chosen locator in the same shorthand `describeCandidate` uses, and only
+ * the primary candidate: the ordered chain is the artifact's business, and on
+ * a timeline it is forty characters of JSON where the interesting fact is
+ * "it went for the accessible name".
+ */
+function summarizeLocator(value: unknown): string | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const first = value[0];
+  if (!isRecord(first)) return undefined;
+  const str = (k: string): string => (typeof first[k] === "string" ? (first[k] as string) : "");
+  const suffix = value.length > 1 ? ` +${value.length - 1} fallback` : "";
+  switch (first["strategy"]) {
+    case "role":
+      return `role(${str("role")}${str("name") ? `, "${str("name")}"` : ""})${suffix}`;
+    case "css":
+      return `css("${str("selector")}")${suffix}`;
+    case "xpath":
+      return `xpath("${str("expression")}")${suffix}`;
+    case "testId":
+      return `testId("${str("testId")}")${suffix}`;
+    default:
+      return str("text") ? `${String(first["strategy"])}("${str("text")}")${suffix}` : undefined;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function stringField(event: RunEvent, key: string): string | undefined {

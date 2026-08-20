@@ -4,6 +4,7 @@ import type { Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDashboardApp } from "./app.js";
 import { createLiveView } from "./runtime/live-view.js";
+import { PresetNotFoundError } from "./runtime/discovery-runner.js";
 import type {
   Catalog,
   LiveView,
@@ -70,6 +71,11 @@ const stubCatalog: Catalog = { list: () => [], get: () => undefined, refresh: ()
 const stubExecutor: RunExecutor = {
   invoke: async () => {
     throw new Error("not used");
+  },
+  // The real runner resolves the preset registry before it touches a browser,
+  // so an unknown id fails the same way here without one.
+  discover: async ({ capabilityId }) => {
+    throw new PresetNotFoundError(capabilityId);
   },
   drain: async () => undefined,
 };
@@ -231,5 +237,43 @@ describe("the run page's own links resolve", () => {
 
     const res = await fetch(`${base}/runs/cap-1/screenshot?t=12345`);
     expect(res.status).toBe(200);
+  });
+});
+
+describe("the Discovery tab", () => {
+  it("lists a preset that has never been recorded, and says it will save v1", async () => {
+    // Driven by the preset registry rather than the catalog on purpose: a
+    // capability with no artifact yet is the most interesting row on the page,
+    // because it is the one that proves the artifacts were not hand-written.
+    await start({ runs: stubRegistry([]) });
+
+    const html = await (await fetch(`${base}/discovery`)).text();
+
+    expect(html).toContain("meridian-find-member-by-number");
+    expect(html).toContain("will save v1");
+    expect(html).toContain('href="/discovery"');
+  });
+
+  it("refuses to re-record a capability that has no preset", async () => {
+    await start({ runs: stubRegistry([]) });
+
+    const res = await fetch(`${base}/api/capabilities/not-a-capability/discover`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+
+    expect(res.status).toBe(404);
+    expect((await res.json()).error.code).toBe("preset_not_found");
+  });
+
+  it("shows the runner as busy rather than letting a second run be started", async () => {
+    const running = record({ runId: "busy-1", status: "running" });
+    await start({ runs: { ...stubRegistry([running]), active: () => running as never } });
+
+    const html = await (await fetch(`${base}/discovery`)).text();
+
+    expect(html).toContain("The runner is busy");
+    expect(html).toContain("disabled");
   });
 });

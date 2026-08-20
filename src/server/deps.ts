@@ -3,6 +3,7 @@ import { createCatalog } from "./runtime/catalog.js";
 import { createLiveView } from "./runtime/live-view.js";
 import { createRunExecutor } from "./runtime/run-executor.js";
 import { createRunRegistry } from "./runtime/run-registry.js";
+import { createDiscoveryRunner } from "./runtime/discovery-runner.js";
 import type { ServerDeps } from "./types.js";
 import { getAppAdapter } from "../apps/index.js";
 import { loadGuardrailsConfig } from "../guardrails/config.js";
@@ -66,5 +67,17 @@ export async function buildDeps(): Promise<BuiltDeps> {
       }),
   });
 
-  return { catalog, runs, executor, pool, interventions, liveView };
+  // Composed rather than nested: discovery is a second kind of run over the
+  // same runner, so it takes the executor's core (lock, pool, live view,
+  // escalation) instead of building its own.
+  const discovery = createDiscoveryRunner(executor.core);
+
+  return {
+    catalog,
+    runs,
+    executor: { invoke: executor.invoke, drain: executor.drain, discover: discovery.discover },
+    pool,
+    interventions,
+    liveView,
+  };
 }

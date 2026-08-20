@@ -43,6 +43,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { key: "overview", label: "Overview", href: "/" },
   { key: "capabilities", label: "Capabilities", href: "/capabilities" },
+  { key: "discovery", label: "Discovery", href: "/discovery" },
   { key: "runs", label: "Runs", href: "/runs" },
   { key: "faults", label: "Faults", href: "/faults" },
 ];

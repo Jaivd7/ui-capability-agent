@@ -63,7 +63,8 @@ export interface RunExecutorDeps {
     page: import("playwright").Page;
     logger: RunLogger;
     app: string;
-    artifact: CapabilityArtifact;
+    /** Absent for discovery: there is no artifact yet, that is what the run is for. */
+    artifact?: CapabilityArtifact;
   }) => EscalationHandler | undefined;
   /**
    * Where the run's page is published so the dashboard can screenshot it while
@@ -77,9 +78,29 @@ export interface RunExecutorDeps {
   evidenceRoot?: string;
 }
 
+/**
+ * The pieces of the runner that a *kind* of run needs, extracted so discovery
+ * can share them rather than owning a second browser, a second lock and a
+ * second view of history.
+ *
+ * `track` is the part that would otherwise be duplicated wrongly: shutdown
+ * drains one in-flight promise, and a discovery run the executor did not know
+ * about would be dropped mid-recording on SIGINT.
+ */
+export interface RunnerCore {
+  catalog: Catalog;
+  runs: RunRegistry;
+  pool: BrowserPool;
+  liveView?: LiveView | undefined;
+  escalate?: RunExecutorDeps["escalate"];
+  track(work: Promise<void>): void;
+}
+
 const DEFAULT_EVIDENCE_SUBDIR = "replay-run";
 
-export function createRunExecutor(deps: RunExecutorDeps): RunExecutor {
+export function createRunExecutor(
+  deps: RunExecutorDeps,
+): Omit<RunExecutor, "discover"> & { core: RunnerCore } {
   const replay: ReplayFn = deps.replay ?? runReplay;
   const evidenceRoot = deps.evidenceRoot ?? join(process.cwd(), "evidence");
 
@@ -388,6 +409,18 @@ export function createRunExecutor(deps: RunExecutorDeps): RunExecutor {
 
   return {
     invoke,
+    core: {
+      catalog: deps.catalog,
+      runs: deps.runs,
+      pool: deps.pool,
+      liveView: deps.liveView,
+      escalate: deps.escalate,
+      track(work: Promise<void>) {
+        inFlight = work.finally(() => {
+          inFlight = undefined;
+        });
+      },
+    },
     /** 11. Resolves when the in-flight run finishes, or when the budget runs out. */
     async drain(timeoutMs: number): Promise<void> {
       const running = inFlight;

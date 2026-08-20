@@ -75,6 +75,22 @@ export function pollScript(opts: PollScriptOptions): string {
   }
 
   function fieldText(event) {
+    // The model's turn is the one event worth formatting on the client. A
+    // discovery run is mostly these, and "reasoning=... tool=... input=..."
+    // is unreadable at the speed they arrive.
+    if (event.type === "model_decision") {
+      var args = [];
+      if (event.input && typeof event.input === "object") {
+        for (var k in event.input) {
+          if (!Object.prototype.hasOwnProperty.call(event.input, k)) continue;
+          var v = event.input[k];
+          if (typeof v !== "string") v = JSON.stringify(v);
+          args.push(k + "=" + (v && v.length > 60 ? v.slice(0, 60) + "\u2026" : v));
+        }
+      }
+      var head = (event.tool || "?") + "(" + args.join(", ") + ")";
+      return event.reasoning ? head + " \u00b7 \u201c" + event.reasoning + "\u201d" : head;
+    }
     var skip = { type: 1, timestamp: 1, index: 1 };
     var parts = [];
     for (var key in event) {

@@ -3,6 +3,7 @@ import { Router } from "express";
 import { listAppAdapters } from "../apps/index.js";
 import { ParamValidationError } from "../replay/coerce.js";
 import { CapabilityNotFoundError } from "./runtime/run-executor.js";
+import { PresetNotFoundError } from "./runtime/discovery-runner.js";
 import { evidenceFilePath, listAvailableEvidence } from "./runtime/evidence-reader.js";
 import { EVIDENCE_FILES, RunnerBusyError, type EvidenceFile, type ServerDeps } from "./types.js";
 
@@ -46,6 +47,24 @@ export function createApiRouter(deps: ServerDeps): Router {
       });
       // 202, not 201: we are accepting work, not creating a resource the
       // caller owns. The run is addressable, but it isn't theirs.
+      return res.status(202).location(accepted.statusUrl).json(accepted);
+    } catch (err) {
+      return invokeError(res, err);
+    }
+  });
+
+  /**
+   * Re-record a capability. Same accept-and-poll contract as invoke, and the
+   * same single-flight lock — the two kinds of run share one browser session.
+   */
+  api.post("/capabilities/:id/discover", async (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    try {
+      const accepted = await deps.executor.discover({
+        capabilityId: req.params.id,
+        ...(typeof body.role === "string" ? { role: body.role } : {}),
+        ...(typeof body.escalate === "boolean" ? { escalate: body.escalate } : {}),
+      });
       return res.status(202).location(accepted.statusUrl).json(accepted);
     } catch (err) {
       return invokeError(res, err);
@@ -177,6 +196,11 @@ function notFound(res: Parameters<Parameters<Router["get"]>[1]>[1], code: string
 export function invokeError(res: Parameters<Parameters<Router["get"]>[1]>[1], err: unknown) {
   if (err instanceof CapabilityNotFoundError) {
     return res.status(404).json({ error: { code: "capability_not_found", message: err.message } });
+  }
+  if (err instanceof PresetNotFoundError) {
+    // A recorded capability with no preset is a real and legitimate state —
+    // the artifact exists, the recipe for re-recording it does not.
+    return res.status(404).json({ error: { code: "preset_not_found", message: err.message } });
   }
   if (err instanceof ParamValidationError) {
     return res.status(400).json({

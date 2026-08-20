@@ -12,6 +12,9 @@ import { overviewPage, type DemoLink } from "./views/pages/overview.js";
 import { runDetailPage } from "./views/pages/run-detail.js";
 import { runsPage } from "./views/pages/runs.js";
 import { faultsPage } from "./views/pages/faults.js";
+import { discoveryPage, type DiscoveryPreset } from "./views/pages/discovery.js";
+import { CAPABILITY_PRESETS } from "../discovery/capability-presets.js";
+import { PresetNotFoundError } from "./runtime/discovery-runner.js";
 import {
   applyFaultSettings,
   describeArmedFault,
@@ -207,6 +210,40 @@ export function createUiRouter(deps: ServerDeps): Router {
       );
   });
 
+  ui.get("/discovery", (_req, res) => {
+    const active = deps.runs.active();
+    res.send(
+      page({
+        title: "Discovery",
+        activeNav: "discovery",
+        body: discoveryPage({
+          presets: presetRows(deps),
+          recent: deps.runs.list({ kind: "discovery", limit: 8 }),
+          ...(active ? { busyWith: active } : {}),
+          // Checked rather than assumed: discovery is the only path that calls
+          // a model, and finding out it cannot in the middle of a demo is the
+          // worst possible time.
+          modelConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
+          model: DISCOVERY_MODEL,
+        }),
+        pollScript: runnerPollScript(),
+      }),
+    );
+  });
+
+  ui.post("/discovery/:id/run", async (req, res) => {
+    try {
+      const accepted = await deps.executor.discover({ capabilityId: req.params.id });
+      // 303 so a refresh of the run page cannot start a second recording.
+      return res.redirect(303, accepted.runUrl);
+    } catch (err) {
+      if (err instanceof PresetNotFoundError) {
+        return res.status(404).send(page({ title: "Not found", body: notFoundBody(req.params.id) }));
+      }
+      return invokeError(res, err);
+    }
+  });
+
   ui.get("/faults", async (_req, res) => {
     if (!supportsFaultInjection(FAULT_APP)) {
       return res.status(404).send(page({ title: "Faults", body: notFoundBody("fault injection") }));
@@ -256,6 +293,35 @@ export function createUiRouter(deps: ServerDeps): Router {
   });
 
   return ui;
+}
+
+/** Shown on the Discovery tab so the page names the model it is about to spend money on. */
+const DISCOVERY_MODEL = "Claude Sonnet 5";
+
+/**
+ * The presets, joined to whatever is already on disk.
+ *
+ * Driven by the preset registry rather than the catalog: a capability that has
+ * never been recorded on this machine still has a goal and can still be run,
+ * and it is the more interesting row on the page — it is the one that proves
+ * the artifacts were not hand-written.
+ */
+function presetRows(deps: ServerDeps): DiscoveryPreset[] {
+  return Object.values(CAPABILITY_PRESETS)
+    .map((preset) => {
+      const existing = deps.catalog.get(preset.id);
+      return {
+        id: preset.id,
+        app: preset.app,
+        name: preset.name,
+        goal: preset.goal,
+        role: preset.preconditions.requiredRole ?? listRoles(preset.app)[0] ?? "",
+        params: preset.params.map((p) => ({ name: p.name, exampleValue: p.exampleValue })),
+        hasArtifact: existing !== undefined,
+        ...(existing ? { currentVersion: existing.version } : {}),
+      };
+    })
+    .sort((a, b) => a.app.localeCompare(b.app) || a.name.localeCompare(b.name));
 }
 
 function countByStatus(deps: ServerDeps): Record<RunStatus, number> {
