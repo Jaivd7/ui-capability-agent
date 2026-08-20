@@ -10,6 +10,15 @@ import { invokePage } from "./views/pages/invoke.js";
 import { overviewPage, type DemoLink } from "./views/pages/overview.js";
 import { runDetailPage } from "./views/pages/run-detail.js";
 import { runsPage } from "./views/pages/runs.js";
+import { faultsPage } from "./views/pages/faults.js";
+import {
+  applyFaultSettings,
+  describeArmedFault,
+  readFaultSettings,
+  supportsFaultInjection,
+  type FaultSettings,
+  type InjectKind,
+} from "./runtime/fault-injection.js";
 import { pollScript, runnerPollScript } from "./views/poll-script.js";
 import { isTerminalStatus, type RunStatus, type ServerDeps } from "./types.js";
 
@@ -19,14 +28,30 @@ import { isTerminalStatus, type RunStatus, type ServerDeps } from "./types.js";
  * renders a *result* — that logic exists exactly once, here — so a run page
  * that has gone terminal reloads rather than trying to draw the outcome.
  */
+const FAULT_APP = "meridian-core";
+
 export function createUiRouter(deps: ServerDeps): Router {
   const ui = Router();
+
+  /**
+   * Last known fault state, refreshed whenever the panel is opened or changed.
+   * Cached rather than fetched per page render: it costs a sign-on round trip
+   * against the target, and the banner exists to stop a reviewer forgetting
+   * they armed something — a few seconds of staleness does not undermine that.
+   */
+  let armed: FaultSettings | undefined;
+  const banner = () => describeArmedFault(armed);
+  const page = (opts: { title: string; activeNav?: string; body: string; pollScript?: string }) =>
+    layout({
+      ...opts,
+      ...(banner() ? { faultBanner: banner()! } : {}),
+    });
 
   ui.get("/", (_req, res) => {
     const recent = deps.runs.list({ limit: 5 });
     const counts = countByStatus(deps);
     res.send(
-      layout({
+      page({
         title: "Overview",
         activeNav: "overview",
         body: overviewPage({
@@ -51,7 +76,7 @@ export function createUiRouter(deps: ServerDeps): Router {
     // human reviewer reading the page wants the recipe.
     const details = deps.catalog.list().map((e) => deps.catalog.get(e.id) ?? e);
     res.send(
-      layout({
+      page({
         title: "Capabilities",
         activeNav: "capabilities",
         body: catalogPage(details),
@@ -62,10 +87,10 @@ export function createUiRouter(deps: ServerDeps): Router {
 
   ui.get("/capabilities/:id/invoke", (req, res) => {
     const entry = deps.catalog.get(req.params.id);
-    if (!entry) return res.status(404).send(layout({ title: "Not found", body: notFoundBody(req.params.id) }));
+    if (!entry) return res.status(404).send(page({ title: "Not found", body: notFoundBody(req.params.id) }));
     const active = deps.runs.active();
     return res.send(
-      layout({
+      page({
         title: `Invoke ${entry.name}`,
         activeNav: "capabilities",
         body: invokePage(entry, {
@@ -80,7 +105,7 @@ export function createUiRouter(deps: ServerDeps): Router {
 
   ui.post("/capabilities/:id/invoke", async (req, res) => {
     const entry = deps.catalog.get(req.params.id);
-    if (!entry) return res.status(404).send(layout({ title: "Not found", body: notFoundBody(req.params.id) }));
+    if (!entry) return res.status(404).send(page({ title: "Not found", body: notFoundBody(req.params.id) }));
 
     const form = (req.body ?? {}) as Record<string, string>;
     const { role, escalate, ...params } = form;
@@ -98,7 +123,7 @@ export function createUiRouter(deps: ServerDeps): Router {
       if (err instanceof ParamValidationError || err instanceof CapabilityNotFoundError) {
         const active = deps.runs.active();
         return res.status(400).send(
-          layout({
+          page({
             title: `Invoke ${entry.name}`,
             activeNav: "capabilities",
             body: invokePage(entry, {
@@ -117,7 +142,7 @@ export function createUiRouter(deps: ServerDeps): Router {
   ui.get("/runs", (req, res) => {
     const q = req.query;
     res.send(
-      layout({
+      page({
         title: "Runs",
         activeNav: "runs",
         body: runsPage(
@@ -134,12 +159,12 @@ export function createUiRouter(deps: ServerDeps): Router {
   ui.get("/runs/:runId", async (req, res) => {
     const record = deps.runs.get(req.params.runId);
     if (!record) {
-      return res.status(404).send(layout({ title: "Not found", body: notFoundBody(req.params.runId) }));
+      return res.status(404).send(page({ title: "Not found", body: notFoundBody(req.params.runId) }));
     }
     const events = await deps.runs.events(record.runId);
     const live = !isTerminalStatus(record.status);
     return res.send(
-      layout({
+      page({
         title: `Run ${record.runId}`,
         activeNav: "runs",
         body: runDetailPage(record, events, {
@@ -147,6 +172,54 @@ export function createUiRouter(deps: ServerDeps): Router {
           live,
         }),
         ...(live ? { pollScript: pollScript({ runId: record.runId }) } : {}),
+      }),
+    );
+  });
+
+  ui.get("/faults", async (_req, res) => {
+    if (!supportsFaultInjection(FAULT_APP)) {
+      return res.status(404).send(page({ title: "Faults", body: notFoundBody("fault injection") }));
+    }
+    let error: string | undefined;
+    try {
+      armed = await readFaultSettings(FAULT_APP);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+    return res.send(
+      page({
+        title: "Fault injection",
+        activeNav: "faults",
+        body: faultsPage({ app: FAULT_APP, ...(armed ? { settings: armed } : {}), ...(error ? { error } : {}) }),
+      }),
+    );
+  });
+
+  ui.post("/faults", async (req, res) => {
+    const body = (req.body ?? {}) as Record<string, string>;
+    // A form with two submit buttons sends the clicked one last; "Disarm
+    // everything" relies on that rather than on JavaScript.
+    const raw = Array.isArray(body.forcedInject) ? body.forcedInject.at(-1)! : body.forcedInject;
+    const settings: FaultSettings = {
+      forcedInject: (raw as InjectKind | "none") || "none",
+      errorRate: Number(body.errorRate ?? 0),
+    };
+    let error: string | undefined;
+    try {
+      await applyFaultSettings(FAULT_APP, settings);
+      armed = settings;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+    return res.send(
+      page({
+        title: "Fault injection",
+        activeNav: "faults",
+        body: faultsPage({
+          app: FAULT_APP,
+          settings,
+          ...(error ? { error } : { saved: true }),
+        }),
       }),
     );
   });
