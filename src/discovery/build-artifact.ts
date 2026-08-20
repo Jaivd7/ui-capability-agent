@@ -5,6 +5,8 @@ import { parseArtifact } from "../artifact/index.js";
 import {
   assertNoLeakedPageData,
   generalizeArtifact,
+  paramSurfaces,
+  templatize,
   type CompileFinding,
 } from "./generalize.js";
 import type { DiscoveryParam, DiscoveryResult } from "./loop.js";
@@ -152,6 +154,17 @@ function generalizeStepValue(step: Step, params: DiscoveryParam[]): Step {
 
 function generalizeValue(value: ValueRef, params: DiscoveryParam[]): ValueRef {
   if (value.kind !== "literal") return value;
+
+  // Whole-field match first: the common case, and the cleanest thing to read
+  // in a saved artifact.
   const match = params.find((p) => p.exampleValue === value.value);
-  return match ? { kind: "param", param: match.name } : value;
+  if (match) return { kind: "param", param: match.name };
+
+  // Otherwise the field may be *composed* of parameters — a share dropdown
+  // whose option value is `<memberId>-<shareCode>`. Reuse the same
+  // longest-match tokenizer the locator and checkpoint strings go through, so
+  // there is one definition of "what counts as a parameter appearing in a
+  // string" rather than two that can disagree.
+  const templated = templatize(value.value, paramSurfaces(params, false));
+  return templated === value.value ? value : { kind: "template", template: templated };
 }

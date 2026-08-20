@@ -71,4 +71,47 @@ describe("evaluateGuardrails", () => {
     expect(result.allowed).toBe(false);
     expect(result.reason).toMatch(/action type/i);
   });
+
+  describe("risk-based approval for irreversible steps", () => {
+    const withThreshold: GuardrailsConfig = { ...config, irreversibleAmountThreshold: 100 };
+    const step = { type: "click", irreversible: true };
+    const ctx = (amount?: number) => ({
+      currentUrl: "http://localhost:4000/members",
+      ...(amount !== undefined ? { amount } : {}),
+    });
+
+    it("allows an irreversible step below the threshold", () => {
+      expect(evaluateGuardrails(step, ctx(25), withThreshold).allowed).toBe(true);
+    });
+
+    it("blocks at the threshold", () => {
+      // At, not just above: a threshold of 100 means 100 needs a human.
+      expect(evaluateGuardrails(step, ctx(100), withThreshold).allowed).toBe(false);
+    });
+
+    it("blocks above the threshold", () => {
+      const decision = evaluateGuardrails(step, ctx(5000), withThreshold);
+      expect(decision.allowed).toBe(false);
+      expect(decision.code).toBe("irreversible_blocked");
+    });
+
+    it("blocks when no amount could be resolved", () => {
+      // Fail closed: a capability with no monetary parameter -- Place Account
+      // Hold -- always escalates, as a consequence of the rule rather than a
+      // special case for it.
+      expect(evaluateGuardrails(step, ctx(), withThreshold).allowed).toBe(false);
+    });
+
+    it("blocks when no threshold is configured, whatever the amount", () => {
+      expect(evaluateGuardrails(step, ctx(1), config).allowed).toBe(false);
+    });
+
+    it("blocks a non-finite amount rather than comparing it", () => {
+      expect(evaluateGuardrails(step, ctx(Number.NaN), withThreshold).allowed).toBe(false);
+    });
+
+    it("leaves a reversible step alone regardless of amount", () => {
+      expect(evaluateGuardrails({ type: "click" }, ctx(999999), withThreshold).allowed).toBe(true);
+    });
+  });
 });

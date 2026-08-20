@@ -318,7 +318,12 @@ function locatorSummary(step: Step): string {
   if (step.type === "navigate") return `→ ${step.urlTemplate}`;
   const base = chainSummary(step.locator, step.frame);
   if (step.type === "fill" || step.type === "select") {
-    const value = step.value.kind === "param" ? `\${${step.value.param}}` : `"${step.value.value}"`;
+    const value =
+      step.value.kind === "param"
+        ? `\${${step.value.param}}`
+        : step.value.kind === "template"
+          ? step.value.template
+          : `"${step.value.value}"`;
     return `${base} ← ${value}`;
   }
   if (step.type === "extract") return `${base} → ${step.outputName} (${step.read.from})`;

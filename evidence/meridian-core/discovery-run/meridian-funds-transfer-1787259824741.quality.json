@@ -1,0 +1,169 @@
+{
+  "capabilityId": "meridian-funds-transfer",
+  "score": 62,
+  "grade": "C",
+  "metrics": {
+    "steps": 13,
+    "chains": 17,
+    "meanChainDepth": 1.2,
+    "singleCandidateChains": 14,
+    "brittleRootedChains": 0,
+    "brittleOnlyChains": 0,
+    "checkpoints": 5,
+    "structuralCheckpoints": 5,
+    "paramsDeclared": 5,
+    "paramsBoundInSteps": 5,
+    "paramsAssertedInCheckpoints": 2,
+    "outputs": 3,
+    "outputsVerified": 1
+  },
+  "findings": [
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[0].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "info",
+      "code": "weak_reason",
+      "where": "steps[2].locator[0].reason",
+      "message": "reason is too short to tell a reviewer why this locator was trusted"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[4].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[5].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[6].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[7].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[8].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[9].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[4].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "info",
+      "code": "param_unverified",
+      "where": "inputParams.fromShareCode",
+      "message": "used by a step but asserted by no checkpoint, so a wrong-target run would still pass"
+    },
+    {
+      "severity": "info",
+      "code": "param_unverified",
+      "where": "inputParams.toShareCode",
+      "message": "used by a step but asserted by no checkpoint, so a wrong-target run would still pass"
+    },
+    {
+      "severity": "info",
+      "code": "param_unverified",
+      "where": "inputParams.memo",
+      "message": "used by a step but asserted by no checkpoint, so a wrong-target run would still pass"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.fromNewBalance",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.toNewBalance",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "irreversible_unmarked",
+      "where": "steps[0]",
+      "message": "looks like a consequential action but is not marked irreversible, so the guardrail will not gate it"
+    },
+    {
+      "severity": "warn",
+      "code": "differential_probe_skipped",
+      "where": "(differential probe)",
+      "message": "not verified against a second argument set, so over-fitting to the recorded arguments is unchecked",
+      "suggestion": "expected for a capability that mutates a shared target; re-check by hand if this recording is ever relied on"
+    }
+  ]
+}

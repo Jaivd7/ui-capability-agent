@@ -1,0 +1,12 @@
+{"timestamp":"2026-08-20T21:08:36.684Z","type":"run_start","kind":"replay","runId":"meridian-funds-transfer-1787260116397","capabilityId":"meridian-funds-transfer","capabilityVersion":2,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"103001","fromShareCode":"S0070-7","toShareCode":"MMKT-2","amount":500,"memo":"threshold check"}}
+{"timestamp":"2026-08-20T21:08:36.785Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:08:42.804Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:08:48.876Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:08:55.006Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:09:01.020Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:09:07.034Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:09:13.055Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:09:19.074Z","type":"step_result","stepId":"step-8","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:09:25.149Z","type":"step_result","stepId":"step-9","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T21:09:28.660Z","type":"known_outcome","outcomeId":"insufficient-funds","classification":"business"}
+{"timestamp":"2026-08-20T21:09:28.661Z","type":"run_end","status":"business_outcome","code":"INSUFFICIENT_FUNDS","outcomeId":"insufficient-funds"}

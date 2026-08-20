@@ -11,6 +11,7 @@ import type { EscalationHandler, HumanIntervention, InterventionContext } from "
 import { getRecoveryAction } from "./app-config.js";
 import { listRoles } from "../apps/index.js";
 import { materializeArtifact } from "./materialize.js";
+import { renderTemplate } from "../artifact/template.js";
 import type { ReplayHardFailure, ReplayResult } from "./result.js";
 
 const DEFAULT_ACTION_TIMEOUT_MS = 10_000;
@@ -116,6 +117,11 @@ export async function runReplay(rawOpts: ReplayOptions): Promise<ReplayResult> {
   // not just the JSONL log.
   let lastIntervention: HumanIntervention | undefined;
 
+  // Computed once: the guardrail's risk threshold needs to know what this
+  // invocation is worth, and the capability already says which of its params
+  // are money.
+  const riskAmount = resolveRiskAmount(opts);
+
   const roleFailure = checkRequiredRole(opts);
   if (roleFailure) {
     logRunStart(opts);
@@ -137,7 +143,10 @@ export async function runReplay(rawOpts: ReplayOptions): Promise<ReplayResult> {
 
     let needsFlowRestart = false;
     for (const step of opts.artifact.steps) {
-      const guardCtx: GuardrailContext = { currentUrl: opts.page.url() };
+      const guardCtx: GuardrailContext = {
+        currentUrl: opts.page.url(),
+        ...(riskAmount !== undefined ? { amount: riskAmount } : {}),
+      };
       if (step.type === "navigate") {
         guardCtx.targetUrl = new URL(step.urlTemplate, opts.artifact.target.baseUrl).toString();
       }
@@ -471,7 +480,9 @@ async function runStepWithRetries(
     }
   }
 
-  const message = lastError instanceof Error ? lastError.message : String(lastError);
+  // Playwright's call log is ANSI-coloured. Those escapes are noise in a JSONL
+  // file and in a browser, and they are control characters in a JSON string.
+  const message = stripAnsi(lastError instanceof Error ? lastError.message : String(lastError));
   return {
     kind: "resolved",
     result: {
@@ -726,6 +737,25 @@ async function verifyCheckpoints(opts: ReplayOptions): Promise<CheckpointVerific
  * stays as the backstop — it catches a role the caller misreported — but when
  * the mismatch is knowable up front, say so before touching the app.
  */
+/**
+ * The monetary value at stake in this invocation: the largest of the arguments
+ * supplied for params the capability declares as `currency`.
+ *
+ * The largest rather than the sum or the first, because the question the
+ * guardrail asks is "how much could a single mistake here cost", and with two
+ * money params the answer is bounded by the bigger one. Returns undefined when
+ * there is no currency param or its argument is unusable, which the policy
+ * treats as "block" — the derivation is allowed to fail, it just fails
+ * closed.
+ */
+function resolveRiskAmount(opts: ReplayOptions): number | undefined {
+  const amounts = opts.artifact.inputParams
+    .filter((p) => p.type === "currency")
+    .map((p) => Number(String(opts.params[p.name] ?? "").replace(/[$,\s]/g, "")))
+    .filter((n) => Number.isFinite(n));
+  return amounts.length > 0 ? Math.max(...amounts) : undefined;
+}
+
 function checkRequiredRole(opts: ReplayOptions): ReplayResult | null {
   const required = opts.artifact.preconditions.requiredRole;
   if (!required || !opts.sessionRole || opts.sessionRole === required) return null;
@@ -737,8 +767,15 @@ function checkRequiredRole(opts: ReplayOptions): ReplayResult | null {
   };
 }
 
+/** Removes terminal colour codes from a library error before it becomes evidence. */
+function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\u001b\[[0-9;]*m/g, "");
+}
+
 function resolveValueRef(ref: ValueRef, params: Record<string, ParamValue>): string {
   if (ref.kind === "literal") return ref.value;
+  if (ref.kind === "template") return renderTemplate(ref.template, params, "step value");
   const value = params[ref.param];
   if (value === undefined) throw new Error(`Missing required param "${ref.param}".`);
   return String(value);

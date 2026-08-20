@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-20T21:09:29.944Z","type":"run_start","kind":"replay","runId":"meridian-place-account-hold-1787260169671","capabilityId":"meridian-place-account-hold","capabilityVersion":2,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"103001","shareCode":"MMKT-3","reasonCode":"LEGAL","notes":"demo"}}
+{"timestamp":"2026-08-20T21:09:29.944Z","type":"run_end","status":"business_outcome","code":"PERMISSION_DENIED","outcomeId":"(precondition:requiredRole)"}

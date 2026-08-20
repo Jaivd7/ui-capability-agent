@@ -91,10 +91,22 @@ export type FrameLocator = z.infer<typeof FrameLocatorSchema>;
 // Values
 // ---------------------------------------------------------------------------
 
-/** Either a literal, or a reference to a named input param supplied at replay time. */
+/**
+ * What a `fill` or `select` step types: a literal, a whole param, or a
+ * `${param}` template composing several.
+ *
+ * The third kind was originally left out as speculative — a typed value is
+ * usually the *entire* field, so exact-match against one param covers it. Then
+ * a target turned up whose share dropdown has option values like
+ * `101555-S0001`: one field, two parameters, composed. Without a template kind
+ * the compiler leaves it a literal and the capability is silently welded to
+ * the member it was recorded against, which is exactly the class of bug this
+ * project spent a phase eliminating from checkpoints.
+ */
 export const ValueRefSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("literal"), value: z.string() }),
   z.object({ kind: z.literal("param"), param: z.string().min(1) }),
+  z.object({ kind: z.literal("template"), template: z.string().min(1) }),
 ]);
 export type ValueRef = z.infer<typeof ValueRefSchema>;
 
@@ -418,6 +430,17 @@ export const CapabilityArtifactSchema = z
     const paramNames = new Set(artifact.inputParams.map((p) => p.name));
     artifact.steps.forEach((step, i) => {
       const value = "value" in step ? step.value : undefined;
+      if (value?.kind === "template") {
+        for (const ref of parseTemplate(value.template).refs) {
+          if (!paramNames.has(ref.param)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `step "${step.id}" value template references unknown param "${ref.param}"`,
+              path: ["steps", i, "value", "template"],
+            });
+          }
+        }
+      }
       if (value?.kind === "param" && !paramNames.has(value.param)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

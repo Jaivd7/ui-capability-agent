@@ -1,0 +1,6 @@
+{
+  "status": "business_outcome",
+  "code": "SHARE_ON_HOLD",
+  "message": "The source share carries a hold and cannot be debited; no transfer was posted.",
+  "outcomeId": "share-on-hold"
+}

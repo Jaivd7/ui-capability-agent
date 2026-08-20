@@ -1,0 +1,6 @@
+{
+  "status": "business_outcome",
+  "code": "INSUFFICIENT_FUNDS",
+  "message": "The source share does not have sufficient available balance; no transfer was posted.",
+  "outcomeId": "insufficient-funds"
+}

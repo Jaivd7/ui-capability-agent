@@ -1,17 +1,43 @@
 {
   "apps": {
     "legacy-core-banking": {
-      "allowedOrigins": ["http://localhost:4000"],
-      "allowedRoutePatterns": ["^/(login|logout|members(/.*)?|dev/expire-session)$"],
-      "allowedActionTypes": ["navigate", "click", "fill", "select", "check", "waitFor", "extract"],
+      "allowedOrigins": [
+        "http://localhost:4000"
+      ],
+      "allowedRoutePatterns": [
+        "^/(login|logout|members(/.*)?|dev/expire-session)$"
+      ],
+      "allowedActionTypes": [
+        "navigate",
+        "click",
+        "fill",
+        "select",
+        "check",
+        "waitFor",
+        "extract"
+      ],
       "irreversibleActionPolicy": "block"
     },
     "meridian-core": {
       "_note": "/settings is deliberately NOT allowlisted. It is the target's global fault-injection config; a capability replay must never be able to reach it. The dashboard's fault panel drives it out of band, with its own session, outside the replay path.",
-      "allowedOrigins": ["https://web-sample.interface-hiring.com"],
-      "allowedRoutePatterns": ["^/(signon|signoff|menu|members(/.*)?)$"],
-      "allowedActionTypes": ["navigate", "click", "fill", "select", "check", "waitFor", "extract"],
-      "irreversibleActionPolicy": "block"
+      "allowedOrigins": [
+        "https://web-sample.interface-hiring.com"
+      ],
+      "allowedRoutePatterns": [
+        "^/(signon|signoff|menu|members(/.*)?)$"
+      ],
+      "allowedActionTypes": [
+        "navigate",
+        "click",
+        "fill",
+        "select",
+        "check",
+        "waitFor",
+        "extract"
+      ],
+      "irreversibleActionPolicy": "block",
+      "irreversibleAmountThreshold": 100,
+      "_thresholdNote": "Irreversible steps below this dollar amount run unattended; at or above it they pause for a human. A capability with no currency parameter (Place Account Hold) resolves no amount and therefore always escalates -- a consequence of the fail-closed rule, not a special case."
     }
   }
 }

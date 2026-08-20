@@ -26,7 +26,7 @@ const MEMBER = "100234";
  * and other people's runs accumulate holds and new shares in it, so a
  * capability that mutates state should not assume a pristine member.
  */
-const TRANSFER_MEMBER = "101555";
+const TRANSFER_MEMBER = "103001";
 
 /**
  * `verifyParams` drives the differential probe: the freshly compiled artifact
@@ -120,16 +120,16 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
       {
         name: "fromShareCode",
         type: "string",
-        exampleValue: "S0001",
+        exampleValue: "S0070-7",
         sensitive: false,
-        description: "Share suffix to transfer from, e.g. S0001.",
+        description: "Share suffix to transfer from, e.g. S0001 or S0070-7.",
       },
       {
         name: "toShareCode",
         type: "string",
-        exampleValue: "CERT",
+        exampleValue: "MMKT-2",
         sensitive: false,
-        description: "Share suffix to transfer to, e.g. CERT.",
+        description: "Share suffix to transfer to, e.g. MMKT-2.",
       },
       {
         name: "amount",
@@ -233,7 +233,7 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
         type: "string",
         // A share that is currently OPEN. A hold is permanent for the life of
         // the deployment, so re-recording this capability needs a fresh one.
-        exampleValue: "MMKT-5",
+        exampleValue: "MMKT-4",
         sensitive: false,
         description: "Share suffix to place the hold on.",
       },

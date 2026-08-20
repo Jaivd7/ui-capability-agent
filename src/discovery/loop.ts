@@ -88,7 +88,15 @@ export interface DiscoveryResult {
   humanIntervention?: HumanIntervention;
 }
 
-const DEFAULT_MAX_STEPS = 20;
+/**
+ * Counts model *turns*, not recorded steps — a rejected finish, a guardrail
+ * block or a retry each consume one. Raised from 20 after a live run spent
+ * eighteen turns correctly waiting out a maintenance interstitial on the
+ * shared target and then ran out of budget with the goal still in reach. The
+ * longest capability here records 13 steps, so 20 left almost no room for the
+ * target misbehaving, which it does.
+ */
+const DEFAULT_MAX_STEPS = 32;
 const DEFAULT_TIMEOUT_MS = 3 * 60_000;
 const ACTION_TIMEOUT_MS = 8_000;
 const DEFAULT_MODEL = "claude-sonnet-5";

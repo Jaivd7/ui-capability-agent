@@ -39,6 +39,18 @@ export interface GuardrailContext {
   currentUrl: string;
   /** For navigate steps only: where this step is about to send the page. */
   targetUrl?: string;
+  /**
+   * The monetary value at stake in this invocation, if any, used to decide
+   * whether an irreversible step is small enough to run unattended.
+   *
+   * Derived by the caller from the capability's own declared param types
+   * rather than from a field the artifact adds. An artifact naming which of
+   * its params is "the risky one" would be an artifact influencing the policy
+   * applied to it, which is the pattern docs/artifact-schema.md already argues
+   * against. `type: "currency"` is a fact the call contract already states for
+   * its own reasons, and reading it here borrows nothing new.
+   */
+  amount?: number;
 }
 
 function checkActionType(step: StepLike, config: GuardrailsConfig): GuardrailDecision {
@@ -53,24 +65,42 @@ function checkActionType(step: StepLike, config: GuardrailsConfig): GuardrailDec
 }
 
 /**
- * The irreversible check is the only one that fires almost exclusively at
- * replay time in practice: discovery never marks a recorded step
- * irreversible on its own (see LEARNING_NOTES.md's Phase 2 entry — that's a
- * deliberate choice, not an oversight), so this is really a check against
- * whatever a human reviewer marked true when approving an artifact for
- * unattended replay. That's the realistic trigger this guardrail defends
- * against: a reviewer (or a bad edit) flags a step irreversible, and the
- * system must refuse to execute it unattended regardless.
+ * Risk-based approval for an irreversible step.
+ *
+ * Blocking every irreversible action unconditionally is the safest rule and
+ * also an unusable one: it means a human clicks Approve for a $5 transfer and
+ * a $50,000 transfer identically, which trains them to click Approve. A
+ * threshold puts the human where the risk is.
+ *
+ * **Fail closed is the load-bearing part.** No threshold configured, no amount
+ * resolvable, an amount that isn't finite — every one of those blocks. The
+ * only path to "allowed" is a threshold that exists and an amount that is
+ * demonstrably below it. Getting the derivation wrong therefore makes the
+ * system stricter, never looser, which is the only direction a safety check is
+ * allowed to be wrong in.
+ *
+ * A capability with no monetary parameter at all — Place Account Hold, say —
+ * consequently always escalates. That falls out of the rule rather than being
+ * a special case for it, which is the right shape: the riskiest action in the
+ * set gets the strictest treatment without anyone having to remember to say so.
  */
-function checkIrreversible(step: StepLike, config: GuardrailsConfig): GuardrailDecision {
-  if (step.irreversible && config.irreversibleActionPolicy === "block") {
-    return {
-      allowed: false,
-      code: "irreversible_blocked",
-      reason: "Step is marked irreversible; current policy blocks irreversible actions from unattended execution.",
-    };
+function checkIrreversible(step: StepLike, config: GuardrailsConfig, ctx: GuardrailContext): GuardrailDecision {
+  if (!step.irreversible || config.irreversibleActionPolicy !== "block") {
+    return { allowed: true };
   }
-  return { allowed: true };
+
+  const threshold = config.irreversibleAmountThreshold;
+  if (threshold !== undefined && ctx.amount !== undefined && Number.isFinite(ctx.amount) && ctx.amount < threshold) {
+    return { allowed: true };
+  }
+
+  const reason =
+    threshold === undefined
+      ? "Step is marked irreversible; current policy blocks irreversible actions from unattended execution."
+      : ctx.amount === undefined
+        ? `Step is marked irreversible and no monetary amount could be resolved for it, so it is treated as above the ${threshold} approval threshold.`
+        : `Step is marked irreversible and its amount (${ctx.amount}) is at or above the ${threshold} approval threshold.`;
+  return { allowed: false, code: "irreversible_blocked", reason };
 }
 
 function checkUrl(url: string, config: GuardrailsConfig): GuardrailDecision {
@@ -108,7 +138,7 @@ export function evaluateGuardrails(step: StepLike, ctx: GuardrailContext, config
   const actionCheck = checkActionType(step, config);
   if (!actionCheck.allowed) return actionCheck;
 
-  const irreversibleCheck = checkIrreversible(step, config);
+  const irreversibleCheck = checkIrreversible(step, config, ctx);
   if (!irreversibleCheck.allowed) return irreversibleCheck;
 
   const currentUrlCheck = checkUrl(ctx.currentUrl, config);
