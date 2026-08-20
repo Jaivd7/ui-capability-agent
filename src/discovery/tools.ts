@@ -89,10 +89,24 @@ export const DISCOVERY_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "click",
-    description: "Click an element.",
+    description:
+      "Click an element. Set irreversible=true when the click commits a transaction that cannot be " +
+      "trivially undone — a final Post, Apply, Confirm, Submit or Delete on a review screen. That flag " +
+      "is what makes replay pause for human approval before doing it unattended later.",
     input_schema: {
       type: "object",
-      properties: { locator: locatorChainSchema, frame: frameSchema, description: { type: "string" } },
+      properties: {
+        locator: locatorChainSchema,
+        frame: frameSchema,
+        description: { type: "string" },
+        irreversible: {
+          type: "boolean",
+          description:
+            "true if this click commits a state change that cannot be trivially undone. Getting a " +
+            "consequential button wrong in the false direction means it later runs unattended, so " +
+            "when in doubt, say true.",
+        },
+      },
       required: ["locator", "description"],
     },
   },

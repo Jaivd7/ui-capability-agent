@@ -13,10 +13,18 @@ import { listRoles } from "../apps/index.js";
 import { materializeArtifact } from "./materialize.js";
 import type { ReplayHardFailure, ReplayResult } from "./result.js";
 
-const ACTION_TIMEOUT_MS = 10_000;
+const DEFAULT_ACTION_TIMEOUT_MS = 10_000;
 /** Deliberately short: a knownOutcome detector is usually absent, and a business-as-usual
  * replay shouldn't pay a long wait for every "is this condition present?" probe. */
-const DETECTOR_TIMEOUT_MS = 1_000;
+/**
+ * Lowered from 1s. Detectors are probed after *every* step, so with six known
+ * outcomes across an eight-step capability a 1s probe is up to 48 seconds of
+ * pure negative waiting per run — most of a demo, spent proving nothing is
+ * wrong. The hosted target answers in ~110ms, so 300ms is still generous, and
+ * detectors that can only fire at one point are additionally scoped with
+ * `checkAfterStepId`.
+ */
+const DEFAULT_DETECTOR_TIMEOUT_MS = 300;
 const MAX_FLOW_RESTARTS = 2;
 const MAX_STEP_RETRIES = 2;
 /**
@@ -56,6 +64,10 @@ export interface ReplayOptions {
   params: Record<string, ParamValue>;
   page: Page;
   logger: RunLogger;
+  /** Per-action wait budget. Defaults are tuned for a fast local or hosted target. */
+  actionTimeoutMs?: number;
+  /** Per-detector probe budget — see DEFAULT_DETECTOR_TIMEOUT_MS for why this is small. */
+  detectorTimeoutMs?: number;
   /**
    * The role this run's session authenticated as. Used to re-authenticate with
    * the same privilege on recovery, and to fail fast when the artifact
@@ -409,7 +421,7 @@ function summarizeStepTarget(step: Step): string {
 async function navigateToEntry(opts: ReplayOptions): Promise<void> {
   const route = opts.artifact.preconditions.startRoute ?? opts.artifact.target.entryRoute;
   const url = new URL(route, opts.artifact.target.baseUrl).toString();
-  await opts.page.goto(url, { timeout: ACTION_TIMEOUT_MS, waitUntil: "load" });
+  await opts.page.goto(url, { timeout: actionTimeout(opts), waitUntil: "load" });
 }
 
 async function runStepWithRetries(
@@ -479,8 +491,16 @@ async function runStepWithRetries(
  * `timeoutMs` is declared on every step in the schema and was read nowhere —
  * a per-step tuning knob that silently did nothing.
  */
-function stepTimeout(step: Step): number {
-  return step.timeoutMs ?? ACTION_TIMEOUT_MS;
+function stepTimeout(step: Step, opts: ReplayOptions): number {
+  return step.timeoutMs ?? opts.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS;
+}
+
+function detectorTimeout(opts: ReplayOptions): number {
+  return opts.detectorTimeoutMs ?? DEFAULT_DETECTOR_TIMEOUT_MS;
+}
+
+function actionTimeout(opts: ReplayOptions): number {
+  return opts.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS;
 }
 
 /**
@@ -494,7 +514,7 @@ function stepTimeout(step: Step): number {
  */
 async function resolveStepTarget(opts: ReplayOptions, step: Step & { frame: FrameLocator[]; locator: LocatorChain }) {
   const resolved = await resolveLocator(opts.page, step.frame, step.locator, {
-    timeoutMs: stepTimeout(step),
+    timeoutMs: stepTimeout(step, opts),
     requireUnique: true,
   });
   if (resolved.candidateIndex > 0 || resolved.matchCount > 1) {
@@ -519,28 +539,28 @@ async function executeStep(
   switch (step.type) {
     case "navigate": {
       const url = new URL(step.urlTemplate, opts.artifact.target.baseUrl);
-      await page.goto(url.toString(), { timeout: stepTimeout(step), waitUntil: "load" });
+      await page.goto(url.toString(), { timeout: stepTimeout(step, opts), waitUntil: "load" });
       return;
     }
     case "click": {
       const resolved = await resolveStepTarget(opts, step);
-      await resolved.locator.click({ timeout: stepTimeout(step) });
+      await resolved.locator.click({ timeout: stepTimeout(step, opts) });
       return;
     }
     case "fill": {
       const resolved = await resolveStepTarget(opts, step);
-      await resolved.locator.fill(resolveValueRef(step.value, opts.params), { timeout: stepTimeout(step) });
+      await resolved.locator.fill(resolveValueRef(step.value, opts.params), { timeout: stepTimeout(step, opts) });
       return;
     }
     case "select": {
       const resolved = await resolveStepTarget(opts, step);
-      await resolved.locator.selectOption(resolveValueRef(step.value, opts.params), { timeout: stepTimeout(step) });
+      await resolved.locator.selectOption(resolveValueRef(step.value, opts.params), { timeout: stepTimeout(step, opts) });
       return;
     }
     case "check": {
       const resolved = await resolveStepTarget(opts, step);
-      if (step.checked) await resolved.locator.check({ timeout: stepTimeout(step) });
-      else await resolved.locator.uncheck({ timeout: stepTimeout(step) });
+      if (step.checked) await resolved.locator.check({ timeout: stepTimeout(step, opts) });
+      else await resolved.locator.uncheck({ timeout: stepTimeout(step, opts) });
       return;
     }
     case "waitFor": {
@@ -551,7 +571,7 @@ async function executeStep(
         step.assertion,
         step.expected,
         step.attributeName,
-        stepTimeout(step),
+        stepTimeout(step, opts),
       );
       return;
     }
@@ -612,7 +632,7 @@ async function checkKnownOutcomes(
     (o) => o.checkAfterStepId === undefined || o.checkAfterStepId === afterStepId,
   );
   for (const outcome of applicable) {
-    const matched = await detectorMatches(opts.page, outcome.detect.frame, outcome.detect.locator, DETECTOR_TIMEOUT_MS);
+    const matched = await detectorMatches(opts.page, outcome.detect.frame, outcome.detect.locator, detectorTimeout(opts));
     if (!matched) continue;
 
     if (outcome.classification === "business") {
@@ -677,7 +697,7 @@ async function verifyCheckpoints(opts: ReplayOptions): Promise<CheckpointVerific
         checkpoint.assertion,
         checkpoint.expected,
         checkpoint.attributeName,
-        ACTION_TIMEOUT_MS,
+        actionTimeout(opts),
       );
       passed.push(checkpoint.description);
       opts.logger.log({ type: "checkpoint_passed", description: checkpoint.description });

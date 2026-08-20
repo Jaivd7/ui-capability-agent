@@ -1,4 +1,4 @@
-import type { CapabilityArtifact, InputParam, Step, Target, ValueRef } from "../artifact/schema.js";
+import type { CapabilityArtifact, InputParam, LocatorCandidate, Step, Target, ValueRef } from "../artifact/schema.js";
 import { CURRENT_SCHEMA_VERSION } from "../artifact/schema.js";
 import { computeContentHash } from "../artifact/hash.js";
 import { parseArtifact } from "../artifact/index.js";
@@ -19,6 +19,8 @@ export interface BuildArtifactOptions {
   params: DiscoveryParam[];
   discoveryResult: DiscoveryResult;
   knownOutcomes?: CapabilityArtifact["knownOutcomes"];
+  /** See CapabilityPreset.irreversibleStepLabels. */
+  irreversibleStepLabels?: string[];
 }
 
 export interface BuildArtifactResult {
@@ -75,7 +77,9 @@ export function buildArtifact(opts: BuildArtifactOptions): BuildArtifactResult {
     preconditions: opts.preconditions,
     inputParams,
     outputs: opts.discoveryResult.outputs,
-    steps: opts.discoveryResult.steps.map((step) => generalizeStepValue(step, opts.params)),
+    steps: opts.discoveryResult.steps
+      .map((step) => generalizeStepValue(step, opts.params))
+      .map((step) => markIrreversible(step, opts.irreversibleStepLabels ?? [])),
     checkpoints: opts.discoveryResult.checkpoints,
     knownOutcomes: opts.knownOutcomes ?? [],
   } as CapabilityArtifact;
@@ -97,6 +101,40 @@ export function buildArtifact(opts: BuildArtifactOptions): BuildArtifactResult {
     throw new Error(`Compiled artifact failed schema validation:\n${result.errors.join("\n")}`);
   }
   return { artifact: result.artifact, compileFindings: [...findings, ...leakFindings] };
+}
+
+/**
+ * Forces `irreversible` on a click the preset names, whatever the model
+ * decided. Belt and braces on purpose: the model is the one looking at the
+ * button and usually gets it right, but the failure mode of a missed flag is
+ * an irreversible action running unattended, so a second, deterministic rule
+ * earns its keep. The recording scorer's `irreversible_unmarked` finding is
+ * the third layer, catching anything neither of these two caught.
+ */
+function markIrreversible(step: Step, labels: string[]): Step {
+  if (step.type !== "click" || step.irreversible || labels.length === 0) return step;
+  const haystack = [step.description, ...step.locator.map(candidateLabel)]
+    .join(" ")
+    .toLowerCase();
+  const matched = labels.some((label) => haystack.includes(label.toLowerCase()));
+  return matched ? { ...step, irreversible: true } : step;
+}
+
+function candidateLabel(c: LocatorCandidate): string {
+  switch (c.strategy) {
+    case "role":
+      return c.name ?? "";
+    case "label":
+    case "text":
+    case "placeholder":
+      return c.text;
+    case "testId":
+      return c.testId;
+    case "css":
+      return c.selector;
+    case "xpath":
+      return c.expression;
+  }
 }
 
 /**

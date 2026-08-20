@@ -83,4 +83,16 @@ export interface AppAdapter {
   isLoggedOut: (page: Page) => Promise<boolean>;
   /** App-level "how to fix it" implementations, referenced by name from an artifact's knownOutcomes. */
   recoveryActions: Record<string, RecoveryActionImpl>;
+  /**
+   * How the model should locate elements on *this* surface, injected into the
+   * discovery system prompt.
+   *
+   * This exists because the right answer is not universal, which was invisible
+   * while there was one target. An app with a real accessibility tree should be
+   * located by role and label. An app with no labels, roles, ids or test ids at
+   * all — which is what MERIDIAN CORE is — has to be located by `name`
+   * attribute, and pretending otherwise produces either ambiguous locators or
+   * positional ones. Both are worse than the honest answer.
+   */
+  locatorGuidance: string;
 }

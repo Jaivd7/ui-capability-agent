@@ -27,7 +27,17 @@ const targetable = {
   description: z.string().min(1),
 };
 
-export const ClickInputSchema = z.object(targetable);
+export const ClickInputSchema = z.object({
+  ...targetable,
+  /**
+   * Whether this click commits something that cannot be trivially undone.
+   * The model is the one actually looking at a button labelled "Post
+   * Transfer", so it should be able to say so — this was hardcoded `false` on
+   * every recorded step, which made the irreversible-action guardrail
+   * unreachable for any machine-produced artifact.
+   */
+  irreversible: z.boolean().default(false),
+});
 
 export const FillInputSchema = z.object({ ...targetable, value: z.string() });
 

@@ -49,6 +49,43 @@ describe("scoreRecording", () => {
     expect(chainFindings).toEqual([]);
   });
 
+  it("does not call an attribute selector brittle, even with no accessibility fallback", () => {
+    // Against a target with no labels, roles or ids anywhere, [name=...] is the
+    // right primary strategy — it is part of the form's submission contract.
+    // Scoring it as brittle would fire on 100% of that app's chains and make
+    // the scorer unreadable.
+    const artifact = baseArtifact();
+    const step = artifact.steps[2]!;
+    if (step.type !== "extract") throw new Error("fixture changed");
+    step.locator = [
+      { strategy: "css", selector: '[name="amount"]', reason: "form field name, part of the submission contract" },
+    ];
+    expect(codes(artifact)).not.toContain("brittle_locator_only");
+  });
+
+  it("still calls a positional selector brittle", () => {
+    const artifact = baseArtifact();
+    const step = artifact.steps[2]!;
+    if (step.type !== "extract") throw new Error("fixture changed");
+    step.locator = [
+      { strategy: "css", selector: "table tr:nth-child(2) td:nth-child(2)", reason: "positional" },
+    ];
+    expect(codes(artifact)).toContain("brittle_locator_only");
+  });
+
+  it("treats an attribute selector mixed with a positional one as anchored", () => {
+    const artifact = baseArtifact();
+    const step = artifact.steps[2]!;
+    if (step.type !== "extract") throw new Error("fixture changed");
+    step.locator = [
+      { strategy: "css", selector: '[name="from"]', reason: "form field name" },
+      { strategy: "css", selector: "table tr:nth-child(3) td input", reason: "positional fallback" },
+    ];
+    const found = scoreRecording(artifact).findings.filter((f) => f.where.startsWith("steps[2].locator"));
+    expect(found.map((f) => f.code)).not.toContain("brittle_locator_only");
+    expect(found.map((f) => f.code)).not.toContain("brittle_locator_root");
+  });
+
   it("flags an extracted value that survived into a checkpoint", () => {
     const artifact = baseArtifact();
     artifact.checkpoints[0]!.assertion = "textContains";

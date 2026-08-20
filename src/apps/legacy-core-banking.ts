@@ -79,4 +79,11 @@ export const LEGACY_CORE_BANKING: AppAdapter = {
   isLoggedOut: async (page: Page) => page.locator('input#username').isVisible().catch(() => false),
 
   recoveryActions: ACTIONS,
+
+  locatorGuidance: `Locate elements using the accessibility tree, not visual position: prefer role+name, then label/text/placeholder, and only fall back to a CSS selector or XPath when an element genuinely has no accessible name. If an element carries an aria-label, use strategy "label" with that text — NOT role+name with the same text. In a table, a value cell's aria-label is frequently the same words as the adjacent label cell's own text, so role+name matches both and you would silently act on the wrong one; "label" matches only the element that actually carries the attribute.
+
+A second candidate is almost always available — a different strategy pointing at the same element:
+
+    [{ strategy: "role", role: "textbox", name: "Member ID", reason: "accessible name from the associated label" },
+     { strategy: "css", selector: "#memberId", reason: "stable element id, structural fallback" }]`,
 };

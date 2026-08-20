@@ -133,6 +133,7 @@ async function main() {
         params: preset.params,
         discoveryResult: result,
         knownOutcomes: preset.knownOutcomes,
+        ...(preset.irreversibleStepLabels ? { irreversibleStepLabels: preset.irreversibleStepLabels } : {}),
       });
     } catch (err) {
       // The run itself succeeded and its evidence is already on disk; what

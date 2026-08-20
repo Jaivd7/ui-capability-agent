@@ -22,6 +22,7 @@ import {
 } from "./tool-input-schemas.js";
 import { DISCOVERY_TOOLS } from "./tools.js";
 import type { ExtractedRecord } from "./generalize.js";
+import { getAppAdapter, type AppAdapter } from "../apps/index.js";
 import { checkCheckpointQuality, violationMessage } from "./checkpoint-quality.js";
 
 export interface DiscoveryParam {
@@ -92,7 +93,7 @@ const DEFAULT_TIMEOUT_MS = 3 * 60_000;
 const ACTION_TIMEOUT_MS = 8_000;
 const DEFAULT_MODEL = "claude-sonnet-5";
 
-function systemPrompt(params: DiscoveryParam[]): string {
+function systemPrompt(params: DiscoveryParam[], adapter: AppAdapter): string {
   const paramLines = params
     .map(
       (p) =>
@@ -101,20 +102,18 @@ function systemPrompt(params: DiscoveryParam[]): string {
         }`,
     )
     .join("\n");
-  return `You are operating Meridian Core Banking, an internal back-office web application, on behalf of an authorized bank employee. You act the way a human operator would: reading the screen, then clicking and typing. You are ALREADY LOGGED IN.
+  return `You are operating ${adapter.displayName}, an internal back-office web application, on behalf of an authorized bank employee. You act the way a human operator would: reading the screen, then clicking and typing. You are ALREADY LOGGED IN.
 
 You must accomplish exactly the stated goal — nothing more. In particular:
 - Never click a final "Confirm", "Submit", or similarly consequential button beyond what the goal asks for. If the goal says "reach the confirmation screen," stop there — do not confirm/submit it.
+- When the goal DOES ask you to complete such an action, set irreversible=true on that click. That flag is how replay knows to stop and ask a human before doing it unattended later; a consequential click recorded without it runs unsupervised. When in doubt, set it.
 - Only act within this one application; never attempt to navigate to a different site or origin.
 
 Call exactly one tool per turn. After each action you will be shown the resulting accessibility tree (and any iframe content) — use it to decide the next step; don't assume an action worked without observing the result.
 
-Locate elements using the accessibility tree, not visual position: prefer role+name, then label/text/placeholder, and only fall back to a CSS selector or XPath when an element genuinely has no accessible name. If an element carries an aria-label, use strategy "label" with that text — NOT role+name with the same text. In a table, a value cell's aria-label is frequently the same words as the adjacent label cell's own text, so role+name matches both and you would silently act on the wrong one; "label" matches only the element that actually carries the attribute. A locator that matches more than one element is rejected outright for clicks, fills and extracts, so if you see that error, disambiguate rather than retrying the same idea. Always give a short "reason" for each locator candidate — it becomes part of a reviewable, reusable automation artifact, so the reasoning matters as much as the result. Give 2-3 candidates per element, ordered most robust first. The chain is a fallback list: if the first candidate stops resolving after a UI change, replay tries the next, so a one-candidate chain has no resilience at all. A second candidate is almost always available — a different strategy pointing at the same element:
+${adapter.locatorGuidance}
 
-    [{ strategy: "role", role: "textbox", name: "Member ID", reason: "accessible name from the associated label" },
-     { strategy: "css", selector: "#memberId", reason: "stable element id, structural fallback" }]
-
-A single-candidate chain is acceptable only when you say in its "reason" why no second way to find this element exists.
+A locator that matches more than one element is rejected outright for clicks, fills and extracts, so if you see that error, disambiguate rather than retrying the same idea. Always give a short "reason" for each locator candidate — it becomes part of a reviewable, reusable automation artifact, so the reasoning matters as much as the result. Give 2-3 candidates per element, ordered most robust first. The chain is a fallback list: if the first candidate stops resolving after a UI change, replay tries the next, so a one-candidate chain has no resilience at all. A single-candidate chain is acceptable only when you say in its "reason" why no second way to find this element exists.
 
 CHECKPOINTS — how you must verify success.
 
@@ -251,7 +250,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
     const response = await client.messages.create({
       model,
       max_tokens: 2048,
-      system: systemPrompt(opts.params),
+      system: systemPrompt(opts.params, getAppAdapter(opts.target.app)),
       tools: DISCOVERY_TOOLS,
       messages,
     });
@@ -425,7 +424,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
             frame: input.frame,
             locator: input.locator,
             retryable: false,
-            irreversible: false,
+            irreversible: input.irreversible,
           });
           return await observedSuccess(
             `Clicked (resolved via ${describeCandidate(resolved.candidate)}, candidate #${resolved.candidateIndex}).`,

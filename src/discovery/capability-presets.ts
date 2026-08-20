@@ -18,6 +18,15 @@ export interface CapabilityPreset {
   preconditions: CapabilityArtifact["preconditions"];
   knownOutcomes: CapabilityArtifact["knownOutcomes"];
   /**
+   * Button labels whose click must be marked irreversible, regardless of what
+   * the model said. A deterministic backstop rather than a replacement: the
+   * model can see the button and should classify it, but a *missed* flag means
+   * an ungated irreversible action, and that is the wrong direction to fail in.
+   * Matched case-insensitively against a click step's locator names and its
+   * description.
+   */
+  irreversibleStepLabels?: string[];
+  /**
    * A *different* valid argument set, used for the differential probe: the
    * freshly compiled artifact is replayed with these, with no LLM, on the same
    * live session. Anything that fails is fitted to the recording rather than

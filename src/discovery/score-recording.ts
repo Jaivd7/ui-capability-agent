@@ -88,9 +88,39 @@ export const FINDING_WEIGHTS: Record<Severity, number> = { error: 15, warn: 7, i
 /** Each additional instance of a code already charged. */
 export const REPEAT_WEIGHT = 1;
 
-const BRITTLE = new Set(["css", "xpath"]);
+const ACCESSIBILITY_STRATEGIES = new Set(["role", "label", "text", "placeholder"]);
+
+/**
+ * Distinguishes a *contract* selector from a *positional* one.
+ *
+ * The original rule was "css or xpath means brittle", which was right for a
+ * target that had a real accessibility tree and is wrong for one that has
+ * none: against MERIDIAN CORE every chain is css, so an undifferentiated rule
+ * fires on 100% of them at error severity and the scorer stops being read.
+ *
+ * `[name="amount"]` is part of the form's submission contract — the app cannot
+ * change it without changing what it posts — and `#id` is an explicit handle.
+ * `tr:nth-child(2) td` is a description of where something happens to sit
+ * today. Only the second kind is brittle.
+ */
+function isContractSelector(c: LocatorCandidate): boolean {
+  if (c.strategy === "testId") return true;
+  if (c.strategy !== "css") return false; // xpath is positional by nature
+  const sel = c.selector;
+  if (/:nth-child|:nth-of-type|:nth-match|:first|:last|[>+~]/.test(sel)) return false;
+  return /\[[A-Za-z_:-]+\s*[~|^$*]?=/.test(sel) || /#[A-Za-z_]/.test(sel);
+}
+
+function isAccessibilityStrategy(c: LocatorCandidate): boolean {
+  return ACCESSIBILITY_STRATEGIES.has(c.strategy);
+}
+
+/** A candidate a reviewer should be comfortable seeing first in a chain. */
+function isStableCandidate(c: LocatorCandidate): boolean {
+  return isAccessibilityStrategy(c) || isContractSelector(c);
+}
 const CURRENCY_LITERAL = /\$\s?[\d,]+\.\d{2}/;
-const CONSEQUENTIAL = /\b(confirm|submit|delete|transfer|close|approve|post|void)\b/i;
+const CONSEQUENTIAL = /\b(confirm|submit|delete|transfer|close|approve|post|void|apply|open|place|hold)\b/i;
 const MIN_REASON_LENGTH = 15;
 
 function chainsOf(artifact: CapabilityArtifact): { where: string; chain: LocatorChain }[] {
@@ -171,23 +201,24 @@ export function scoreRecording(artifact: CapabilityArtifact, ctx: ScoreContext =
         suggestion: "record 2-3 candidates, or state in the reason why no fallback exists",
       });
     }
-    if (chain[0] && BRITTLE.has(chain[0].strategy)) {
+    if (chain[0] && !isStableCandidate(chain[0])) {
       brittleRootedChains += 1;
       findings.push({
         severity: "warn",
         code: "brittle_locator_root",
         where: `${where}[0]`,
-        message: `resolves via ${chain[0].strategy} first, ahead of any accessibility-tree strategy`,
+        message: `resolves first via a positional ${chain[0].strategy} selector rather than an accessible name or an attribute`,
       });
     }
-    if (chain.every((c) => BRITTLE.has(c.strategy))) {
+    if (chain.every((c) => !isStableCandidate(c))) {
       brittleOnlyChains += 1;
       findings.push({
         severity: "error",
         code: "brittle_locator_only",
         where,
-        message: "every candidate is css/xpath; no accessibility-tree fallback at all",
-        suggestion: "check for an aria-label, a role+name, or associated label text on this element",
+        message: "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+        suggestion:
+          "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess",
       });
     }
     chain.forEach((c, i) => {
@@ -440,7 +471,7 @@ export function formatScoreReport(score: RecordingScore, capabilityId: string): 
     "  metrics",
     `    steps                    ${m.steps}     locator chains           ${m.chains}`,
     `    mean chain depth         ${m.meanChainDepth.toFixed(1)}   single-candidate         ${m.singleCandidateChains}${pct(m.singleCandidateChains, m.chains)}`,
-    `    css/xpath-rooted         ${m.brittleRootedChains}     css/xpath-only           ${m.brittleOnlyChains}`,
+    `    positional-rooted        ${m.brittleRootedChains}     positional-only          ${m.brittleOnlyChains}`,
     `    checkpoints              ${m.checkpoints}     structural               ${m.structuralCheckpoints}/${m.checkpoints}`,
     `    params declared          ${m.paramsDeclared}     bound in steps           ${m.paramsBoundInSteps}/${m.paramsDeclared}     asserted in checkpoints  ${m.paramsAssertedInCheckpoints}/${m.paramsDeclared}`,
     `    outputs                  ${m.outputs}     verified by a checkpoint ${m.outputsVerified}/${m.outputs}`,

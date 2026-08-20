@@ -117,4 +117,17 @@ export const MERIDIAN_CORE: AppAdapter = {
     page.locator('input[name="operator"]').isVisible().catch(() => false),
 
   recoveryActions: ACTIONS,
+
+  locatorGuidance: `This application has NO accessibility affordances at all — not one <label>, for=, aria-label, role= or id attribute on any page, and no test ids. Layout is nested <table> with <td class="lbl"> cells that look like labels to a person and are nothing to a machine. So the usual advice is inverted here:
+
+1. For inputs and selects, use a CSS selector on the "name" attribute: [name="operator"], [name="amount"], [name="from"]. The name attribute is part of the form's submission contract rather than its styling, so it is stable in exactly the way a class or an nth-child position is not. This is the FIRST choice on this app, not a fallback.
+2. For buttons, use role+name: they are <input type="submit" value="..."> and the value is their accessible name ("Search", "Continue", "Post Transfer", "Open Share", "Apply Hold", "Save Changes").
+3. For links, use role=link with the link text ("Select", "Cancel", "Return to Member Record").
+4. For a value in a results or review table, use role=cell with the cell's own text as the name — a cell's text IS its accessible name, so this reaches it without a positional selector.
+5. Only as a last resort, a positional CSS selector (tr:nth-child(2) td:nth-child(2)). It is a legitimate SECOND candidate behind one of the above, but it should not be first.
+
+Do NOT reach for role=textbox on this app: with no labels there is no accessible name to disambiguate one text input from another, so it matches several and will be rejected. A good chain here looks like:
+
+    [{ strategy: "css", selector: "[name=\"amount\"]", reason: "form field name, part of the submission contract" },
+     { strategy: "css", selector: "table tr:nth-child(3) td:nth-child(2) input", reason: "positional fallback within the transfer form" }]`,
 };
