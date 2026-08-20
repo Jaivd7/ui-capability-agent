@@ -1,0 +1,9 @@
+{"timestamp":"2026-08-20T17:41:13.253Z","type":"run_start","kind":"replay","runId":"open-sub-account-1787247645410-probe","capabilityId":"open-sub-account","capabilityVersion":4,"params":{"memberId":"1003","accountType":"Holiday Club","openingDeposit":1500}}
+{"timestamp":"2026-08-20T17:41:13.275Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:41:16.314Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:41:19.352Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:41:22.386Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:41:25.403Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:41:28.422Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:41:31.462Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:41:34.483Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":[],"humanIntervened":false}

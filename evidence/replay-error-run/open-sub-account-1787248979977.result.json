@@ -1,0 +1,6 @@
+{
+  "status": "business_outcome",
+  "code": "PERMISSION_DENIED",
+  "message": "This capability requires the \"teller\" role; the session is authenticated as \"readonly\".",
+  "outcomeId": "(precondition:requiredRole)"
+}

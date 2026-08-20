@@ -1,0 +1,14 @@
+{"timestamp":"2026-08-20T18:29:46.026Z","type":"run_start","kind":"replay","runId":"lookup-member-balance-escalation-demo-1787250585299","capabilityId":"lookup-member-balance-escalation-demo","capabilityVersion":5,"params":{"memberId":"1001"}}
+{"timestamp":"2026-08-20T18:29:46.049Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:29:48.086Z","type":"escalation_raised","runId":"lookup-member-balance-escalation-demo-1787250585299","kind":"irreversible_confirmation","reason":"Step is marked irreversible; current policy blocks irreversible actions from unattended execution.","currentUrl":"http://localhost:4000/members","currentStepId":"step-2","screenshotPath":"/Users/jaidamani/Desktop/Projects/interface.ai take-home/evidence/escalation-run/lookup-member-balance-escalation-demo-1787250585299.escalation.png"}
+{"timestamp":"2026-08-20T18:29:48.089Z","type":"escalation_console_started","runId":"lookup-member-balance-escalation-demo-1787250585299","consoleUrl":"http://localhost:57537/"}
+{"timestamp":"2026-08-20T18:29:48.538Z","type":"human_action","runId":"lookup-member-balance-escalation-demo-1787250585299","actionType":"approve_step","detail":"Search button"}
+{"timestamp":"2026-08-20T18:29:48.539Z","type":"escalation_resolved","runId":"lookup-member-balance-escalation-demo-1787250585299","decision":"resumed","actionCount":1}
+{"timestamp":"2026-08-20T18:29:48.539Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1,"humanApproved":true}
+{"timestamp":"2026-08-20T18:29:50.568Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:29:52.597Z","type":"extracted","stepId":"step-4","outputName":"savingsBalance","value":"[REDACTED]"}
+{"timestamp":"2026-08-20T18:29:52.597Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:29:54.608Z","type":"checkpoint_passed","description":"On the member detail page for the searched member"}
+{"timestamp":"2026-08-20T18:29:54.611Z","type":"checkpoint_passed","description":"URL reflects the member detail route for the given memberId"}
+{"timestamp":"2026-08-20T18:29:54.616Z","type":"checkpoint_passed","description":"Account Details panel shows a Savings Balance cell with a dollar amount"}
+{"timestamp":"2026-08-20T18:29:54.616Z","type":"run_end","status":"success","stepsExecuted":4,"outputNames":["savingsBalance"],"humanIntervened":true}

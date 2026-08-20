@@ -1,6 +1,0 @@
-{
-  "status": "business_outcome",
-  "code": "PERMISSION_DENIED",
-  "message": "The current session's role does not permit opening a sub-account.",
-  "outcomeId": "permission-denied"
-}

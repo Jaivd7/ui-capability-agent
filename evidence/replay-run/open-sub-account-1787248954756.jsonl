@@ -1,0 +1,13 @@
+{"timestamp":"2026-08-20T18:02:34.971Z","type":"run_start","kind":"replay","runId":"open-sub-account-1787248954756","capabilityId":"open-sub-account","capabilityVersion":4,"params":{"memberId":"1003","accountType":"Holiday Club","openingDeposit":1500}}
+{"timestamp":"2026-08-20T18:02:34.991Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:38.028Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:41.058Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:44.092Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:47.114Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:50.125Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:53.163Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:56.180Z","type":"checkpoint_passed","description":"On the confirm new sub-account page"}
+{"timestamp":"2026-08-20T18:02:56.186Z","type":"checkpoint_passed","description":"Account type row shows the requested Holiday Club type"}
+{"timestamp":"2026-08-20T18:02:56.190Z","type":"checkpoint_passed","description":"Opening deposit row shows the requested $1500.00 amount"}
+{"timestamp":"2026-08-20T18:02:56.192Z","type":"checkpoint_passed","description":"Confirm & Open Account button is present but not yet clicked"}
+{"timestamp":"2026-08-20T18:02:56.192Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":[],"humanIntervened":false}

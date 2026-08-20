@@ -1,0 +1,7 @@
+{"timestamp":"2026-08-20T17:27:03.365Z","type":"run_start","kind":"replay","runId":"lookup-member-balance-1787246804295-probe","capabilityId":"lookup-member-balance","capabilityVersion":2,"params":{"memberId":"1002"}}
+{"timestamp":"2026-08-20T17:27:03.408Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:27:05.449Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:27:07.478Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:27:09.502Z","type":"extracted","stepId":"step-4","outputName":"savingsBalance","value":"[REDACTED]"}
+{"timestamp":"2026-08-20T17:27:09.502Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:27:21.515Z","type":"run_end","status":"hard_failure","stepId":"(checkpoint)","reason":"Checkpoint not met: Member heading shows the Member: prefix confirming correct record opened","humanIntervened":false}

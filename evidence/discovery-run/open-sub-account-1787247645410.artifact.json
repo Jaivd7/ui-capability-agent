@@ -1,0 +1,317 @@
+{
+  "schemaVersion": "1.1.0",
+  "id": "open-sub-account",
+  "name": "Open new sub-account and reach confirmation",
+  "description": "Searches for a member, opens a new sub-account of the given type and opening deposit, and stops at the confirmation screen without submitting.",
+  "version": 4,
+  "contentHash": "f403bb4363143488ae7ecbd9165e1bafb863c27a2518ba5409e1172537f08f9e",
+  "createdAt": "2026-08-20T17:41:13.238Z",
+  "discovery": {
+    "model": "claude-sonnet-5",
+    "discoveredAt": "2026-08-20T17:41:13.238Z"
+  },
+  "target": {
+    "app": "legacy-core-banking",
+    "baseUrl": "http://localhost:4000",
+    "entryRoute": "/members",
+    "tenant": null
+  },
+  "preconditions": {
+    "authRequired": true,
+    "startRoute": "/members",
+    "requiredRole": "teller"
+  },
+  "inputParams": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "required": true,
+      "description": "Member/account holder ID to open a sub-account for.",
+      "sensitive": false,
+      "example": "1001"
+    },
+    {
+      "name": "accountType",
+      "type": "string",
+      "required": true,
+      "description": "Sub-account type: Youth Savings, Holiday Club, or Standard Savings.",
+      "sensitive": false,
+      "example": "Standard Savings"
+    },
+    {
+      "name": "openingDeposit",
+      "type": "currency",
+      "required": true,
+      "description": "Opening deposit amount in dollars (minimum $25.00).",
+      "sensitive": false,
+      "example": "100"
+    }
+  ],
+  "outputs": [],
+  "steps": [
+    {
+      "id": "step-1",
+      "description": "Member ID search box",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "textbox",
+          "name": "Member ID",
+          "exact": false,
+          "reason": "the search input field"
+        }
+      ],
+      "type": "fill",
+      "value": {
+        "kind": "param",
+        "param": "memberId"
+      }
+    },
+    {
+      "id": "step-2",
+      "description": "Search button",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": false,
+          "reason": "submit search"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-3",
+      "description": "View link for member ${memberId}",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "View",
+          "exact": false,
+          "reason": "opens member record"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-4",
+      "description": "Open Sub-Account link",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Open Sub-Account",
+          "exact": false,
+          "reason": "opens new sub-account form"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-5",
+      "description": "Account Type select",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "combobox",
+          "name": "Account Type",
+          "exact": false,
+          "reason": "select account type dropdown"
+        }
+      ],
+      "type": "select",
+      "value": {
+        "kind": "param",
+        "param": "accountType"
+      }
+    },
+    {
+      "id": "step-6",
+      "description": "Opening Deposit Amount textbox",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "textbox",
+          "name": "",
+          "exact": false,
+          "reason": "opening deposit textbox, the only textbox in this form"
+        },
+        {
+          "strategy": "css",
+          "selector": "table tr:nth-child(2) td input",
+          "reason": "positional fallback for deposit field"
+        }
+      ],
+      "type": "fill",
+      "value": {
+        "kind": "param",
+        "param": "openingDeposit"
+      }
+    },
+    {
+      "id": "step-7",
+      "description": "Continue button",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Continue",
+          "exact": false,
+          "reason": "proceeds to confirmation screen"
+        }
+      ],
+      "type": "click"
+    }
+  ],
+  "checkpoints": [
+    {
+      "description": "On the confirm new sub-account page",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "heading",
+          "name": "Review Sub-Account Details",
+          "exact": false,
+          "reason": "static heading shown only on the confirmation screen"
+        }
+      ],
+      "assertion": "exists"
+    },
+    {
+      "description": "Account type row shows the requested ${accountType} type",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "cell",
+          "name": "${accountType}",
+          "exact": false,
+          "reason": "value cell echoing the requested account type"
+        }
+      ],
+      "assertion": "textContains",
+      "expected": "${accountType}"
+    },
+    {
+      "description": "Opening deposit row shows the requested ${openingDeposit:currency} amount",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "cell",
+          "name": "${openingDeposit:currency}",
+          "exact": false,
+          "reason": "value cell echoing the requested opening deposit amount"
+        }
+      ],
+      "assertion": "textContains",
+      "expected": "${openingDeposit:currency}"
+    },
+    {
+      "description": "Confirm & Open Account button is present but not yet clicked",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Confirm & Open Account",
+          "exact": false,
+          "reason": "static button chrome on the confirmation screen"
+        }
+      ],
+      "assertion": "exists"
+    }
+  ],
+  "knownOutcomes": [
+    {
+      "id": "member-not-found",
+      "description": "Search returns no matching member record.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "No member found with that ID.",
+            "exact": false,
+            "reason": "Exact banner text rendered by the search results page when no member matches."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "MEMBER_NOT_FOUND",
+        "message": "No member found with the given ID."
+      }
+    },
+    {
+      "id": "insufficient-deposit",
+      "description": "The requested opening deposit is below the $25.00 minimum.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "Opening deposit must be at least $25.00.",
+            "exact": false,
+            "reason": "Exact validation banner text rendered by the sub-account form on invalid deposit amount."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "INSUFFICIENT_DEPOSIT",
+        "message": "Opening deposit is below the $25.00 minimum; no sub-account form was advanced."
+      }
+    },
+    {
+      "id": "permission-denied",
+      "description": "The authenticated session does not have the teller role required to open a sub-account.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "Sub-account actions require teller role.",
+            "exact": false,
+            "reason": "UI-level signal: replaces the Open Sub-Account link on the member detail page for non-teller sessions."
+          },
+          {
+            "strategy": "text",
+            "text": "Permission denied: your role does not permit this action.",
+            "exact": false,
+            "reason": "Route-level signal: exact banner text rendered by the role-gated sub-account route for a session that reached it directly."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "PERMISSION_DENIED",
+        "message": "The current session's role does not permit opening a sub-account."
+      }
+    }
+  ]
+}

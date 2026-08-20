@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-20T18:03:00.162Z","type":"run_start","kind":"replay","runId":"open-sub-account-1787248979977","capabilityId":"open-sub-account","capabilityVersion":4,"params":{"memberId":"1001","accountType":"Standard Savings","openingDeposit":100}}
+{"timestamp":"2026-08-20T18:03:00.163Z","type":"run_end","status":"business_outcome","code":"PERMISSION_DENIED","outcomeId":"(precondition:requiredRole)"}

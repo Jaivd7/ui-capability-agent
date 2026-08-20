@@ -1,0 +1,11 @@
+{
+  "status": "success",
+  "outputs": {},
+  "checkpointsPassed": [
+    "On the confirm new sub-account page",
+    "Account type row shows the requested Standard Savings type",
+    "Opening deposit row shows the requested $100.00 amount",
+    "Confirm & Open Account button is present but not yet clicked"
+  ],
+  "stepsExecuted": 7
+}

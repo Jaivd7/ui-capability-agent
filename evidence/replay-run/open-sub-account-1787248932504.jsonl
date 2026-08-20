@@ -1,0 +1,13 @@
+{"timestamp":"2026-08-20T18:02:12.730Z","type":"run_start","kind":"replay","runId":"open-sub-account-1787248932504","capabilityId":"open-sub-account","capabilityVersion":4,"params":{"memberId":"1001","accountType":"Standard Savings","openingDeposit":100}}
+{"timestamp":"2026-08-20T18:02:12.751Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:15.806Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:18.846Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:21.879Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:24.903Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:27.920Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:30.961Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T18:02:33.969Z","type":"checkpoint_passed","description":"On the confirm new sub-account page"}
+{"timestamp":"2026-08-20T18:02:33.975Z","type":"checkpoint_passed","description":"Account type row shows the requested Standard Savings type"}
+{"timestamp":"2026-08-20T18:02:33.977Z","type":"checkpoint_passed","description":"Opening deposit row shows the requested $100.00 amount"}
+{"timestamp":"2026-08-20T18:02:33.979Z","type":"checkpoint_passed","description":"Confirm & Open Account button is present but not yet clicked"}
+{"timestamp":"2026-08-20T18:02:33.979Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":[],"humanIntervened":false}

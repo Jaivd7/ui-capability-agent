@@ -24,10 +24,10 @@ and belongs in `/evidence/`, not in the reusable artifact.
 
 | Field | Why it exists |
 |---|---|
-| `schemaVersion` | Version of the **format itself**, independent of the capability's own revision. Deliberately a separate field from `version` — conflating "the artifact schema changed" with "this capability was re-recorded" is a common mistake and makes migration ambiguous. Currently a `z.literal("1.0.0")`; a breaking format change would add a second schema (e.g. discriminated on `schemaVersion`) rather than mutating this one, so old artifacts stay parseable. |
+| `schemaVersion` | Version of the **format itself**, independent of the capability's own revision. Deliberately a separate field from `version` — conflating "the artifact schema changed" with "this capability was re-recorded" is a common mistake and makes migration ambiguous. Currently `z.enum(["1.0.0", "1.1.0"])`, with `CURRENT_SCHEMA_VERSION` as what a fresh compile stamps. **1.1.0** added the `textMatches` assertion and generalized `${param}` templates beyond `navigate.urlTemplate`. The bump is not cosmetic: a 1.0.0 engine handed a `textMatches` checkpoint falls through an unhandled `switch` in `assertCondition` and the assertion silently *passes*, which is exactly the failure a version discriminator exists to prevent. |
 | `id`, `name`, `description` | Human- and agent-facing identity. `description` is what a calling agent's tool-catalog entry would show (see the "agent-facing capability interface" stretch goal — this field is what makes that trivial to add later). |
 | `version` | This **capability's** revision number, incremented each time discovery re-records it (e.g. after the underlying app's UI changes enough to need a fresh recording). Independent of `schemaVersion`. |
-| `contentHash` | sha256 fingerprint of the semantically meaningful content — steps, checkpoints, known outcomes, call contract, and target app identity (see `hash.ts`). Deliberately excludes `id`/`name`/`version`/`createdAt`/`baseUrl`/`tenant` so that two tenants running the *same underlying app* can be compared directly: matching hash means "this artifact should still apply," diverging hash is the drift signal described in REPORT.md §4. This is computed by a pure function at save time, not hand-authored. |
+| `contentHash` | sha256 fingerprint of the semantically meaningful content — steps, checkpoints, known outcomes, call contract, preconditions, and target app identity (see `hash.ts`). Deliberately excludes `id`/`name`/`version`/`createdAt`/`baseUrl`/`tenant` so that two tenants running the *same underlying app* can be compared directly: matching hash means "this artifact should still apply," diverging hash is the drift signal described in REPORT.md §4. Computed by a pure function at save time and **re-verified when replay loads the artifact** — a mismatch is refused unless `--allow-hash-mismatch` is passed, which is what turns this from a decorative field into an integrity guarantee. Two things it deliberately gets right: `preconditions` is **included**, because `startRoute` decides where the flow begins and `requiredRole` is the difference between a capability a readonly session can run and one it can't; every `reason` and `description` is **excluded**, because those are review prose, and reporting a reworded comment as drift is the fastest way to teach a reviewer to ignore the signal. `outcome.message` stays in — that one is caller-facing contract, not commentary. |
 | `createdAt` | Provenance timestamp. |
 | `discovery` | `{ model, discoveredAt, sourceSessionId? }` — records which model produced this recording. Mostly a trust/audit signal for the human reviewer; also the seam for a future "confidence & approval" gate (stretch goal) keyed on discovery provenance. |
 | `target` | See below. |
@@ -114,6 +114,84 @@ say, baking a CSS frame-selector into the locator string) keeps "how do I
 reach the right document" and "how do I find the element in it" as two
 separable concerns.
 
+## Parameterization and templates
+
+A capability is only genuinely parameterized if its *verification* is
+parameterized too. An early version of this schema generalized only what a
+step **typed** — `fill`/`select` values and `navigate.urlTemplate` — and left
+checkpoints and locator strings exactly as recorded. The result was an
+artifact that walked every step correctly for a different member and then
+failed its own checkpoint, because that checkpoint asserted the recorded
+member's name. Parameterized in its steps, hardcoded in its proof.
+
+So there are **two** generalization mechanisms, split along a real seam:
+
+- **`ValueRef`** for what a step *types*. The value is the entire field, so
+  exact equality against the recorded example is the right rule.
+- **`${param}` templates** for everything a step or checkpoint *matches on* —
+  locator strings, assertion `expected`, `urlTemplate`, `description`, and
+  `knownOutcomes[].detect` locators. Here the parameter is usually embedded in
+  surrounding text, and may appear in a different surface form than it was
+  typed in (`100` typed into a field, `$100.00` rendered on a confirmation
+  screen).
+
+### Grammar
+
+```
+PLACEHOLDER := "${" IDENT ( ":" FORMAT )? "}"
+FORMAT      := raw | currency | number | regexEscape        (default: raw)
+ESCAPE      := "${{"  ->  a literal "${"
+```
+
+The rule is **parses as a placeholder ⇒ must resolve; doesn't parse ⇒
+literal**. `${foo}` naming an undeclared param throws; `${1}`, `${ x}` and a
+bare `$` are left alone, so a pathological CSS selector can't crash a run.
+Substituted output is never re-scanned, which is both an injection guard on
+caller-supplied arguments and the reason a value containing `${y}` stays
+inert.
+
+The escape is `${{` rather than the more obvious `$${` because the latter is
+ambiguous in exactly the case that matters: a regex assertion ending in a
+literal `\$` immediately followed by a placeholder produces `$${`, which a
+scanner cannot distinguish from an escaped `${`. `{` can never start an
+identifier, so `${{` has only one reading.
+
+### Formats are chosen by observation, not by declared type
+
+The compiler emits `${openingDeposit:currency}` only because
+`formatParam("100", "currency")` equals `"$100.00"` — *the literal the model
+actually saw on the page*. It never consults `inputParams[].type`. This is
+what keeps the formatter set safely extensible: an app that renders
+`$1,500.00` would get a `currencyGrouped` formatter added, and the compiler
+would select it automatically with no other change.
+
+Relatedly, `currency` deliberately does **not** group thousands, because the
+target app renders `$${n.toFixed(2)}`. A locale-aware formatter would produce
+a checkpoint that passes for `100` and silently fails for `1500`.
+
+### Where substitution happens
+
+`src/shared/locator.ts` and `src/shared/assert.ts` stay params-free. They are
+shared *verbatim* by discovery and replay, and that sharing is the structural
+guarantee behind "the locator that worked during discovery is the locator
+replay uses." The invariant that makes this work:
+
+> During discovery, templates do not exist. The model authors concrete
+> literals; the compiler introduces `${}` only after the run.
+
+So shared code never sees a template. `materializeArtifact` resolves the whole
+artifact once at the top of `runReplay`, before the browser is touched, which
+also means an unresolved placeholder aborts before step 1 rather than
+half-way through a flow that may already have mutated state.
+
+Two things a template may never reference, both enforced in `superRefine`: an
+**optional** param (materialization throws on a missing value, so a
+well-formed call could otherwise fail mid-flow) and a **sensitive** param (a
+sensitive value in a locator ends up in `LocatorResolutionError`'s message,
+and from there in the run log and the failure evidence — a secret is never a
+search key). Sensitive params remain legal as `fill`/`select` values, which is
+the only place one belongs.
+
 ## Steps
 
 A discriminated union on `type`: `navigate | click | fill | select | check |
@@ -167,12 +245,60 @@ step's `outputName` must reference a declared output.
 An array (not a single condition) so a capability can require more than one
 thing to hold simultaneously (e.g. "confirmation banner is visible" *and*
 "URL matches `/confirmation`"). `assertion` is one of `exists | notExists |
-textEquals | textContains | urlMatches | attributeEquals`; a `superRefine`
-enforces that `expected` is set for the four assertions that need it and
-`attributeName` is set for `attributeEquals` — a checkpoint that's
+textEquals | textContains | textMatches | urlMatches | attributeEquals`; a
+`superRefine` enforces that `expected` is set for the five assertions that
+need it and `attributeName` is set for `attributeEquals` — a checkpoint that's
 structurally valid but semantically incomplete (e.g. `textEquals` with no
 `expected` value) is rejected at artifact-validation time, not discovered
 as a confusing runtime bug during replay.
+
+### Structure, not data
+
+This is the load-bearing rule for checkpoints, and the one the first version
+of this system got wrong. **A checkpoint is not a snapshot of the run that
+produced it.** It is stored and re-run later, unchanged, against different
+members, amounts and dates. So a checkpoint must assert the *shape* of the
+state it expects, never the data it happened to observe.
+
+Concretely, for a member-lookup capability:
+
+| Instead of | Assert |
+|---|---|
+| `heading name="Member: Jane Smith"` exists | `urlMatches /members/${memberId:regexEscape}` **and** `heading name="Member:"` `textContains "Member:"` |
+| balance cell `textContains "$3482.10"` | balance cell `textMatches "^\$[0-9,]+\.[0-9]{2}$"` |
+| `text "Standard Savings"` exists | `text "${accountType}"` exists |
+
+Three separate things make this hold, because no single one is sufficient:
+
+1. **The locator counts, not just `expected`.** A checkpoint has to *find* its
+   element before it can assert anything, so a locator naming this run's data
+   fails for every other input even when the assertion itself is generic. This
+   is the most common way to get it half-right.
+2. **`textMatches` exists for exactly this.** "The balance cell holds a dollar
+   amount" is a real, useful assertion; without a regex assertion it was only
+   fakeable as `textContains "$"`.
+3. **A value that IS an input parameter should be asserted exactly.** A
+   confirmation screen echoing back the account type and deposit you requested
+   is the strongest available evidence the flow did what was asked, so those
+   get `textContains "${accountType}"` rather than a shape regex — which would
+   pass even if the app recorded the wrong amount. Shape regexes are for values
+   read off the page that the caller could not know in advance.
+
+This is enforced in three places, deliberately layered: a **finish-time gate**
+rejects the model's checkpoints if they contain an extracted value or a
+hardcoded amount (`src/discovery/checkpoint-quality.ts`); the **compiler
+refuses to write** an artifact containing page data at all
+(`assertNoLeakedPageData`); and a **differential probe** replays the fresh
+artifact with a different argument set, which is the only mechanism that
+catches data the compiler cannot recognise as data — a member's *name* is
+neither a parameter nor an extracted output, so from a single recording it is
+indistinguishable from static page chrome.
+
+That last point is worth stating plainly, because it bounds what static
+analysis can do here: **of the three kinds of literal a recording can contain
+— param-derived, page-data-known, page-data-unknowable — only the first two
+are decidable.** The third needs an oracle, and a five-second no-LLM replay
+with different arguments is a cheap one.
 
 ## Error taxonomy: `knownOutcomes`
 

@@ -1,0 +1,7 @@
+{"timestamp":"2026-08-20T17:40:36.260Z","type":"run_start","kind":"replay","runId":"lookup-member-balance-1787247596978-probe","capabilityId":"lookup-member-balance","capabilityVersion":5,"params":{"memberId":"1002"}}
+{"timestamp":"2026-08-20T17:40:36.293Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:40:38.332Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:40:40.371Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:40:42.408Z","type":"extracted","stepId":"step-4","outputName":"savingsBalance","value":"[REDACTED]"}
+{"timestamp":"2026-08-20T17:40:42.409Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T17:40:44.427Z","type":"run_end","status":"success","stepsExecuted":4,"outputNames":["savingsBalance"],"humanIntervened":false}

@@ -63,7 +63,14 @@ npm run discover -- --capability lookup-member-balance
 This searches for member `1001`, reads their savings balance, and — on
 success — writes the compiled artifact to `capabilities/lookup-member-balance.json`
 plus a full evidence trail (structured log + redacted transcript) to
-`evidence/discovery-run/`. The other available goal:
+`evidence/discovery-run/`.
+
+Before saving, discovery **verifies the recording generalizes**: it replays
+the freshly compiled artifact against a different argument set, with no LLM,
+on the same live session (a few seconds, no extra API spend), then prints a
+recording-quality report. A checkpoint fitted to the recorded member fails
+that probe even though it passed live moments earlier. Pass `--no-verify` to
+skip it. The other available goal:
 
 ```sh
 npm run discover -- --capability open-sub-account
@@ -82,6 +89,17 @@ npm run replay -- --capability lookup-member-balance --param memberId=1001
 ```sh
 npm run replay -- --capability open-sub-account \
   --param memberId=1001 --param accountType="Standard Savings" --param openingDeposit=100
+```
+
+A capability is parameterized in its verification as well as its steps, so it
+replays for arguments it was never recorded against — this is the same
+artifact, different member and different amounts:
+
+```sh
+npm run replay -- --capability lookup-member-balance --param memberId=1002
+
+npm run replay -- --capability open-sub-account \
+  --param memberId=1003 --param accountType="Holiday Club" --param openingDeposit=1500
 ```
 
 Prints a structured result (`success` with typed outputs, a `business_outcome`
@@ -138,4 +156,12 @@ browser (no LLM, so no API cost). Takes about a minute.
   irreversible-action policy. Edit this to change what the agent is
   permitted to do; no code change required.
 - `.env` — `ANTHROPIC_API_KEY` (discovery only), `MOCK_APP_PORT`,
-  `HEADLESS=false` to watch the browser during discovery/replay.
+  `MOCK_APP_BASE_URL`, `SESSION_TTL_MS`, `HEADLESS=false` to watch the browser
+  during discovery/replay, and `MOCK_TELLER_USERNAME` / `MOCK_TELLER_PASSWORD` /
+  `MOCK_READONLY_USERNAME` / `MOCK_READONLY_PASSWORD` to override the mock
+  app's dev-only credentials.
+
+Replay verifies each artifact's `contentHash` when it loads it and refuses a
+mismatch, so a hand-edited artifact fails loudly rather than replaying against
+stale assumptions. `--allow-hash-mismatch` overrides that, which is how the
+deliberately-corrupted artifacts in `evidence/` are run.
