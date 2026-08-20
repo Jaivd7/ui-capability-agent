@@ -385,6 +385,14 @@ async function runStepWithRetries(
   };
 }
 
+/**
+ * `timeoutMs` is declared on every step in the schema and was read nowhere —
+ * a per-step tuning knob that silently did nothing.
+ */
+function stepTimeout(step: Step): number {
+  return step.timeoutMs ?? ACTION_TIMEOUT_MS;
+}
+
 async function executeStep(
   opts: ReplayOptions,
   step: Step,
@@ -394,28 +402,28 @@ async function executeStep(
   switch (step.type) {
     case "navigate": {
       const url = new URL(step.urlTemplate, opts.artifact.target.baseUrl);
-      await page.goto(url.toString(), { timeout: ACTION_TIMEOUT_MS, waitUntil: "load" });
+      await page.goto(url.toString(), { timeout: stepTimeout(step), waitUntil: "load" });
       return;
     }
     case "click": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: ACTION_TIMEOUT_MS });
-      await resolved.locator.click({ timeout: ACTION_TIMEOUT_MS });
+      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
+      await resolved.locator.click({ timeout: stepTimeout(step) });
       return;
     }
     case "fill": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: ACTION_TIMEOUT_MS });
-      await resolved.locator.fill(resolveValueRef(step.value, opts.params), { timeout: ACTION_TIMEOUT_MS });
+      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
+      await resolved.locator.fill(resolveValueRef(step.value, opts.params), { timeout: stepTimeout(step) });
       return;
     }
     case "select": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: ACTION_TIMEOUT_MS });
-      await resolved.locator.selectOption(resolveValueRef(step.value, opts.params), { timeout: ACTION_TIMEOUT_MS });
+      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
+      await resolved.locator.selectOption(resolveValueRef(step.value, opts.params), { timeout: stepTimeout(step) });
       return;
     }
     case "check": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: ACTION_TIMEOUT_MS });
-      if (step.checked) await resolved.locator.check({ timeout: ACTION_TIMEOUT_MS });
-      else await resolved.locator.uncheck({ timeout: ACTION_TIMEOUT_MS });
+      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
+      if (step.checked) await resolved.locator.check({ timeout: stepTimeout(step) });
+      else await resolved.locator.uncheck({ timeout: stepTimeout(step) });
       return;
     }
     case "waitFor": {
@@ -426,12 +434,12 @@ async function executeStep(
         step.assertion,
         step.expected,
         step.attributeName,
-        ACTION_TIMEOUT_MS,
+        stepTimeout(step),
       );
       return;
     }
     case "extract": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: ACTION_TIMEOUT_MS });
+      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
       const declaredOutput = opts.artifact.outputs.find((o) => o.name === step.outputName);
       // Default the transform from the output's declared type when the
       // recorded step didn't set one (e.g. a currency-typed output whose

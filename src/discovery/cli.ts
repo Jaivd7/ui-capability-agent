@@ -101,20 +101,33 @@ async function main() {
     const capabilitiesDir = join(process.cwd(), "capabilities");
     const artifactPath = join(capabilitiesDir, `${preset.id}.json`);
 
-    const { artifact, compileFindings } = buildArtifact({
-      id: preset.id,
-      name: preset.name,
-      description: preset.description,
-      // A re-recording is a new revision of the same capability. This used to
-      // be hardcoded to 1, so re-recording after a UI change silently left
-      // `version` claiming to be the original.
-      version: nextVersion(artifactPath),
-      target,
-      preconditions: preset.preconditions,
-      params: preset.params,
-      discoveryResult: result,
-      knownOutcomes: preset.knownOutcomes,
-    });
+    let built;
+    try {
+      built = buildArtifact({
+        id: preset.id,
+        name: preset.name,
+        description: preset.description,
+        // A re-recording is a new revision of the same capability. This used
+        // to be hardcoded to 1, so re-recording after a UI change silently
+        // left `version` claiming to be the original.
+        version: nextVersion(artifactPath),
+        target,
+        preconditions: preset.preconditions,
+        params: preset.params,
+        discoveryResult: result,
+        knownOutcomes: preset.knownOutcomes,
+      });
+    } catch (err) {
+      // The run itself succeeded and its evidence is already on disk; what
+      // failed is the compile. Say so plainly rather than dumping a stack —
+      // the message names the offending site and the reviewer needs to act on
+      // the recording, not debug the compiler.
+      console.error(`\nDiscovery completed but the artifact was rejected:\n  ${err instanceof Error ? err.message : String(err)}`);
+      console.error(`\nThe run's evidence is still in ${evidenceDir}/${runId}.*`);
+      await session.close();
+      process.exit(1);
+    }
+    const { artifact, compileFindings } = built;
 
     // The differential probe. Replays the artifact we just compiled with a
     // *different* valid argument set, no LLM, on this same live session. The

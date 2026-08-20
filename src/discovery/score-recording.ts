@@ -85,6 +85,8 @@ export interface ScoreContext {
 
 /** Tunable in one place rather than buried in the sum. */
 export const FINDING_WEIGHTS: Record<Severity, number> = { error: 15, warn: 7, info: 2 };
+/** Each additional instance of a code already charged. */
+export const REPEAT_WEIGHT = 1;
 
 const BRITTLE = new Set(["css", "xpath"]);
 const CURRENCY_LITERAL = /\$\s?[\d,]+\.\d{2}/;
@@ -385,15 +387,21 @@ export function scoreRecording(artifact: CapabilityArtifact, ctx: ScoreContext =
     });
   }
 
-  const totals = { error: 0, warn: 0, info: 0 };
-  for (const f of findings) totals[f.severity] += 1;
-  const score = Math.max(
-    0,
-    100 -
-      totals.error * FINDING_WEIGHTS.error -
-      totals.warn * FINDING_WEIGHTS.warn -
-      totals.info * FINDING_WEIGHTS.info,
-  );
+  // Charged per distinct finding code, with a small increment per extra
+  // instance. "Every chain in this recording is single-candidate" is one
+  // systemic problem, not seven independent ones, and scoring it seven times
+  // made a clean-but-thin recording grade the same as a broken one.
+  const firstSeen = new Set<FindingCode>();
+  let penalty = 0;
+  for (const f of findings) {
+    if (firstSeen.has(f.code)) {
+      penalty += REPEAT_WEIGHT;
+    } else {
+      firstSeen.add(f.code);
+      penalty += FINDING_WEIGHTS[f.severity];
+    }
+  }
+  const score = Math.max(0, 100 - penalty);
 
   return {
     score,
@@ -441,8 +449,14 @@ export function formatScoreReport(score: RecordingScore, capabilityId: string): 
   if (score.findings.length > 0) {
     lines.push("", "  findings");
     for (const severity of SEVERITY_ORDER) {
-      for (const f of score.findings.filter((x) => x.severity === severity)) {
-        lines.push(`    ${severity.toUpperCase().padEnd(5)}  ${f.where}  ${f.message}`);
+      const bySeverity = score.findings.filter((x) => x.severity === severity);
+      const seen = new Set<FindingCode>();
+      for (const f of bySeverity) {
+        if (seen.has(f.code)) continue;
+        seen.add(f.code);
+        const others = bySeverity.filter((x) => x.code === f.code);
+        const where = others.length > 1 ? `${f.where} (+${others.length - 1} more)` : f.where;
+        lines.push(`    ${severity.toUpperCase().padEnd(5)}  ${where}  ${f.message}`);
         if (f.suggestion) lines.push(`           -> ${f.suggestion}`);
       }
     }

@@ -1,14 +1,14 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "id": "open-sub-account",
   "name": "Open new sub-account and reach confirmation",
   "description": "Searches for a member, opens a new sub-account of the given type and opening deposit, and stops at the confirmation screen without submitting.",
-  "version": 1,
-  "contentHash": "014f65f226ccce17a30c77f0db4fd76b7da5496929495ebac677053b46bcf69b",
-  "createdAt": "2026-08-20T04:10:39.460Z",
+  "version": 3,
+  "contentHash": "8a33317427a409cf9ec909a0949c06b545989e6c59f0c6195890e109bcf2f4f8",
+  "createdAt": "2026-08-20T17:32:15.496Z",
   "discovery": {
     "model": "claude-sonnet-5",
-    "discoveredAt": "2026-08-20T04:10:39.460Z"
+    "discoveredAt": "2026-08-20T17:32:15.496Z"
   },
   "target": {
     "app": "legacy-core-banking",
@@ -51,7 +51,7 @@
   "steps": [
     {
       "id": "step-1",
-      "description": "Member ID search box",
+      "description": "Member ID search field",
       "retryable": false,
       "irreversible": false,
       "frame": [],
@@ -61,7 +61,7 @@
           "role": "textbox",
           "name": "Member ID",
           "exact": false,
-          "reason": "Input field for member ID search"
+          "reason": "labeled search field"
         }
       ],
       "type": "fill",
@@ -82,14 +82,14 @@
           "role": "button",
           "name": "Search",
           "exact": false,
-          "reason": "Search button to find member"
+          "reason": "search button"
         }
       ],
       "type": "click"
     },
     {
       "id": "step-3",
-      "description": "View link for member 1001",
+      "description": "View link for member ${memberId}",
       "retryable": false,
       "irreversible": false,
       "frame": [],
@@ -99,7 +99,7 @@
           "role": "link",
           "name": "View",
           "exact": false,
-          "reason": "Open member record for 1001"
+          "reason": "opens member record"
         }
       ],
       "type": "click"
@@ -116,14 +116,14 @@
           "role": "link",
           "name": "Open Sub-Account",
           "exact": false,
-          "reason": "Link to open new sub-account for member"
+          "reason": "opens new sub-account form"
         }
       ],
       "type": "click"
     },
     {
       "id": "step-5",
-      "description": "Select Standard Savings account type",
+      "description": "Select ${accountType} account type",
       "retryable": false,
       "irreversible": false,
       "frame": [],
@@ -133,7 +133,7 @@
           "role": "combobox",
           "name": "Account Type",
           "exact": false,
-          "reason": "Dropdown to select account type"
+          "reason": "account type selector"
         }
       ],
       "type": "select",
@@ -150,9 +150,16 @@
       "frame": [],
       "locator": [
         {
+          "strategy": "role",
+          "role": "textbox",
+          "name": "",
+          "exact": false,
+          "reason": "opening deposit amount textbox in row"
+        },
+        {
           "strategy": "css",
-          "selector": "table tbody tr:nth-child(2) input",
-          "reason": "Opening deposit amount textbox, no accessible name, located via row position"
+          "selector": "table tr:nth-child(2) td:nth-child(2) input",
+          "reason": "positional fallback for deposit input"
         }
       ],
       "type": "fill",
@@ -173,7 +180,7 @@
           "role": "button",
           "name": "Continue",
           "exact": false,
-          "reason": "Proceed to confirmation screen"
+          "reason": "proceeds to confirmation screen"
         }
       ],
       "type": "click"
@@ -181,7 +188,7 @@
   ],
   "checkpoints": [
     {
-      "description": "Confirmation screen heading is visible",
+      "description": "Heading 'Review Sub-Account Details' is present, confirming the confirmation screen was reached",
       "frame": [],
       "locator": [
         {
@@ -189,33 +196,61 @@
           "role": "heading",
           "name": "Review Sub-Account Details",
           "exact": false,
-          "reason": "Heading confirms we reached the confirmation screen"
+          "reason": "static page heading for the confirmation screen"
         }
       ],
       "assertion": "exists"
     },
     {
-      "description": "Account Type shown as Standard Savings on confirmation table",
+      "description": "Account Type cell shows the requested ${accountType} type",
       "frame": [],
       "locator": [
         {
-          "strategy": "text",
-          "text": "Standard Savings",
+          "strategy": "role",
+          "role": "cell",
+          "name": "${accountType}",
           "exact": false,
-          "reason": "Confirms selected account type is displayed"
+          "reason": "value cell echoing the selected account type"
+        },
+        {
+          "strategy": "css",
+          "selector": "table tr:nth-child(2) td:nth-child(2)",
+          "reason": "positional fallback for account type value cell"
         }
       ],
-      "assertion": "exists"
+      "assertion": "textContains",
+      "expected": "${accountType}"
     },
     {
-      "description": "Opening deposit amount shown as $100.00",
+      "description": "Opening Deposit cell shows the requested ${openingDeposit:currency} amount",
       "frame": [],
       "locator": [
         {
-          "strategy": "text",
-          "text": "$100.00",
+          "strategy": "role",
+          "role": "cell",
+          "name": "${openingDeposit:currency}",
           "exact": false,
-          "reason": "Confirms deposit amount is displayed correctly"
+          "reason": "value cell echoing the entered opening deposit amount"
+        },
+        {
+          "strategy": "css",
+          "selector": "table tr:nth-child(3) td:nth-child(2)",
+          "reason": "positional fallback for opening deposit value cell"
+        }
+      ],
+      "assertion": "textContains",
+      "expected": "${openingDeposit:currency}"
+    },
+    {
+      "description": "Confirm & Open Account button is present but not yet clicked, verifying we stopped at confirmation screen",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Confirm & Open Account",
+          "exact": false,
+          "reason": "static button label on confirmation screen"
         }
       ],
       "assertion": "exists"

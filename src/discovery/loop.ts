@@ -100,13 +100,28 @@ You must accomplish exactly the stated goal — nothing more. In particular:
 
 Call exactly one tool per turn. After each action you will be shown the resulting accessibility tree (and any iframe content) — use it to decide the next step; don't assume an action worked without observing the result.
 
-Locate elements using the accessibility tree, not visual position: prefer role+name, then label/text/placeholder, and only fall back to a CSS selector or XPath when an element genuinely has no accessible name. If an element carries an aria-label, use strategy "label" with that text rather than reaching for a CSS selector. Always give a short "reason" for each locator candidate — it becomes part of a reviewable, reusable automation artifact, so the reasoning matters as much as the result. Give 2-3 candidates per element, ordered most robust first; a single-candidate chain is acceptable only when you can say in its "reason" why no fallback exists.
+Locate elements using the accessibility tree, not visual position: prefer role+name, then label/text/placeholder, and only fall back to a CSS selector or XPath when an element genuinely has no accessible name. If an element carries an aria-label, use strategy "label" with that text — NOT role+name with the same text. In a table, a value cell's aria-label is frequently the same words as the adjacent label cell's own text, so role+name matches both and you would silently act on the wrong one; "label" matches only the element that actually carries the attribute. A locator that matches more than one element is rejected outright for clicks, fills and extracts, so if you see that error, disambiguate rather than retrying the same idea. Always give a short "reason" for each locator candidate — it becomes part of a reviewable, reusable automation artifact, so the reasoning matters as much as the result. Give 2-3 candidates per element, ordered most robust first. The chain is a fallback list: if the first candidate stops resolving after a UI change, replay tries the next, so a one-candidate chain has no resilience at all. A second candidate is almost always available — a different strategy pointing at the same element:
+
+    [{ strategy: "role", role: "textbox", name: "Member ID", reason: "accessible name from the associated label" },
+     { strategy: "css", selector: "#memberId", reason: "stable element id, structural fallback" }]
+
+A single-candidate chain is acceptable only when you say in its "reason" why no second way to find this element exists.
 
 CHECKPOINTS — how you must verify success.
 
 A checkpoint is not a snapshot of this run. It is saved and re-run later, unchanged, against different members, different amounts and different dates. So:
 
 - ASSERT STRUCTURE, NOT DATA. Assert that the member heading exists and contains "Member:" — never that it says "Member: Jane Smith". Assert that the balance cell exists and holds a dollar amount — never what the amount is.
+- THE LOCATOR COUNTS TOO, not just "expected". A checkpoint has to *find* its element before it can assert anything, so a locator naming this run's data fails for every other input even when the assertion itself is generic. This is the single most common mistake, so concretely:
+
+    WRONG: { locator: [{ strategy: "role", role: "heading", name: "Member: Jane Smith" }],
+             assertion: "textContains", expected: "Member:" }
+             (the assertion generalizes; the locator does not, so it resolves nothing for any other member)
+
+    RIGHT: { locator: [{ strategy: "role", role: "heading", name: "Member:", exact: false }],
+             assertion: "textContains", expected: "Member:" }
+
+  Before you submit a checkpoint, read its locator back and ask: would this still find an element for a *different* member, amount or date? If not, cut the varying part out of it.
 - NEVER put a value you read off the page into a checkpoint's "expected", into a locator's name/text/selector/expression, or into a checkpoint's description. That includes every value you extracted, and anything else that would differ for a different member, account or date. This is a hard rule: a finish call that breaks it is rejected and you will have to redo it.
 - The input parameter values listed below ARE safe to assert. The caller supplies them, so they are part of the request rather than part of the page.
 - Static application chrome is safe: page headings, banner text, column labels, button labels — anything identical for every member.
@@ -114,9 +129,14 @@ A checkpoint is not a snapshot of this run. It is saved and re-run later, unchan
 Prefer these assertions, in order:
   1. "urlMatches" on the route you should have landed on
   2. "exists" on a role+name locator whose name is static chrome
-  3. "textContains" with a static label prefix ("Member:", "Savings Balance")
-  4. "textMatches" with a regex describing the SHAPE of a value you must not hardcode — e.g. ^\\$[0-9,]+\\.[0-9]{2}$ for "some dollar amount is shown"
-  5. "attributeEquals" on a stable attribute
+  3. "textContains" against a value that IS one of the input parameters — see below
+  4. "textContains" with a static label prefix ("Member:", "Savings Balance")
+  5. "textMatches" with a regex describing the SHAPE of a value you must not hardcode — e.g. ^\\$[0-9,]+\\.[0-9]{2}$ for "some dollar amount is shown"
+  6. "attributeEquals" on a stable attribute
+
+WHEN THE VALUE ON SCREEN IS ONE OF YOUR INPUT PARAMETERS, ASSERT IT EXACTLY. A confirmation screen echoing back the account type and deposit you requested is the strongest possible evidence the flow did what was asked, so assert those values as they appear on screen — "$100.00" for a deposit you entered as 100. Do NOT fall back to a shape regex for these: ^\\$[0-9,]+\\.[0-9]{2}$ would pass even if the app recorded the wrong amount. Shape regexes are for values you READ off the page and could not know in advance, such as a balance. These parameter values are generalized automatically after the run, so type them exactly as displayed.
+
+LOCATING A CELL IN A LEGACY TABLE. When a value sits in a table cell with no aria-label, its own text is its accessible name, so it can be targeted as role "cell" with that text as the name — no positional CSS needed. A positional selector like table tr:nth-child(2) td:nth-child(2) makes a fine *second* candidate, but it should not be the first.
 
 Give at least two checkpoints: one proving you are on the right page, and one proving the specific thing the goal asked for is present.
 
@@ -365,7 +385,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
         case "click": {
           const input = ClickInputSchema.parse(rawInput);
           const dialogsBefore = o.dialogEvents.length;
-          const resolved = await resolveLocator(o.page, input.frame, input.locator, { timeoutMs: ACTION_TIMEOUT_MS });
+          const resolved = await resolveLocator(o.page, input.frame, input.locator, { timeoutMs: ACTION_TIMEOUT_MS, requireUnique: true });
           await resolved.locator.click({ timeout: ACTION_TIMEOUT_MS });
           logNewDialogs(o, dialogsBefore);
           stepsAcc.push({
@@ -383,7 +403,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
         }
         case "fill": {
           const input = FillInputSchema.parse(rawInput);
-          const resolved = await resolveLocator(o.page, input.frame, input.locator, { timeoutMs: ACTION_TIMEOUT_MS });
+          const resolved = await resolveLocator(o.page, input.frame, input.locator, { timeoutMs: ACTION_TIMEOUT_MS, requireUnique: true });
           await resolved.locator.fill(input.value, { timeout: ACTION_TIMEOUT_MS });
           stepsAcc.push({
             id: nextStepId(),
@@ -401,7 +421,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
         }
         case "select_option": {
           const input = SelectOptionInputSchema.parse(rawInput);
-          const resolved = await resolveLocator(o.page, input.frame, input.locator, { timeoutMs: ACTION_TIMEOUT_MS });
+          const resolved = await resolveLocator(o.page, input.frame, input.locator, { timeoutMs: ACTION_TIMEOUT_MS, requireUnique: true });
           await resolved.locator.selectOption(input.value, { timeout: ACTION_TIMEOUT_MS });
           stepsAcc.push({
             id: nextStepId(),
@@ -436,7 +456,7 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
         }
         case "extract": {
           const input = ExtractInputSchema.parse(rawInput);
-          const resolved = await resolveLocator(o.page, input.frame, input.locator, { timeoutMs: ACTION_TIMEOUT_MS });
+          const resolved = await resolveLocator(o.page, input.frame, input.locator, { timeoutMs: ACTION_TIMEOUT_MS, requireUnique: true });
           const readSpec = {
             from: input.from,
             ...(input.attributeName !== undefined ? { attributeName: input.attributeName } : {}),

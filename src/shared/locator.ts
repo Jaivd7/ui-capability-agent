@@ -17,6 +17,8 @@ export interface ResolvedTarget {
   locator: Locator;
   candidate: LocatorCandidate;
   candidateIndex: number;
+  /** How many elements this candidate matched. >1 means the chain fell back or the caller accepted ambiguity. */
+  matchCount: number;
 }
 
 export class LocatorResolutionError extends Error {
@@ -110,10 +112,44 @@ function buildLocator(root: Page | PwFrameLocator, candidate: LocatorCandidate):
   }
 }
 
+/**
+ * Counts visible matches, capped — the number itself only matters as
+ * "one" versus "more than one", and a locator matching hundreds of rows
+ * shouldn't cost hundreds of visibility checks to find that out.
+ */
+const MAX_COUNTED_MATCHES = 5;
+
+async function countVisible(all: Locator): Promise<number> {
+  const total = await all.count();
+  if (total <= 1) return total;
+  let visible = 0;
+  for (let i = 0; i < Math.min(total, MAX_COUNTED_MATCHES); i++) {
+    if (await all.nth(i).isVisible()) visible += 1;
+  }
+  return visible;
+}
+
 export interface ResolveOptions {
   timeoutMs: number;
+  /**
+   * Reject a candidate that matches more than one visible element instead of
+   * silently taking the first.
+   *
+   * Set for anything that *acts on* or *reads from* an element — a click, a
+   * fill, an extract — where picking the wrong one of two matches produces a
+   * confidently wrong result rather than an error. This is not hypothetical:
+   * the mock app renders `<td>Savings Balance</td><td aria-label="Savings
+   * Balance">$3482.10</td>`, so `role=cell, name="Savings Balance"` matches
+   * both, and a live discovery run duly extracted the *label* as the member's
+   * balance. Falling through to the next candidate turns that into a locator
+   * the model can fix, rather than a plausible-looking wrong number.
+   *
+   * Left off for assertions and knownOutcome detectors, which ask "does
+   * something like this exist" — two matching banners is still a yes.
+   */
+  requireUnique?: boolean;
   /** Optional hook invoked once per candidate attempt, for evidence logging. */
-  onAttempt?: (candidate: LocatorCandidate, index: number, ok: boolean) => void;
+  onAttempt?: (candidate: LocatorCandidate, index: number, ok: boolean, matchCount?: number) => void;
 }
 
 /**
@@ -136,10 +172,17 @@ export async function resolveLocator(
   for (let i = 0; i < chain.length; i++) {
     const candidate = chain[i]!;
     try {
-      const locator = buildLocator(root, candidate).first();
+      const all = buildLocator(root, candidate);
+      const locator = all.first();
       await locator.waitFor({ state: "visible", timeout: perCandidateMs });
-      opts.onAttempt?.(candidate, i, true);
-      return { locator, candidate, candidateIndex: i };
+      const matchCount = await countVisible(all);
+      if (opts.requireUnique && matchCount > 1) {
+        throw new Error(
+          `matched ${matchCount} visible elements; ambiguous for an action or extraction`,
+        );
+      }
+      opts.onAttempt?.(candidate, i, true, matchCount);
+      return { locator, candidate, candidateIndex: i, matchCount };
     } catch (err) {
       opts.onAttempt?.(candidate, i, false);
       attempts.push({ candidate, error: err instanceof Error ? err.message : String(err) });

@@ -93,6 +93,63 @@ describe("replay engine (live, against the mock app)", () => {
     20_000,
   );
 
+  // The regression this whole parameterization pass exists for. Before it,
+  // these two walked every step correctly against a real member and then
+  // hard-failed on a checkpoint asserting the *recorded* member's name — the
+  // capability was parameterized in its steps and hardcoded in its proof.
+  it.each([
+    ["1002", 128.0],
+    ["1003", 15200.77],
+  ])(
+    "success: replays lookup-member-balance for a member it was not recorded against (%s)",
+    async (memberId, expected) => {
+      await withSession(async (session) => {
+        const artifact = loadArtifact("lookup-member-balance");
+        const logger = createRunLogger(`test-param-${memberId}`, "/tmp/replay-engine-test");
+        const result = await runReplay({
+          runId: `test-run-param-${memberId}`,
+          artifact,
+          params: { memberId },
+          page: session.page,
+          dialogEvents: session.dialogEvents,
+          logger,
+        });
+        expect(result.status).toBe("success");
+        if (result.status === "success") {
+          expect(result.outputs.savingsBalance).toBeCloseTo(expected);
+        }
+      });
+    },
+    20_000,
+  );
+
+  it(
+    "success: replays open-sub-account with arguments it was not recorded against",
+    async () => {
+      await withSession(async (session) => {
+        const artifact = loadArtifact("open-sub-account");
+        const logger = createRunLogger("test-param-sub", "/tmp/replay-engine-test");
+        const result = await runReplay({
+          runId: "test-run-param-sub",
+          artifact,
+          params: {
+            memberId: "1003",
+            accountType: "Holiday Club",
+            // 1500 rather than a round number on purpose: the app renders
+            // `$${n.toFixed(2)}` with no separator, so a currency formatter
+            // that grouped thousands would pass for 100 and fail here.
+            openingDeposit: 1500,
+          },
+          page: session.page,
+          dialogEvents: session.dialogEvents,
+          logger,
+        });
+        expect(result.status).toBe("success");
+      });
+    },
+    30_000,
+  );
+
   it(
     "business outcome: an unknown member ID reports MEMBER_NOT_FOUND, not a crash",
     async () => {
