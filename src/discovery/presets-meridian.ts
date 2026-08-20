@@ -69,7 +69,7 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
     description:
       "Looks up a member by last name in MERIDIAN CORE. Returns the single matching member's number and name; reports MULTIPLE_MATCHES if the search is not unique.",
     goal:
-      "From the main menu, go to Member Inquiry. Change the search mode to Last Name, search for the value given by the lastName parameter, then click Select on the matching row to open that member's record. Extract the member number as memberId and the member's full name as memberName.",
+      "From the main menu, go to Member Inquiry. Change the search mode to Last Name, search for the value given by the lastName parameter, then click Select on the matching row to open that member's record. Extract the member number as memberId and the member's full name as memberName. Include a checkpoint asserting that the opened record's Name contains the lastName that was searched for — this capability's whole job is finding the right member, so landing on the wrong one must fail rather than pass.",
     params: [
       {
         name: "lastName",

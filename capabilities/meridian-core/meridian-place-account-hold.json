@@ -1,0 +1,485 @@
+{
+  "schemaVersion": "1.1.0",
+  "id": "meridian-place-account-hold",
+  "name": "Place a hold on a share",
+  "description": "Places a restrictive hold on one of a member's shares. Requires a supervisor session; a teller invocation is refused before the run touches the host.",
+  "version": 1,
+  "contentHash": "8a9f3d8fd853c39e3ad44b4f4b8cb82afb4e5cd45f19bc6e5758e24194ca4ffb",
+  "createdAt": "2026-08-20T20:31:08.892Z",
+  "discovery": {
+    "model": "claude-sonnet-5",
+    "discoveredAt": "2026-08-20T20:31:08.892Z"
+  },
+  "target": {
+    "app": "meridian-core",
+    "baseUrl": "https://web-sample.interface-hiring.com",
+    "entryRoute": "/menu",
+    "tenant": null
+  },
+  "preconditions": {
+    "authRequired": true,
+    "startRoute": "/menu",
+    "requiredRole": "supervisor"
+  },
+  "inputParams": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "required": true,
+      "description": "Member number.",
+      "sensitive": false,
+      "example": "101555"
+    },
+    {
+      "name": "shareCode",
+      "type": "string",
+      "required": true,
+      "description": "Share suffix to place the hold on.",
+      "sensitive": false,
+      "example": "MMKT-5"
+    },
+    {
+      "name": "reasonCode",
+      "type": "string",
+      "required": true,
+      "description": "Reason code: FRAUD, LEGAL or DECEASED.",
+      "sensitive": false,
+      "example": "LEGAL"
+    },
+    {
+      "name": "notes",
+      "type": "string",
+      "required": true,
+      "description": "Free-text note recorded against the hold.",
+      "sensitive": false,
+      "example": "Hold placed per compliance request"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "confirmationNumber",
+      "type": "string",
+      "description": "Confirmation number from success screen",
+      "sensitive": false
+    },
+    {
+      "name": "heldShareId",
+      "type": "string",
+      "description": "Identifier of the share now on hold from success screen",
+      "sensitive": true
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-1",
+      "description": "Place Account Hold menu link",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Place Account Hold",
+          "exact": false,
+          "reason": "main menu link text is static chrome"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-2",
+      "description": "Member number search value",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"q\"]",
+          "reason": "search value textbox by form field name"
+        }
+      ],
+      "type": "fill",
+      "value": {
+        "kind": "param",
+        "param": "memberId"
+      }
+    },
+    {
+      "id": "step-3",
+      "description": "Search button",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": false,
+          "reason": "static button label"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-4",
+      "description": "Select the member row",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Select",
+          "exact": false,
+          "reason": "select link in results row"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-5",
+      "description": "Select share ${memberId}-${shareCode}",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"share\"]",
+          "reason": "form field name for share selection"
+        }
+      ],
+      "type": "select",
+      "value": {
+        "kind": "literal",
+        "value": "101555-MMKT-5"
+      }
+    },
+    {
+      "id": "step-6",
+      "description": "Select reason code ${reasonCode}",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"reason\"]",
+          "reason": "form field name for reason code"
+        }
+      ],
+      "type": "select",
+      "value": {
+        "kind": "param",
+        "param": "reasonCode"
+      }
+    },
+    {
+      "id": "step-7",
+      "description": "Enter notes",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"notes\"]",
+          "reason": "form field name for notes"
+        }
+      ],
+      "type": "fill",
+      "value": {
+        "kind": "param",
+        "param": "notes"
+      }
+    },
+    {
+      "id": "step-8",
+      "description": "Continue to review screen",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Continue",
+          "exact": false,
+          "reason": "static button label to proceed to review screen"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-9",
+      "description": "Apply the hold (irreversible action)",
+      "retryable": false,
+      "irreversible": true,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Apply Hold",
+          "exact": false,
+          "reason": "static button label to commit the hold"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-10",
+      "description": "Confirmation number from success screen",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "tr:has(td.lbl:text(\"Confirmation:\")) td:nth-child(2)",
+          "reason": "cell next to Confirmation label"
+        },
+        {
+          "strategy": "xpath",
+          "expression": "//td[contains(text(),'Confirmation:')]/following-sibling::td[1]",
+          "reason": "xpath following sibling of label cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "confirmationNumber",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-11",
+      "description": "Identifier of the share now on hold from success screen",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[contains(text(),'Share:')]/following-sibling::td[1]",
+          "reason": "cell next to Share label containing held share identifier"
+        },
+        {
+          "strategy": "css",
+          "selector": "tr:has(td.lbl:text(\"Share:\")) td:nth-child(2)",
+          "reason": "positional fallback for share cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "heldShareId",
+      "read": {
+        "from": "innerText"
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "description": "URL indicates we reached the hold-post success page for the member",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "body",
+          "reason": "checking route via urlMatches assertion, not element-specific"
+        }
+      ],
+      "assertion": "urlMatches",
+      "expected": "/members/${memberId:regexEscape}/hold/post"
+    },
+    {
+      "description": "Success heading confirms the hold was applied",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "heading",
+          "name": "ACCOUNT HOLD APPLIED",
+          "exact": false,
+          "reason": "static heading text shown only on the success screen"
+        }
+      ],
+      "assertion": "exists"
+    },
+    {
+      "description": "Confirmation label cell exists on the success screen proving a confirmation number was recorded",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "cell",
+          "name": "Confirmation:",
+          "exact": false,
+          "reason": "static label cell present on success screen regardless of the actual confirmation value"
+        }
+      ],
+      "assertion": "exists"
+    },
+    {
+      "description": "Share status cell shows the share is now on HOLD",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "cell",
+          "name": "Share:",
+          "exact": false,
+          "reason": "static label cell for the share status row"
+        }
+      ],
+      "assertion": "exists"
+    }
+  ],
+  "knownOutcomes": [
+    {
+      "id": "session-expired",
+      "description": "The operator session ended (idle timeout or forced expiry) and the host returned to sign-on.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "YOUR SESSION HAS TIMED OUT",
+            "exact": false,
+            "reason": "Branded 440 session-ended page rendered when the timeout happens on this request."
+          },
+          {
+            "strategy": "css",
+            "selector": "input[name=\"operator\"]",
+            "reason": "The sign-on form's operator field, which exists on no other page — the signal when a later request finds the session already gone."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "reauth",
+        "maxAttempts": 1
+      }
+    },
+    {
+      "id": "maintenance-interstitial",
+      "description": "The host is briefly unavailable behind a scheduled-maintenance interstitial.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "SCHEDULED MAINTENANCE IN PROGRESS",
+            "exact": false,
+            "reason": "Exact header text of the 503 maintenance interstitial."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "dismissAndRetry",
+        "maxAttempts": 2
+      }
+    },
+    {
+      "id": "server-error",
+      "description": "The host returned an unexpected application error.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "unexpected error occurred while processing your request",
+            "exact": false,
+            "reason": "Stable prose of the 500 error page; the ERR-xxxxxxxx reference beside it is random per occurrence."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "reloadAndRetry",
+        "maxAttempts": 2
+      }
+    },
+    {
+      "id": "member-not-found",
+      "description": "No member record matches the supplied identifier.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "RECORD NOT FOUND",
+            "exact": false,
+            "reason": "Header of the 404 page returned when a member record is addressed directly."
+          },
+          {
+            "strategy": "text",
+            "text": "No member records matched your search.",
+            "exact": false,
+            "reason": "Inline notice on the 200 search-results page when nothing matched."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "MEMBER_NOT_FOUND",
+        "message": "No member record matches the supplied identifier."
+      }
+    },
+    {
+      "id": "permission-denied",
+      "description": "The signed-on operator's role does not permit this function.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "is not authorized to perform this function",
+            "exact": false,
+            "reason": "Body text of the 403 page. Deliberately not \"SUPERVISOR OVERRIDE REQUIRED\", which also appears as a static warning on the healthy Place Hold form."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "PERMISSION_DENIED",
+        "message": "The signed-on operator is not authorized to perform this function; a supervisor must complete it."
+      }
+    },
+    {
+      "id": "validation-rejected",
+      "description": "The host rejected the submitted field values.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "TRANSACTION REJECTED",
+            "exact": false,
+            "reason": "Header of the 400 rejection page."
+          },
+          {
+            "strategy": "text",
+            "text": "could not be validated",
+            "exact": false,
+            "reason": "Lead-in to the inline field-error list a form redisplays on invalid input."
+          },
+          {
+            "strategy": "text",
+            "text": "Please correct the following:",
+            "exact": false,
+            "reason": "Lead-in used specifically by the member-information form's validation errors."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "VALIDATION_REJECTED",
+        "message": "The host rejected the submitted values; nothing was committed."
+      }
+    }
+  ]
+}

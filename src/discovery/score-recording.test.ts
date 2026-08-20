@@ -135,6 +135,21 @@ describe("scoreRecording", () => {
     expect(scoreRecording(artifact).metrics.outputsVerified).toBe(1);
   });
 
+  it("does not grade the placeholder locator of a urlMatches checkpoint", () => {
+    // assertCondition reads page.url() for this assertion and never touches
+    // the locator, so `body` is the honest placeholder rather than a weakness.
+    const artifact = baseArtifact();
+    artifact.checkpoints[0] = {
+      description: "On a member record route",
+      frame: [],
+      locator: [{ strategy: "css", selector: "body", reason: "page-level check, no element involved" }],
+      assertion: "urlMatches",
+      expected: "/members/\\d+",
+    };
+    const found = scoreRecording(artifact).findings.filter((f) => f.where.startsWith("checkpoints[0]"));
+    expect(found).toEqual([]);
+  });
+
   it("flags an extracted value that survived into a checkpoint", () => {
     const artifact = baseArtifact();
     artifact.checkpoints[0]!.assertion = "textContains";

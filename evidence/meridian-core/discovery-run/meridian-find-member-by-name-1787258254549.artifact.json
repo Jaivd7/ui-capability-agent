@@ -1,0 +1,352 @@
+{
+  "schemaVersion": "1.1.0",
+  "id": "meridian-find-member-by-name",
+  "name": "Find member by last name",
+  "description": "Looks up a member by last name in MERIDIAN CORE. Returns the single matching member's number and name; reports MULTIPLE_MATCHES if the search is not unique.",
+  "version": 3,
+  "contentHash": "eb9c06b0f3fea64f8f09a62948e59528054211f48e7d30e2318a358218aa47c2",
+  "createdAt": "2026-08-20T20:38:31.450Z",
+  "discovery": {
+    "model": "claude-sonnet-5",
+    "discoveredAt": "2026-08-20T20:38:31.450Z"
+  },
+  "target": {
+    "app": "meridian-core",
+    "baseUrl": "https://web-sample.interface-hiring.com",
+    "entryRoute": "/menu",
+    "tenant": null
+  },
+  "preconditions": {
+    "authRequired": true,
+    "startRoute": "/menu"
+  },
+  "inputParams": [
+    {
+      "name": "lastName",
+      "type": "string",
+      "required": true,
+      "description": "Member surname, or part of it, to search for.",
+      "sensitive": false,
+      "example": "Lovelace"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "description": "Extract member number from record header using label-relative locator",
+      "sensitive": true
+    },
+    {
+      "name": "memberName",
+      "type": "string",
+      "description": "Extract member full name from record header using label-relative locator",
+      "sensitive": true
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-1",
+      "description": "Member Inquiry / Selection menu link",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Member Inquiry / Selection",
+          "exact": false,
+          "reason": "specific menu item link text distinct from nav bar"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-2",
+      "description": "Change search mode to Last Name",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"by\"]",
+          "reason": "form field name attribute for search mode select"
+        }
+      ],
+      "type": "select",
+      "value": {
+        "kind": "literal",
+        "value": "name"
+      }
+    },
+    {
+      "id": "step-3",
+      "description": "Search value input for last name",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"q\"]",
+          "reason": "form field name attribute for search value input"
+        }
+      ],
+      "type": "fill",
+      "value": {
+        "kind": "param",
+        "param": "lastName"
+      }
+    },
+    {
+      "id": "step-4",
+      "description": "Click Search button",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": false,
+          "reason": "search submit button"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-5",
+      "description": "Click Select for the matching ${lastName} member row",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Select",
+          "exact": false,
+          "reason": "select link in the matching member's row"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-6",
+      "description": "Extract member number from record header using label-relative locator",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='Member No.:']/following-sibling::td[1]",
+          "reason": "cell immediately following the static 'Member No.:' label cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "memberId",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-7",
+      "description": "Extract member full name from record header using label-relative locator",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='Name:']/following-sibling::td[1]",
+          "reason": "cell immediately following the static 'Name:' label cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "memberName",
+      "read": {
+        "from": "innerText"
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "description": "URL is on a member record page (member number in path)",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "heading",
+          "name": "MEMBER RECORD",
+          "exact": false,
+          "reason": "static page heading present only on the member record page"
+        }
+      ],
+      "assertion": "exists"
+    },
+    {
+      "description": "URL matches the member record route pattern",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "heading",
+          "name": "MEMBER RECORD",
+          "exact": false,
+          "reason": "anchor element used just to satisfy locator requirement while asserting on URL"
+        }
+      ],
+      "assertion": "urlMatches",
+      "expected": "/members/[0-9]+$"
+    },
+    {
+      "description": "The Name field on the opened record contains the searched last name '${lastName}'",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='Name:']/following-sibling::td[1]",
+          "reason": "cell immediately following the static 'Name:' label, generalizes across any member record"
+        }
+      ],
+      "assertion": "textContains",
+      "expected": "${lastName}"
+    }
+  ],
+  "knownOutcomes": [
+    {
+      "id": "session-expired",
+      "description": "The operator session ended (idle timeout or forced expiry) and the host returned to sign-on.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "YOUR SESSION HAS TIMED OUT",
+            "exact": false,
+            "reason": "Branded 440 session-ended page rendered when the timeout happens on this request."
+          },
+          {
+            "strategy": "css",
+            "selector": "input[name=\"operator\"]",
+            "reason": "The sign-on form's operator field, which exists on no other page — the signal when a later request finds the session already gone."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "reauth",
+        "maxAttempts": 1
+      }
+    },
+    {
+      "id": "maintenance-interstitial",
+      "description": "The host is briefly unavailable behind a scheduled-maintenance interstitial.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "SCHEDULED MAINTENANCE IN PROGRESS",
+            "exact": false,
+            "reason": "Exact header text of the 503 maintenance interstitial."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "dismissAndRetry",
+        "maxAttempts": 2
+      }
+    },
+    {
+      "id": "server-error",
+      "description": "The host returned an unexpected application error.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "unexpected error occurred while processing your request",
+            "exact": false,
+            "reason": "Stable prose of the 500 error page; the ERR-xxxxxxxx reference beside it is random per occurrence."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "reloadAndRetry",
+        "maxAttempts": 2
+      }
+    },
+    {
+      "id": "member-not-found",
+      "description": "No member record matches the supplied identifier.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "RECORD NOT FOUND",
+            "exact": false,
+            "reason": "Header of the 404 page returned when a member record is addressed directly."
+          },
+          {
+            "strategy": "text",
+            "text": "No member records matched your search.",
+            "exact": false,
+            "reason": "Inline notice on the 200 search-results page when nothing matched."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "MEMBER_NOT_FOUND",
+        "message": "No member record matches the supplied identifier."
+      }
+    },
+    {
+      "id": "permission-denied",
+      "description": "The signed-on operator's role does not permit this function.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "is not authorized to perform this function",
+            "exact": false,
+            "reason": "Body text of the 403 page. Deliberately not \"SUPERVISOR OVERRIDE REQUIRED\", which also appears as a static warning on the healthy Place Hold form."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "PERMISSION_DENIED",
+        "message": "The signed-on operator is not authorized to perform this function; a supervisor must complete it."
+      }
+    },
+    {
+      "id": "multiple-matches",
+      "description": "The search matched more than one member, so no single record could be selected.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "css",
+            "selector": ":nth-match(a:text-is(\"Select\"), 2)",
+            "reason": "A second Select link in the results table means the search was not unique."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "MULTIPLE_MATCHES",
+        "message": "More than one member matched; narrow the search or use the member number."
+      }
+    }
+  ]
+}

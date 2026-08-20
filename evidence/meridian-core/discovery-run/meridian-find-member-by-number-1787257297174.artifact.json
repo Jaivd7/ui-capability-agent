@@ -1,0 +1,356 @@
+{
+  "schemaVersion": "1.1.0",
+  "id": "meridian-find-member-by-number",
+  "name": "Find member by member number",
+  "description": "Looks up a member by their member number in MERIDIAN CORE and opens their record, returning the member's name and how many shares they hold.",
+  "version": 1,
+  "contentHash": "4ab69ec902bd321022146b0c8176ced6868ca41d39bf97f96c8a2468c10c24a8",
+  "createdAt": "2026-08-20T20:24:03.424Z",
+  "discovery": {
+    "model": "claude-sonnet-5",
+    "discoveredAt": "2026-08-20T20:24:03.424Z"
+  },
+  "target": {
+    "app": "meridian-core",
+    "baseUrl": "https://web-sample.interface-hiring.com",
+    "entryRoute": "/menu",
+    "tenant": null
+  },
+  "preconditions": {
+    "authRequired": true,
+    "startRoute": "/menu"
+  },
+  "inputParams": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "required": true,
+      "description": "Member number to search for.",
+      "sensitive": false,
+      "example": "100234"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "memberName",
+      "type": "string",
+      "description": "Extract member full name from Member Record header",
+      "sensitive": true
+    },
+    {
+      "name": "shareCount",
+      "type": "number",
+      "description": "Extract number of shares for member from search results Shares column",
+      "sensitive": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-1",
+      "description": "Member Inquiry / Selection link",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Member Inquiry / Selection",
+          "exact": false,
+          "reason": "static menu link text"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-2",
+      "description": "Member number search value textbox",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "textbox",
+          "name": "",
+          "exact": false,
+          "reason": "the only textbox on the search form for entering the search value"
+        }
+      ],
+      "type": "fill",
+      "value": {
+        "kind": "param",
+        "param": "memberId"
+      }
+    },
+    {
+      "id": "step-3",
+      "description": "Search button",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": false,
+          "reason": "search button label"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-4",
+      "description": "Select link for matched member row",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Select",
+          "exact": false,
+          "reason": "select link in matching member row"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-5",
+      "description": "Extract member full name from Member Record header",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='Name:']/following-sibling::td[1]",
+          "reason": "cell immediately following the static Name: label cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "memberName",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-6",
+      "description": "Go back to member search results page to read the Shares count column",
+      "retryable": false,
+      "irreversible": false,
+      "type": "navigate",
+      "urlTemplate": "/members?by=number&q=${memberId}"
+    },
+    {
+      "id": "step-7",
+      "description": "Extract number of shares for member from search results Shares column",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='${memberId}']/following-sibling::td[2]",
+          "reason": "Shares count cell in the row identified by the input memberId parameter value, using the static column position relative to the Member No. cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "shareCount",
+      "read": {
+        "from": "innerText",
+        "transform": "number"
+      }
+    },
+    {
+      "id": "step-8",
+      "description": "Select link for matched member row",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Select",
+          "exact": false,
+          "reason": "select link in matching member row to reopen the member record"
+        }
+      ],
+      "type": "click"
+    }
+  ],
+  "checkpoints": [
+    {
+      "description": "URL reflects the opened member record for the searched member",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "heading",
+          "name": "MEMBER RECORD",
+          "exact": false,
+          "reason": "static page heading present only on the member record page"
+        }
+      ],
+      "assertion": "urlMatches",
+      "expected": "/members/${memberId:regexEscape}"
+    },
+    {
+      "description": "Member record heading is present, confirming record page loaded",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "heading",
+          "name": "MEMBER RECORD",
+          "exact": false,
+          "reason": "static heading text on the member record page, present for any member"
+        }
+      ],
+      "assertion": "exists"
+    },
+    {
+      "description": "SHARES / BALANCES section heading is present, confirming the shares table is shown",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "text",
+          "text": "SHARES / BALANCES",
+          "exact": false,
+          "reason": "static section label above the shares table, present for any member"
+        }
+      ],
+      "assertion": "exists"
+    },
+    {
+      "description": "Shares table column header 'Share ID' is present, confirming the table structure used to count share rows",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "cell",
+          "name": "Share ID",
+          "exact": false,
+          "reason": "static column heading cell in the shares table, present regardless of member or row count"
+        }
+      ],
+      "assertion": "exists"
+    }
+  ],
+  "knownOutcomes": [
+    {
+      "id": "session-expired",
+      "description": "The operator session ended (idle timeout or forced expiry) and the host returned to sign-on.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "YOUR SESSION HAS TIMED OUT",
+            "exact": false,
+            "reason": "Branded 440 session-ended page rendered when the timeout happens on this request."
+          },
+          {
+            "strategy": "css",
+            "selector": "input[name=\"operator\"]",
+            "reason": "The sign-on form's operator field, which exists on no other page — the signal when a later request finds the session already gone."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "reauth",
+        "maxAttempts": 1
+      }
+    },
+    {
+      "id": "maintenance-interstitial",
+      "description": "The host is briefly unavailable behind a scheduled-maintenance interstitial.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "SCHEDULED MAINTENANCE IN PROGRESS",
+            "exact": false,
+            "reason": "Exact header text of the 503 maintenance interstitial."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "dismissAndRetry",
+        "maxAttempts": 2
+      }
+    },
+    {
+      "id": "server-error",
+      "description": "The host returned an unexpected application error.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "unexpected error occurred while processing your request",
+            "exact": false,
+            "reason": "Stable prose of the 500 error page; the ERR-xxxxxxxx reference beside it is random per occurrence."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "reloadAndRetry",
+        "maxAttempts": 2
+      }
+    },
+    {
+      "id": "member-not-found",
+      "description": "No member record matches the supplied identifier.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "RECORD NOT FOUND",
+            "exact": false,
+            "reason": "Header of the 404 page returned when a member record is addressed directly."
+          },
+          {
+            "strategy": "text",
+            "text": "No member records matched your search.",
+            "exact": false,
+            "reason": "Inline notice on the 200 search-results page when nothing matched."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "MEMBER_NOT_FOUND",
+        "message": "No member record matches the supplied identifier."
+      }
+    },
+    {
+      "id": "permission-denied",
+      "description": "The signed-on operator's role does not permit this function.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "is not authorized to perform this function",
+            "exact": false,
+            "reason": "Body text of the 403 page. Deliberately not \"SUPERVISOR OVERRIDE REQUIRED\", which also appears as a static warning on the healthy Place Hold form."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "PERMISSION_DENIED",
+        "message": "The signed-on operator is not authorized to perform this function; a supervisor must complete it."
+      }
+    }
+  ]
+}

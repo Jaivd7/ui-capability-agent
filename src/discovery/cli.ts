@@ -59,7 +59,9 @@ async function main() {
   console.log(`Starting discovery run "${runId}" for capability "${preset.id}"...`);
   if (escalate) console.log("Escalation enabled: getting stuck will pause and open an operator console.");
   const target = resolveTargetFor(preset.app);
-  const resolvedRole = role || listRoles(preset.app)[0]!;
+  // Default to the role the capability declares it needs. Defaulting a
+  // supervisor-gated capability to a teller session just fails at the host.
+  const resolvedRole = role || preset.preconditions.requiredRole || listRoles(preset.app)[0]!;
   if (!isKnownRole(preset.app, resolvedRole)) {
     console.error(
       `--role "${resolvedRole}" is not a role of app "${preset.app}". Known roles: ${listRoles(preset.app).join(", ")}.`,

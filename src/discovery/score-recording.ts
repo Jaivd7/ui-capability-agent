@@ -171,6 +171,11 @@ function chainsOf(artifact: CapabilityArtifact): { where: string; chain: Locator
     if ("locator" in step) out.push({ where: `steps[${i}].locator`, chain: step.locator });
   });
   artifact.checkpoints.forEach((cp, i) => {
+    // A urlMatches checkpoint never uses its locator — assertCondition reads
+    // page.url() and nothing else. The schema still requires a chain, so the
+    // honest thing to record is a placeholder like `body`, and grading that
+    // placeholder's robustness is meaningless.
+    if (cp.assertion === "urlMatches") return;
     out.push({ where: `checkpoints[${i}].locator`, chain: cp.locator });
   });
   // knownOutcome detectors are hand-authored preset content, not something
