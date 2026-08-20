@@ -1,0 +1,11 @@
+{
+  "status": "success",
+  "outputs": {
+    "savingsBalance": "[REDACTED]"
+  },
+  "checkpointsPassed": [
+    "Member detail page is open for member 1001",
+    "Account Details panel shows Savings Balance value"
+  ],
+  "stepsExecuted": 4
+}
