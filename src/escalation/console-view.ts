@@ -152,7 +152,7 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
              <label>Click <select name="pick">${optionsFor(clickable)}</select></label>
              <button type="submit">Click it</button>
            </form>`
-        : ""
+        : absent("Nothing on this page is clickable.")
     }
     ${
       fillable.length
@@ -162,9 +162,13 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
              <label>the value <input name="value" size="24" /></label>
              <button type="submit">Fill it</button>
            </form>`
-        : ""
+        : absent("No text fields on this page — it is a read-only screen. Click through to a form to fill anything.")
     }
-    ${selectable.map((target) => selectRow(basePath, target)).join("")}
+    ${
+      selectable.length
+        ? selectable.map((target) => selectRow(basePath, target)).join("")
+        : absent("No dropdowns on this page.")
+    }
   </fieldset>
 
   <fieldset>
@@ -216,6 +220,18 @@ function selectRow(basePath: string, target: PageTarget): string {
     <label>Set <strong>${escape(labelOf(target))}</strong> to <select name="value">${options}</select></label>
     <button type="submit">Set it</button>
   </form>`;
+}
+
+/**
+ * Says a verb is unavailable, rather than omitting it.
+ *
+ * A panel that silently drops two of its three controls on a read-only screen
+ * reads as a broken feature, not as an accurate description of the page — and
+ * the read-only member record is exactly where a hard failure tends to pause.
+ * Naming the absence costs a line and removes the doubt.
+ */
+function absent(reason: string): string {
+  return `<p class="meta" style="margin:6px 0;">&mdash; ${escape(reason)}</p>`;
 }
 
 function optionsFor(targets: PageTarget[]): string {
