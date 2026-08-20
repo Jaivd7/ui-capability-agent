@@ -39,7 +39,11 @@ export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
     name: "Look up member and read savings balance",
     description:
       "Searches for a member by ID in Meridian Core Banking and extracts their current savings balance.",
-    goal: "Search for member 1001, open their record, and read their current savings balance from the Account Details panel.",
+    // Phrased in terms of the parameter rather than the value. The system
+    // prompt supplies "1001" as the value to type; naming it here as well
+    // invites the model to treat this member — and their name and balance —
+    // as intrinsic to the capability rather than as this run's argument.
+    goal: "Search for the member identified by the memberId parameter, open their record, and read their current savings balance from the Account Details panel.",
     params: [
       {
         name: "memberId",
@@ -93,7 +97,7 @@ export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
     description:
       "Searches for a member, opens a new sub-account of the given type and opening deposit, and stops at the confirmation screen without submitting.",
     goal:
-      'Search for member 1001, open their record, then open a new sub-account (Account Type "Standard Savings", Opening Deposit Amount $100) for them and reach the confirmation screen. Do not click "Confirm & Open Account" — stop once the confirmation screen showing "Review Sub-Account Details" is visible.',
+      'Search for the member identified by the memberId parameter, open their record, then open a new sub-account for them using the accountType and openingDeposit parameters, and reach the confirmation screen. Do not click "Confirm & Open Account" — stop once the confirmation screen showing "Review Sub-Account Details" is visible.',
     params: [
       {
         name: "memberId",

@@ -63,7 +63,18 @@ const frameSchema = {
 
 const assertionSchema = {
   type: "string",
-  enum: ["exists", "notExists", "textEquals", "textContains", "urlMatches", "attributeEquals"],
+  enum: [
+    "exists",
+    "notExists",
+    "textEquals",
+    "textContains",
+    // Regex against the element's text. Use this to assert the SHAPE of a
+    // value that must not be hardcoded, e.g. ^\\$[0-9,]+\\.[0-9]{2}$ for
+    // "some dollar amount is shown".
+    "textMatches",
+    "urlMatches",
+    "attributeEquals",
+  ],
 };
 
 export const DISCOVERY_TOOLS: Anthropic.Tool[] = [
@@ -124,7 +135,7 @@ export const DISCOVERY_TOOLS: Anthropic.Tool[] = [
         locator: locatorChainSchema,
         frame: frameSchema,
         assertion: assertionSchema,
-        expected: { type: "string", description: "required for textEquals/textContains/urlMatches/attributeEquals" },
+        expected: { type: "string", description: "required for textEquals/textContains/textMatches/urlMatches/attributeEquals" },
         attributeName: { type: "string", description: "required for attributeEquals" },
         description: { type: "string" },
       },
@@ -157,8 +168,10 @@ export const DISCOVERY_TOOLS: Anthropic.Tool[] = [
     name: "finish",
     description:
       "Call this once the goal has been reached (or if genuinely stuck and no path forward exists). " +
-      "On success, provide at least one checkpoint that verifies the goal state was actually reached — " +
-      "don't assume a click worked, assert it.",
+      "On success, provide at least two checkpoints that verify the goal state was actually reached — " +
+      "don't assume a click worked, assert it. Checkpoints are saved and re-run later against different " +
+      "members and amounts, so they must assert the STRUCTURE of the page, never data read from it: a " +
+      "checkpoint containing an extracted value or a hardcoded dollar amount is rejected.",
     input_schema: {
       type: "object",
       properties: {
@@ -173,7 +186,12 @@ export const DISCOVERY_TOOLS: Anthropic.Tool[] = [
               locator: locatorChainSchema,
               frame: frameSchema,
               assertion: assertionSchema,
-              expected: { type: "string" },
+              expected: {
+                type: "string",
+                description:
+                  "Must not contain a value read off the page. Input parameter values are fine. " +
+                  "To assert a value you must not hardcode, use textMatches with a shape regex.",
+              },
               attributeName: { type: "string" },
             },
             required: ["description", "locator", "assertion"],

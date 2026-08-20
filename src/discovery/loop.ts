@@ -22,6 +22,7 @@ import {
 } from "./tool-input-schemas.js";
 import { DISCOVERY_TOOLS } from "./tools.js";
 import type { ExtractedRecord } from "./generalize.js";
+import { checkCheckpointQuality, violationMessage } from "./checkpoint-quality.js";
 
 export interface DiscoveryParam {
   name: string;
@@ -99,7 +100,25 @@ You must accomplish exactly the stated goal — nothing more. In particular:
 
 Call exactly one tool per turn. After each action you will be shown the resulting accessibility tree (and any iframe content) — use it to decide the next step; don't assume an action worked without observing the result.
 
-Locate elements using the accessibility tree, not visual position: prefer role+name, then label/text/placeholder, and only fall back to a CSS selector or XPath when an element genuinely has no accessible name. Always give a short "reason" for each locator candidate — it becomes part of a reviewable, reusable automation artifact, so the reasoning matters as much as the result. Provide 2-3 fallback candidates when you reasonably can.
+Locate elements using the accessibility tree, not visual position: prefer role+name, then label/text/placeholder, and only fall back to a CSS selector or XPath when an element genuinely has no accessible name. If an element carries an aria-label, use strategy "label" with that text rather than reaching for a CSS selector. Always give a short "reason" for each locator candidate — it becomes part of a reviewable, reusable automation artifact, so the reasoning matters as much as the result. Give 2-3 candidates per element, ordered most robust first; a single-candidate chain is acceptable only when you can say in its "reason" why no fallback exists.
+
+CHECKPOINTS — how you must verify success.
+
+A checkpoint is not a snapshot of this run. It is saved and re-run later, unchanged, against different members, different amounts and different dates. So:
+
+- ASSERT STRUCTURE, NOT DATA. Assert that the member heading exists and contains "Member:" — never that it says "Member: Jane Smith". Assert that the balance cell exists and holds a dollar amount — never what the amount is.
+- NEVER put a value you read off the page into a checkpoint's "expected", into a locator's name/text/selector/expression, or into a checkpoint's description. That includes every value you extracted, and anything else that would differ for a different member, account or date. This is a hard rule: a finish call that breaks it is rejected and you will have to redo it.
+- The input parameter values listed below ARE safe to assert. The caller supplies them, so they are part of the request rather than part of the page.
+- Static application chrome is safe: page headings, banner text, column labels, button labels — anything identical for every member.
+
+Prefer these assertions, in order:
+  1. "urlMatches" on the route you should have landed on
+  2. "exists" on a role+name locator whose name is static chrome
+  3. "textContains" with a static label prefix ("Member:", "Savings Balance")
+  4. "textMatches" with a regex describing the SHAPE of a value you must not hardcode — e.g. ^\\$[0-9,]+\\.[0-9]{2}$ for "some dollar amount is shown"
+  5. "attributeEquals" on a stable attribute
+
+Give at least two checkpoints: one proving you are on the right page, and one proving the specific thing the goal asked for is present.
 
 These are the parameter values available for this run — the variable data for this task. Type them in verbatim wherever the goal calls for them:
 ${paramLines || "(none)"}
@@ -471,6 +490,28 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
             };
           }
           if (input.checkpoints.length > 0) {
+            // Quality before correctness: a checkpoint that asserts page data
+            // would pass the live assertion below (it was just read off this
+            // very page) and then fail for every other input the capability is
+            // invoked with. Rejecting here costs one model turn and reuses the
+            // is_error tool_result channel the model already self-corrects
+            // from; the compiler's assertNoLeakedPageData is the backstop.
+            const violations = checkCheckpointQuality(input.checkpoints, {
+              extractedValues,
+              params: o.params,
+            });
+            if (violations.length > 0) {
+              logger.log({
+                type: "checkpoint_rejected",
+                count: violations.length,
+                kinds: violations.map((v) => v.kind),
+              });
+              return {
+                ok: false,
+                resultText: violationMessage(violations, input.checkpoints),
+                logDetail: `rejected: ${violations.length} checkpoint quality violation(s)`,
+              };
+            }
             for (const cp of input.checkpoints) {
               await assertCondition(o.page, cp.frame, cp.locator, cp.assertion, cp.expected, cp.attributeName, ACTION_TIMEOUT_MS);
             }
