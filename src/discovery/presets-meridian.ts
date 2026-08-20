@@ -18,6 +18,15 @@ import { meridianOutcomes } from "./meridian-outcomes.js";
  */
 
 const MEMBER = "100234";
+/**
+ * A member with two large, OPEN shares, used wherever a capability needs to
+ * move money. The obvious default (100234) is the one the seed data ships with
+ * a hold on its Regular Shares, so a transfer *from* it is refused by the host
+ * — which a discovery run duly discovered by being refused. The app is shared
+ * and other people's runs accumulate holds and new shares in it, so a
+ * capability that mutates state should not assume a pristine member.
+ */
+const TRANSFER_MEMBER = "101555";
 
 /**
  * `verifyParams` drives the differential probe: the freshly compiled artifact
@@ -107,7 +116,7 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
     goal:
       "From the main menu, go to Funds Transfer, search by Member Number for the member identified by the memberId parameter, and Select their row. On the transfer form, choose the source share whose value is the member number followed by a hyphen and the fromShareCode parameter, choose the destination share the same way using toShareCode, enter the amount parameter as the amount, enter the memo parameter as the memo, and Continue to the review screen. Verify the review screen shows the amount you entered, then post the transfer. On the posted screen, extract the confirmation number as confirmationNumber, the source share's new balance as fromNewBalance, and the destination share's new balance as toNewBalance.",
     params: [
-      { name: "memberId", type: "string", exampleValue: MEMBER, sensitive: false, description: "Member number." },
+      { name: "memberId", type: "string", exampleValue: TRANSFER_MEMBER, sensitive: false, description: "Member number." },
       {
         name: "fromShareCode",
         type: "string",
@@ -118,9 +127,9 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
       {
         name: "toShareCode",
         type: "string",
-        exampleValue: "S0070",
+        exampleValue: "CERT",
         sensitive: false,
-        description: "Share suffix to transfer to, e.g. S0070.",
+        description: "Share suffix to transfer to, e.g. CERT.",
       },
       {
         name: "amount",
@@ -152,7 +161,7 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
     goal:
       "From the main menu, go to Open New Share, search by Member Number for the member identified by the memberId parameter, and Select their row. On the form, choose the account type whose value is the shareType parameter, enter the deposit parameter as the initial deposit, and Continue to the review screen. Verify the review screen shows the deposit you entered, then open the share. On the success screen, extract the confirmation number as confirmationNumber and the new share identifier as newShareId.",
     params: [
-      { name: "memberId", type: "string", exampleValue: MEMBER, sensitive: false, description: "Member number." },
+      { name: "memberId", type: "string", exampleValue: TRANSFER_MEMBER, sensitive: false, description: "Member number." },
       {
         name: "shareType",
         type: "string",
@@ -182,7 +191,7 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
     goal:
       "From the main menu, go to Update Member Information, search by Member Number for the member identified by the memberId parameter, and Select their row. On the form, replace the e-mail with the email parameter, the phone with the phone parameter, and the mailing address with the address parameter, then save the changes. Verify the page confirms the changes were saved.",
     params: [
-      { name: "memberId", type: "string", exampleValue: MEMBER, sensitive: false, description: "Member number." },
+      { name: "memberId", type: "string", exampleValue: TRANSFER_MEMBER, sensitive: false, description: "Member number." },
       {
         name: "email",
         type: "string",
@@ -218,11 +227,13 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
     goal:
       "From the main menu, go to Place Account Hold, search by Member Number for the member identified by the memberId parameter, and Select their row. On the hold form, choose the share whose value is the member number followed by a hyphen and the shareCode parameter, choose the reason code given by the reasonCode parameter, enter the notes parameter as the notes, and Continue to the review screen. Verify the review screen, then apply the hold. On the success screen, extract the confirmation number as confirmationNumber and the identifier of the share now on hold as heldShareId.",
     params: [
-      { name: "memberId", type: "string", exampleValue: "102777", sensitive: false, description: "Member number." },
+      { name: "memberId", type: "string", exampleValue: TRANSFER_MEMBER, sensitive: false, description: "Member number." },
       {
         name: "shareCode",
         type: "string",
-        exampleValue: "S0001",
+        // A share that is currently OPEN. A hold is permanent for the life of
+        // the deployment, so re-recording this capability needs a fresh one.
+        exampleValue: "MMKT-5",
         sensitive: false,
         description: "Share suffix to place the hold on.",
       },

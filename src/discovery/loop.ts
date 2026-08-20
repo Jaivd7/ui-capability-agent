@@ -113,6 +113,8 @@ Call exactly one tool per turn. After each action you will be shown the resultin
 
 ${adapter.locatorGuidance}
 
+NEVER LOCATE SOMETHING BY THE VALUE YOU ARE ABOUT TO READ FROM IT. You can see the value on the page in front of you, so it is tempting to write a locator naming it — but that value is different on every run, so the locator finds nothing the next time. Anchor on the *label* beside it, on the row it sits in, or on a static column heading. The same applies to anything you just extracted: a confirmation number, a balance and an account id are all run-specific, and a later step that locates by one of them is recorded as broken. A locator built this way is refused when the artifact is compiled.
+
 A locator that matches more than one element is rejected outright for clicks, fills and extracts, so if you see that error, disambiguate rather than retrying the same idea. Always give a short "reason" for each locator candidate — it becomes part of a reviewable, reusable automation artifact, so the reasoning matters as much as the result. Give 2-3 candidates per element, ordered most robust first. The chain is a fallback list: if the first candidate stops resolving after a UI change, replay tries the next, so a one-candidate chain has no resilience at all. A single-candidate chain is acceptable only when you say in its "reason" why no second way to find this element exists.
 
 CHECKPOINTS — how you must verify success.

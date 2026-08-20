@@ -206,10 +206,8 @@ function deriveFromDisk(
   const ends = readFirstAndLastSync(logPath);
   const first = ends.first;
   const last = ends.last;
-  const events = endsAsEvents(ends);
-  const derived = statusFromEvents(events, false);
-
-  const runEnd = last?.type === "run_end" ? last : undefined;
+  const runEnd = ends.runEnd;
+  const derived = statusFromEvents(endsAsEvents(ends), false);
   const mtimeIso = new Date(mtimeMs).toISOString();
   const startedAt = first?.timestamp || mtimeIso;
   const finishedAt = runEnd ? runEnd.timestamp || mtimeIso : undefined;
@@ -267,13 +265,18 @@ function deriveFromDisk(
   };
 }
 
+/**
+ * The sampled events, in log order. Deduplicated by line ordinal because the
+ * three slots overlap constantly — a one-line log is all three, and a replay
+ * log's last line is usually also its run_end — and a duplicate would double
+ * every count derived from them.
+ */
 function endsAsEvents(ends: LogEnds): RunEvent[] {
-  const events: RunEvent[] = [];
-  if (ends.first) events.push(ends.first);
-  // Guard against a one-line log, where both ends are the same event and
-  // pushing twice would double every count derived from them.
-  if (ends.last && ends.last.index !== ends.first?.index) events.push(ends.last);
-  return events;
+  const byIndex = new Map<number, RunEvent>();
+  for (const event of [ends.first, ends.runEnd, ends.last]) {
+    if (event) byIndex.set(event.index, event);
+  }
+  return [...byIndex.values()].sort((a, b) => a.index - b.index);
 }
 
 function locationOf(

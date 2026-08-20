@@ -16,8 +16,9 @@
  * messages that quote page content back at us.
  *
  * `&` is replaced first so the entity prefixes introduced below are not
- * double-escaped. `/` is escaped as well, which is redundant for well-formed
- * markup but cheap insurance against an unquoted attribute or a stray context.
+ * double-escaped. Both quote characters are escaped, so an interpolated value
+ * cannot break out of an attribute — every attribute this package emits is
+ * quoted, which is what makes that sufficient.
  */
 export function escapeHtml(s: string): string {
   return String(s)
@@ -25,8 +26,7 @@ export function escapeHtml(s: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/\//g, "&#47;");
+    .replace(/'/g, "&#39;");
 }
 
 /** Escapes a value for interpolation into a URL path or query segment. */

@@ -40,18 +40,28 @@ export async function readEvents(logPath: string, since = 0): Promise<RunEvent[]
 export interface LogEnds {
   first?: RunEvent;
   last?: RunEvent;
+  /**
+   * The closing `run_end`, which is *not* always the last line: the discovery
+   * CLI appends `recording_score` after the loop returns, and any future
+   * post-run bookkeeping would land there too. Treating the final line as the
+   * outcome reads every scored discovery run as crashed.
+   */
+  runEnd?: RunEvent;
   /** Non-blank lines, i.e. the event count including any malformed ones. */
   count: number;
 }
 
 /**
- * The two events a history row needs, without building an object per line.
+ * The handful of events a history row needs, without building an object per
+ * line.
  *
  * The file is read whole — at this project's scale that's a few hundred KB and
  * a streaming line reader would be more machinery than the problem deserves —
- * but only the first and last parseable lines are turned into objects, which
- * is the part that actually costs something when a list view touches every run
- * on every request.
+ * but only the ends are turned into objects, which is the part that actually
+ * costs something when a list view touches every run on every request. The
+ * search for `run_end` string-matches before it parses, so the usual case
+ * (it's the last or second-to-last line) parses one extra line and the worst
+ * case parses none.
  */
 export async function readFirstAndLast(logPath: string): Promise<LogEnds> {
   const text = await readTextAsync(logPath);
@@ -126,11 +136,28 @@ function endsFromText(text: string): LogEnds {
   let last: RunEvent | undefined;
   for (let i = lines.length - 1; i >= 0 && !last; i -= 1) last = parseLine(lines[i], i);
 
+  let runEnd: RunEvent | undefined;
+  for (let i = lines.length - 1; i >= 0 && !runEnd; i -= 1) {
+    // The substring can also appear inside a `reason` string, so a hit is only
+    // a candidate — the parsed event still has to be a run_end.
+    if (!lines[i]?.includes(RUN_END_MARKER)) continue;
+    const candidate = parseLine(lines[i], i);
+    if (candidate?.type === "run_end") runEnd = candidate;
+  }
+
   let count = 0;
   for (const line of lines) if (line.trim() !== "") count += 1;
 
-  return { ...(first ? { first } : {}), ...(last ? { last } : {}), count };
+  return {
+    ...(first ? { first } : {}),
+    ...(last ? { last } : {}),
+    ...(runEnd ? { runEnd } : {}),
+    count,
+  };
 }
+
+/** JSON.stringify emits no spaces, so this is what every writer produces. */
+const RUN_END_MARKER = '"type":"run_end"';
 
 /** Returns undefined for blank, unparseable, or non-event lines. */
 function parseLine(raw: string | undefined, index: number): RunEvent | undefined {

@@ -2,8 +2,6 @@ import type { CapabilityArtifact, CheckpointCondition, LocatorCandidate, Step } 
 import type { CatalogEntry } from "../../types.js";
 import { escapeHtml, escapeUrl } from "../layout.js";
 import {
-  appBadge,
-  card,
   code,
   emptyState,
   irreversibleBadge,
@@ -233,9 +231,9 @@ function detailsBlock(entry: CatalogEntry): string {
               : `<span class="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">recover: ${escapeHtml(
                   o.recovery.action,
                 )}</span>`;
-          return `<li class="flex flex-wrap items-center gap-2 py-1.5 text-sm text-slate-700">${tag}<span>${escapeHtml(
-            o.description,
-          )}</span><span class="font-mono text-[11px] text-slate-400">${escapeHtml(
+          return `<li class="flex flex-wrap items-center gap-2 py-1.5 text-sm text-slate-700">${tag}<span class="font-mono text-[11px] text-slate-500">${escapeHtml(
+            o.id,
+          )}</span><span>${escapeHtml(o.description)}</span><span class="font-mono text-[11px] text-slate-400">${escapeHtml(
             o.checkAfterStepId ? `after ${o.checkAfterStepId}` : "checked after every step",
           )}</span></li>`;
         })

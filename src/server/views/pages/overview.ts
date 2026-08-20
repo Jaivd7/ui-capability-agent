@@ -8,6 +8,7 @@ import {
   emptyState,
   statusChip,
   table,
+  timeAgo,
   timestampCell,
 } from "../components.js";
 
@@ -83,7 +84,9 @@ function runnerCard(active: RunSummary | undefined): string {
       </div>
       <p class="mt-2 text-xs text-amber-800"><a class="underline underline-offset-2" href="${href}">${escapeHtml(
         active.runId,
-      )}</a> &middot; started ${escapeHtml(active.startedAt)}</p>
+      )}</a> &middot; <span title="${escapeHtml(active.startedAt)}">started ${escapeHtml(
+        timeAgo(active.startedAt),
+      )}</span></p>
     </div>`;
   }
 

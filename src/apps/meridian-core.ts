@@ -126,6 +126,8 @@ export const MERIDIAN_CORE: AppAdapter = {
 4. For a value in a results or review table, use role=cell with the cell's own text as the name — a cell's text IS its accessible name, so this reaches it without a positional selector.
 5. Only as a last resort, a positional CSS selector (tr:nth-child(2) td:nth-child(2)). It is a legitimate SECOND candidate behind one of the above, but it should not be first.
 
+When choosing from a <select>, pass the option's VALUE attribute, not its visible label. On this app a share option renders as "101555-S0001 - Regular Shares ($17,963.00)" but its value is just "101555-S0001". The label embeds a balance that changes every time money moves, so selecting by label records a value that works once and breaks immediately; the value attribute is stable and is what the form actually submits.
+
 Do NOT reach for role=textbox on this app: with no labels there is no accessible name to disambiguate one text input from another, so it matches several and will be rejected. A good chain here looks like:
 
     [{ strategy: "css", selector: "[name=\"amount\"]", reason: "form field name, part of the submission contract" },

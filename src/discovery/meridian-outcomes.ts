@@ -181,6 +181,36 @@ const INSUFFICIENT_FUNDS: KnownOutcome = {
 };
 
 /**
+ * A hold on the source share blocks a debit.
+ *
+ * Found by a discovery run rather than by reading the brief: member 100234's
+ * S0001 is the share the seed data ships already on HOLD, and transferring
+ * from it fails with this message. It is caught by the generic rejection
+ * below, but a caller can act on "this share is frozen" in a way they cannot
+ * act on "rejected", so it earns its own code.
+ */
+const SHARE_ON_HOLD: KnownOutcome = {
+  id: "share-on-hold",
+  description: "The source share carries a hold and cannot be debited.",
+  classification: "business",
+  detect: {
+    frame: [],
+    locator: [
+      {
+        strategy: "text",
+        text: "cannot be debited",
+        exact: false,
+        reason: "Validation message listed by the transfer form when the source share is on hold.",
+      },
+    ],
+  },
+  outcome: {
+    code: "SHARE_ON_HOLD",
+    message: "The source share carries a hold and cannot be debited; no transfer was posted.",
+  },
+};
+
+/**
  * The generic field/transaction rejection. Note this is *also* what a stale
  * per-transaction token produces — the two render identical markup, so they are
  * genuinely indistinguishable from the page. That is a second reason not to
@@ -263,7 +293,7 @@ export function meridianOutcomes(opts: OutcomeOptions = {}): KnownOutcome[] {
   if (opts.search) outcomes.push(MULTIPLE_MATCHES);
   // Order matters: the specific funds case must precede the generic rejection,
   // or the first match wins and reports the wrong code.
-  if (opts.funds) outcomes.push(INSUFFICIENT_FUNDS);
+  if (opts.funds) outcomes.push(INSUFFICIENT_FUNDS, SHARE_ON_HOLD);
   if (opts.transactional) outcomes.push(VALIDATION_REJECTED);
   return outcomes;
 }
