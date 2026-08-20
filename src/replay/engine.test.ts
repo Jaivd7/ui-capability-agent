@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseArtifact, type CapabilityArtifact } from "../artifact/index.js";
-import { readonlyCredentials, tellerCredentials } from "../shared/credentials.js";
+import { credentialsForRole, readonlyCredentials, type SessionRole } from "../shared/credentials.js";
 import { startAuthenticatedSession, type BrowserSession } from "../shared/session.js";
 import { createRunLogger, type LogEvent, type RunLogger } from "../logging/logger.js";
 import { setGuardrailsConfigForTest, type GuardrailsConfig } from "../guardrails/config.js";
@@ -58,14 +58,36 @@ afterAll(() => {
   serverProcess.kill();
 });
 
-async function withSession(fn: (session: BrowserSession) => Promise<void>): Promise<void> {
+function capturingLogger(runId: string, sink: LogEvent[]): RunLogger {
+  const base = createRunLogger(runId, "/tmp/replay-engine-test");
+  return {
+    filePath: base.filePath,
+    log: (event) => {
+      sink.push(event);
+      base.log(event);
+    },
+  };
+}
+
+async function withSession(
+  fn: (session: BrowserSession) => Promise<void>,
+  role: SessionRole = "teller",
+): Promise<void> {
   process.env.HEADLESS = "true";
-  const session = await startAuthenticatedSession(BASE_URL, tellerCredentials());
+  const session = await startAuthenticatedSession(BASE_URL, credentialsForRole(role));
   try {
     await fn(session);
   } finally {
     await session.close();
   }
+}
+
+/**
+ * The mock app's dev lever: makes the *next* request take the identical
+ * getSession-returns-null path a natural timeout would.
+ */
+async function expireSession(session: BrowserSession): Promise<void> {
+  await session.page.goto(`${BASE_URL}/dev/expire-session`, { waitUntil: "load" });
 }
 
 describe("replay engine (live, against the mock app)", () => {
@@ -80,7 +102,6 @@ describe("replay engine (live, against the mock app)", () => {
           artifact,
           params: { memberId: "1001" },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
         });
         expect(result.status).toBe("success");
@@ -111,7 +132,6 @@ describe("replay engine (live, against the mock app)", () => {
           artifact,
           params: { memberId },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
         });
         expect(result.status).toBe("success");
@@ -141,11 +161,156 @@ describe("replay engine (live, against the mock app)", () => {
             openingDeposit: 1500,
           },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
         });
         expect(result.status).toBe("success");
       });
+    },
+    30_000,
+  );
+
+  // The recoverable tier of the taxonomy, which had no coverage at all despite
+  // the mock app shipping /dev/expire-session specifically to enable it.
+  it(
+    "recoverable: a session that expires mid-flow is re-authenticated and the flow restarts to success",
+    async () => {
+      await withSession(async (session) => {
+        const artifact = loadArtifact("lookup-member-balance");
+        const events: LogEvent[] = [];
+        const logger = capturingLogger("test-reauth", events);
+        await expireSession(session);
+
+        const result = await runReplay({
+          runId: "test-run-reauth",
+          artifact,
+          params: { memberId: "1001" },
+          page: session.page,
+          logger,
+          sessionRole: "teller",
+        });
+
+        expect(result.status).toBe("success");
+        expect(events.some((e) => e.type === "known_outcome" && e.outcomeId === "session-expired")).toBe(true);
+        expect(events.some((e) => e.type === "flow_restart")).toBe(true);
+      });
+    },
+    40_000,
+  );
+
+  it(
+    "recoverable: re-authentication restores the run's own role, it does not escalate to teller",
+    async () => {
+      // reauth used to log back in with tellerCredentials() unconditionally, so
+      // a readonly run that hit a timeout came back with more privilege than it
+      // started with -- and then sailed past the permission denial it should
+      // have reported.
+      await withSession(async (session) => {
+        const artifact = loadArtifact("lookup-member-balance");
+        const logger = createRunLogger("test-reauth-role", "/tmp/replay-engine-test");
+        await expireSession(session);
+
+        const result = await runReplay({
+          runId: "test-run-reauth-role",
+          artifact,
+          params: { memberId: "1001" },
+          page: session.page,
+          logger,
+          sessionRole: "readonly",
+        });
+        expect(result.status).toBe("success");
+
+        // The session that recovered must still be readonly: the member page
+        // shows the role-gated notice instead of the Open Sub-Account link.
+        await session.page.goto(`${BASE_URL}/members/1001`, { waitUntil: "load" });
+        await expect(
+          session.page.getByText("Sub-account actions require teller role.").isVisible(),
+        ).resolves.toBe(true);
+      }, "readonly");
+    },
+    40_000,
+  );
+
+  it(
+    "recoverable: a retry_step recovery re-executes the step, and exhausting it names the condition",
+    async () => {
+      // dismissAndRetry / reloadAndRetry declare scope "retry_step", which the
+      // engine mapped to plain continuation -- so they ran their recovery and
+      // then skipped the very step that needed retrying. With the scope
+      // honoured, a detector that keeps matching burns its maxAttempts and
+      // becomes a hard failure that names it, rather than quietly proceeding.
+      await withSession(async (session) => {
+        const artifact = loadArtifact("lookup-member-balance");
+        const withStickyCondition: CapabilityArtifact = {
+          ...artifact,
+          knownOutcomes: [
+            ...artifact.knownOutcomes,
+            {
+              id: "sticky-interstitial",
+              description: "A condition that a reload never clears.",
+              checkAfterStepId: artifact.steps[0]!.id,
+              classification: "recoverable",
+              detect: {
+                frame: [],
+                locator: [
+                  {
+                    strategy: "text",
+                    text: "MERIDIAN CORE BANKING",
+                    exact: false,
+                    reason: "always-present banner, so the condition never resolves",
+                  },
+                ],
+              },
+              recovery: { action: "reloadAndRetry", maxAttempts: 1 },
+            },
+          ],
+        };
+        const events: LogEvent[] = [];
+        const logger = capturingLogger("test-retry-step", events);
+
+        const result = await runReplay({
+          runId: "test-run-retry-step",
+          artifact: withStickyCondition,
+          params: { memberId: "1001" },
+          page: session.page,
+          logger,
+          sessionRole: "teller",
+        });
+
+        expect(result.status).toBe("hard_failure");
+        if (result.status === "hard_failure") {
+          expect(result.reason).toContain("sticky-interstitial");
+        }
+        // The step really was re-executed, rather than the loop moving on.
+        expect(events.filter((e) => e.type === "step_retry")).toHaveLength(1);
+      });
+    },
+    40_000,
+  );
+
+  it(
+    "precondition: a session without the required role fails fast, before touching the app",
+    async () => {
+      await withSession(async (session) => {
+        const artifact = loadArtifact("open-sub-account");
+        const events: LogEvent[] = [];
+        const logger = capturingLogger("test-required-role", events);
+
+        const result = await runReplay({
+          runId: "test-run-required-role",
+          artifact,
+          params: { memberId: "1001", accountType: "Standard Savings", openingDeposit: 100 },
+          page: session.page,
+          logger,
+          sessionRole: "readonly",
+        });
+
+        expect(result.status).toBe("business_outcome");
+        if (result.status === "business_outcome") {
+          expect(result.code).toBe("PERMISSION_DENIED");
+        }
+        // Fast means fast: no step ran at all.
+        expect(events.filter((e) => e.type === "step_result")).toHaveLength(0);
+      }, "readonly");
     },
     30_000,
   );
@@ -161,7 +326,6 @@ describe("replay engine (live, against the mock app)", () => {
           artifact,
           params: { memberId: "99999999" },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
         });
         expect(result.status).toBe("business_outcome");
@@ -203,7 +367,6 @@ describe("replay engine (live, against the mock app)", () => {
           artifact: broken,
           params: { memberId: "1001" },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
         });
         expect(result.status).toBe("hard_failure");
@@ -229,7 +392,6 @@ describe("replay engine (live, against the mock app)", () => {
           artifact,
           params: { memberId: "1001", accountType: "Standard Savings", openingDeposit: "100" },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
         });
         expect(result.status).toBe("business_outcome");
@@ -274,7 +436,6 @@ describe("replay engine (live, against the mock app)", () => {
           artifact: artifactWithIrreversibleStep,
           params: { memberId: "1001" },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
           guardrail: (step, ctx) => evaluateGuardrails(step, ctx, testGuardrailsConfig),
         });
@@ -336,7 +497,6 @@ describe("replay engine (live, against the mock app)", () => {
           artifact: artifactWithIrreversibleStep,
           params: { memberId: "1001" },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
           guardrail: (step, ctx) => evaluateGuardrails(step, ctx, testGuardrailsConfig),
           escalate: createEscalationHandler(session.page, logger, "/tmp/replay-engine-test"),
@@ -388,7 +548,6 @@ describe("replay engine (live, against the mock app)", () => {
           artifact: artifactWithIrreversibleStep,
           params: { memberId: "1001" },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
           guardrail: (step, ctx) => evaluateGuardrails(step, ctx, testGuardrailsConfig),
           escalate: createEscalationHandler(session.page, logger, "/tmp/replay-engine-test"),
@@ -443,7 +602,6 @@ describe("replay engine (live, against the mock app)", () => {
           artifact: brokenArtifact,
           params: { memberId: "1001", accountType: "Standard Savings", openingDeposit: "100" },
           page: session.page,
-          dialogEvents: session.dialogEvents,
           logger,
           escalate: createEscalationHandler(session.page, logger, "/tmp/replay-engine-test"),
         });

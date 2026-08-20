@@ -6,7 +6,6 @@ import {
   assertNoLeakedPageData,
   generalizeArtifact,
   type CompileFinding,
-  type ExtractedRecord,
 } from "./generalize.js";
 import type { DiscoveryParam, DiscoveryResult } from "./loop.js";
 

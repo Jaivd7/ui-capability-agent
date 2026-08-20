@@ -2,8 +2,9 @@ import type { Page } from "playwright";
 import type { CapabilityArtifact, Step, ValueRef } from "../artifact/schema.js";
 import { assertCondition, detectorMatches } from "../shared/assert.js";
 import { extractValue } from "../shared/extract.js";
-import { LocatorResolutionError, resolveLocator } from "../shared/locator.js";
-import type { DialogEvent } from "../shared/session.js";
+import { resolveLocator } from "../shared/locator.js";
+import type { FrameLocator, LocatorChain } from "../artifact/schema.js";
+import type { SessionRole } from "../shared/credentials.js";
 import { redactValue } from "../guardrails/redact.js";
 import type { GuardrailContext, GuardrailDecision } from "../guardrails/policy.js";
 import type { RunLogger } from "../logging/logger.js";
@@ -18,6 +19,14 @@ const ACTION_TIMEOUT_MS = 10_000;
 const DETECTOR_TIMEOUT_MS = 1_000;
 const MAX_FLOW_RESTARTS = 2;
 const MAX_STEP_RETRIES = 2;
+/**
+ * How many times one step may be re-executed because a *recoverable*
+ * knownOutcome fired with a retry_step action. Separate from MAX_STEP_RETRIES,
+ * which answers plain transient slowness and is gated on `step.retryable`: a
+ * named, detected condition that a recovery action just resolved deserves a
+ * retry whether or not the step opted into one.
+ */
+const MAX_RECOVERY_RETRIES_PER_STEP = 2;
 
 export type { ParamValue } from "../artifact/template.js";
 import type { ParamValue } from "../artifact/template.js";
@@ -31,6 +40,8 @@ import type { ParamValue } from "../artifact/template.js";
 type StepOutcome =
   | { kind: "continue" }
   | { kind: "restart_flow" }
+  /** A recoverable condition was resolved in place; re-execute the step that hit it. */
+  | { kind: "retry_step" }
   | { kind: "resolved"; result: ReplayResult };
 
 /** What to do next in the main step loop, after a step's outcome (possibly escalation) resolves. */
@@ -44,8 +55,13 @@ export interface ReplayOptions {
   artifact: CapabilityArtifact;
   params: Record<string, ParamValue>;
   page: Page;
-  dialogEvents: DialogEvent[];
   logger: RunLogger;
+  /**
+   * The role this run's session authenticated as. Used to re-authenticate with
+   * the same privilege on recovery, and to fail fast when the artifact
+   * declares a `requiredRole` the session doesn't have.
+   */
+  sessionRole?: SessionRole;
   guardrail?: GuardrailHook;
   /**
    * When set, a guardrail-blocked irreversible step becomes a human
@@ -88,6 +104,20 @@ export async function runReplay(rawOpts: ReplayOptions): Promise<ReplayResult> {
   // not just the JSONL log.
   let lastIntervention: HumanIntervention | undefined;
 
+  const roleFailure = checkRequiredRole(opts);
+  if (roleFailure) {
+    opts.logger.log({
+      type: "run_start",
+      kind: "replay",
+      runId: opts.runId,
+      capabilityId: opts.artifact.id,
+      capabilityVersion: opts.artifact.version,
+      params: redactParamsForLog(opts.artifact, opts.params),
+    });
+    logFinalResult(opts, roleFailure);
+    return roleFailure;
+  }
+
   opts.logger.log({
     type: "run_start",
     kind: "replay",
@@ -100,6 +130,12 @@ export async function runReplay(rawOpts: ReplayOptions): Promise<ReplayResult> {
   for (let flowAttempt = 1; flowAttempt <= MAX_FLOW_RESTARTS + 1; flowAttempt++) {
     await navigateToEntry(opts);
     if (flowAttempt > 1) opts.logger.log({ type: "flow_restart", attempt: flowAttempt });
+
+    // A restart re-runs the whole recorded sequence, so anything extracted by
+    // the abandoned attempt is stale. Leaving it in place let the post-run
+    // completeness check below pass on evidence from a run that was thrown
+    // away.
+    for (const key of Object.keys(outputs)) delete outputs[key];
 
     let needsFlowRestart = false;
     for (const step of opts.artifact.steps) {
@@ -151,28 +187,25 @@ export async function runReplay(rawOpts: ReplayOptions): Promise<ReplayResult> {
 
     // The inner loop completed every step without a restart or an early
     // resolution — the flow is done, verify the final checkpoint(s).
-    const checkpointResult = await verifyCheckpoints(opts);
-    if (checkpointResult) {
-      const resolved = await resolveHardFailure(opts, checkpointResult, outputs);
+    const verification = await verifyCheckpoints(opts);
+    if (verification.failure) {
+      const resolved = await resolveHardFailure(opts, verification.failure, outputs);
       logFinalResult(opts, resolved);
       return resolved;
     }
-    const missingOutputs = opts.artifact.outputs.filter((o) => !(o.name in outputs));
-    if (missingOutputs.length > 0) {
-      const failure: ReplayHardFailure = {
-        status: "hard_failure",
-        stepId: opts.artifact.steps[opts.artifact.steps.length - 1]?.id ?? "(none)",
-        stepDescription: "(post-run output check)",
-        reason: `Declared output(s) never produced: ${missingOutputs.map((o) => o.name).join(", ")}.`,
-      };
-      const resolved = await resolveHardFailure(opts, failure, outputs);
+    const missing = missingOutputsFailure(opts, outputs);
+    if (missing) {
+      const resolved = await resolveHardFailure(opts, missing, outputs);
       logFinalResult(opts, resolved);
       return resolved;
     }
     const result: ReplayResult = {
       status: "success",
       outputs,
-      checkpointsPassed: opts.artifact.checkpoints.map((c) => c.description),
+      // What actually verified, not a copy of the declarations. The previous
+      // version returned the same list on every success regardless of what
+      // ran, which made it worthless as evidence.
+      checkpointsPassed: verification.passed,
       stepsExecuted: opts.artifact.steps.length,
       ...(lastIntervention !== undefined ? { humanIntervention: lastIntervention } : {}),
     };
@@ -197,7 +230,9 @@ async function toLoopSignal(
   outputs: Record<string, string | number>,
 ): Promise<LoopSignal> {
   if (outcome.kind === "restart_flow") return { kind: "restart_flow" };
-  if (outcome.kind === "continue") return { kind: "continue" };
+  // retry_step is resolved inside runStepWithRetries and never reaches here;
+  // treating it as "carry on" keeps the main loop total.
+  if (outcome.kind === "continue" || outcome.kind === "retry_step") return { kind: "continue" };
   // A hard failure that already carries a humanIntervention record just
   // came *from* an escalation decision (e.g. the operator rejected an
   // irreversible-confirmation request) — don't immediately raise a second
@@ -312,16 +347,39 @@ async function resolveHardFailure(
     return { ...failure, humanIntervention: intervention };
   }
 
-  const checkpointResult = await verifyCheckpoints(opts);
-  if (checkpointResult) {
-    return { ...checkpointResult, humanIntervention: intervention };
+  const verification = await verifyCheckpoints(opts);
+  if (verification.failure) {
+    return { ...verification.failure, humanIntervention: intervention };
+  }
+  // Checkpoints passing is not the same as the capability having delivered its
+  // contract. A human recovering a run that failed *because* an extract never
+  // happened would otherwise get `success` with an empty outputs map — and the
+  // operator console has no extract action, so this is reachable rather than
+  // theoretical.
+  const missing = missingOutputsFailure(opts, outputs);
+  if (missing) {
+    return { ...missing, humanIntervention: intervention };
   }
   return {
     status: "success",
     outputs,
-    checkpointsPassed: opts.artifact.checkpoints.map((c) => c.description),
+    checkpointsPassed: verification.passed,
     stepsExecuted: opts.artifact.steps.length,
     humanIntervention: intervention,
+  };
+}
+
+function missingOutputsFailure(
+  opts: ReplayOptions,
+  outputs: Record<string, string | number>,
+): ReplayHardFailure | null {
+  const missing = opts.artifact.outputs.filter((o) => !(o.name in outputs));
+  if (missing.length === 0) return null;
+  return {
+    status: "hard_failure",
+    stepId: opts.artifact.steps[opts.artifact.steps.length - 1]?.id ?? "(none)",
+    stepDescription: "(post-run output check)",
+    reason: `Declared output(s) never produced: ${missing.map((o) => o.name).join(", ")}.`,
   };
 }
 
@@ -348,12 +406,22 @@ async function runStepWithRetries(
 ): Promise<StepOutcome> {
   const maxAttempts = step.retryable ? MAX_STEP_RETRIES : 1;
   let lastError: unknown;
+  // Two independent budgets. `attempt` answers plain transient slowness and is
+  // gated on `step.retryable`; `recoveryRetries` answers a *named* condition
+  // that a recovery action just resolved, which deserves another go whether or
+  // not the step opted into retries.
+  let attempt = 1;
+  let recoveryRetries = 0;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  while (attempt <= maxAttempts) {
     try {
       await executeStep(opts, step, outputs);
       opts.logger.log({ type: "step_result", stepId: step.id, ok: true, attempt });
-      return checkKnownOutcomes(opts, step.id, recoveryAttempts);
+      const outcome = await checkKnownOutcomes(opts, step.id, recoveryAttempts);
+      if (outcome.kind !== "retry_step") return outcome;
+      if (++recoveryRetries > MAX_RECOVERY_RETRIES_PER_STEP) break;
+      opts.logger.log({ type: "step_retry", stepId: step.id, reason: "recovery", recoveryRetries });
+      continue;
     } catch (err) {
       lastError = err;
       opts.logger.log({
@@ -367,8 +435,13 @@ async function runStepWithRetries(
       // vanished because a session-expired redirect happened) — check before
       // treating a raw execution error as an unrecognized hard failure.
       const outcomeFromFailure = await checkKnownOutcomes(opts, step.id, recoveryAttempts);
+      if (outcomeFromFailure.kind === "retry_step") {
+        if (++recoveryRetries > MAX_RECOVERY_RETRIES_PER_STEP) break;
+        opts.logger.log({ type: "step_retry", stepId: step.id, reason: "recovery", recoveryRetries });
+        continue;
+      }
       if (outcomeFromFailure.kind !== "continue") return outcomeFromFailure;
-      if (attempt < maxAttempts) continue;
+      attempt += 1;
     }
   }
 
@@ -379,8 +452,11 @@ async function runStepWithRetries(
       status: "hard_failure",
       stepId: step.id,
       stepDescription: step.description,
-      reason: "Step execution failed and no known outcome matched the resulting state.",
-      observed: message,
+      reason:
+        lastError === undefined
+          ? `Recovered from a detected condition ${MAX_RECOVERY_RETRIES_PER_STEP} time(s) and the step still did not settle.`
+          : "Step execution failed and no known outcome matched the resulting state.",
+      ...(lastError === undefined ? {} : { observed: message }),
     },
   };
 }
@@ -391,6 +467,33 @@ async function runStepWithRetries(
  */
 function stepTimeout(step: Step): number {
   return step.timeoutMs ?? ACTION_TIMEOUT_MS;
+}
+
+/**
+ * Resolves a step's locator and records the interesting cases.
+ *
+ * Falling through to a later candidate means the chain's first choice has
+ * stopped working — the earliest signal of UI drift this system gets, and
+ * previously invisible because nothing logged which rung resolved. A match
+ * count above one means the locator is ambiguous and something else in the
+ * chain (or `requireUnique`) decided which element won.
+ */
+async function resolveStepTarget(opts: ReplayOptions, step: Step & { frame: FrameLocator[]; locator: LocatorChain }) {
+  const resolved = await resolveLocator(opts.page, step.frame, step.locator, {
+    timeoutMs: stepTimeout(step),
+    requireUnique: true,
+  });
+  if (resolved.candidateIndex > 0 || resolved.matchCount > 1) {
+    opts.logger.log({
+      type: "locator_resolved",
+      stepId: step.id,
+      candidateIndex: resolved.candidateIndex,
+      strategy: resolved.candidate.strategy,
+      matchCount: resolved.matchCount,
+      ...(resolved.candidateIndex > 0 ? { usedFallback: true } : {}),
+    });
+  }
+  return resolved;
 }
 
 async function executeStep(
@@ -406,22 +509,22 @@ async function executeStep(
       return;
     }
     case "click": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
+      const resolved = await resolveStepTarget(opts, step);
       await resolved.locator.click({ timeout: stepTimeout(step) });
       return;
     }
     case "fill": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
+      const resolved = await resolveStepTarget(opts, step);
       await resolved.locator.fill(resolveValueRef(step.value, opts.params), { timeout: stepTimeout(step) });
       return;
     }
     case "select": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
+      const resolved = await resolveStepTarget(opts, step);
       await resolved.locator.selectOption(resolveValueRef(step.value, opts.params), { timeout: stepTimeout(step) });
       return;
     }
     case "check": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
+      const resolved = await resolveStepTarget(opts, step);
       if (step.checked) await resolved.locator.check({ timeout: stepTimeout(step) });
       else await resolved.locator.uncheck({ timeout: stepTimeout(step) });
       return;
@@ -439,7 +542,7 @@ async function executeStep(
       return;
     }
     case "extract": {
-      const resolved = await resolveLocator(page, step.frame, step.locator, { timeoutMs: stepTimeout(step), requireUnique: true });
+      const resolved = await resolveStepTarget(opts, step);
       const declaredOutput = opts.artifact.outputs.find((o) => o.name === step.outputName);
       // Default the transform from the output's declared type when the
       // recorded step didn't set one (e.g. a currency-typed output whose
@@ -524,14 +627,29 @@ async function checkKnownOutcomes(
     opts.logger.log({ type: "known_outcome", outcomeId: outcome.id, classification: "recoverable", action: outcome.recovery.action });
 
     const action = getRecoveryAction(opts.artifact.target.app, outcome.recovery.action);
-    await action.run({ page: opts.page, target: opts.artifact.target });
+    await action.run({
+      page: opts.page,
+      target: opts.artifact.target,
+      sessionRole: opts.sessionRole ?? "teller",
+    });
 
-    return { kind: action.scope === "restart_flow" ? "restart_flow" : "continue" };
+    // "retry_step" used to map to "continue", which advanced the main loop to
+    // the *next* step — so dismissAndRetry and reloadAndRetry performed their
+    // recovery and then skipped the very step that needed retrying, or fell
+    // straight through to a hard failure. The scope now means what it says.
+    return { kind: action.scope === "restart_flow" ? "restart_flow" : "retry_step" };
   }
   return { kind: "continue" };
 }
 
-async function verifyCheckpoints(opts: ReplayOptions): Promise<ReplayHardFailure | null> {
+interface CheckpointVerification {
+  failure: ReplayHardFailure | null;
+  /** Descriptions of the checkpoints that actually verified, in order. */
+  passed: string[];
+}
+
+async function verifyCheckpoints(opts: ReplayOptions): Promise<CheckpointVerification> {
+  const passed: string[] = [];
   for (const checkpoint of opts.artifact.checkpoints) {
     try {
       await assertCondition(
@@ -543,17 +661,42 @@ async function verifyCheckpoints(opts: ReplayOptions): Promise<ReplayHardFailure
         checkpoint.attributeName,
         ACTION_TIMEOUT_MS,
       );
+      passed.push(checkpoint.description);
+      opts.logger.log({ type: "checkpoint_passed", description: checkpoint.description });
     } catch (err) {
+      const observed = err instanceof Error ? err.message : String(err);
+      opts.logger.log({ type: "checkpoint_failed", description: checkpoint.description, observed });
       return {
-        status: "hard_failure",
-        stepId: "(checkpoint)",
-        stepDescription: checkpoint.description,
-        reason: `Checkpoint not met: ${checkpoint.description}`,
-        observed: err instanceof Error ? err.message : String(err),
+        passed,
+        failure: {
+          status: "hard_failure",
+          stepId: "(checkpoint)",
+          stepDescription: checkpoint.description,
+          reason: `Checkpoint not met: ${checkpoint.description}`,
+          observed,
+        },
       };
     }
   }
-  return null;
+  return { failure: null, passed };
+}
+
+/**
+ * `preconditions.requiredRole` was declared on the artifact and read by
+ * nothing, while the schema doc claimed it let replay "fail fast with a clear
+ * message instead of discovering the denial mid-flow". The mid-flow detector
+ * stays as the backstop — it catches a role the caller misreported — but when
+ * the mismatch is knowable up front, say so before touching the app.
+ */
+function checkRequiredRole(opts: ReplayOptions): ReplayResult | null {
+  const required = opts.artifact.preconditions.requiredRole;
+  if (!required || !opts.sessionRole || opts.sessionRole === required) return null;
+  return {
+    status: "business_outcome",
+    code: "PERMISSION_DENIED",
+    message: `This capability requires the "${required}" role; the session is authenticated as "${opts.sessionRole}".`,
+    outcomeId: "(precondition:requiredRole)",
+  };
 }
 
 function resolveValueRef(ref: ValueRef, params: Record<string, ParamValue>): string {

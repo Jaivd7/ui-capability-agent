@@ -90,7 +90,9 @@ describe("CapabilityArtifactSchema", () => {
     // is the fastest way to teach people to ignore the drift signal.
     const a = baseArtifact();
     const b = baseArtifact();
-    b.steps[0]!.locator[0]!.reason = "a completely different explanation of the same locator";
+    const step = b.steps[0]!;
+    if (step.type === "navigate") throw new Error("fixture changed");
+    step.locator[0]!.reason = "a completely different explanation of the same locator";
     expect(computeContentHash(a)).toBe(computeContentHash(b));
   });
 

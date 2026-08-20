@@ -34,14 +34,16 @@ export function applyTransform(raw: string, transform: ReadSpec["transform"]): s
     case "trim":
       return trimmed;
     case "currency": {
-      const num = Number(trimmed.replace(/[^0-9.-]/g, ""));
-      if (Number.isNaN(num)) throw new Error(`could not parse "${raw}" as currency`);
-      return num;
+      // Accounting notation: "(1,234.56)" is negative twelve hundred, not
+      // positive. Stripping punctuation first would have dropped the sign
+      // silently and returned the wrong number with no error.
+      const negative = /^\(.*\)$/.test(trimmed);
+      const digits = trimmed.replace(/[^0-9.-]/g, "");
+      const num = toFiniteNumber(digits, raw, "currency");
+      return negative ? -Math.abs(num) : num;
     }
     case "number": {
-      const num = Number(trimmed.replace(/,/g, ""));
-      if (Number.isNaN(num)) throw new Error(`could not parse "${raw}" as a number`);
-      return num;
+      return toFiniteNumber(trimmed.replace(/,/g, ""), raw, "a number");
     }
     case "date": {
       const date = new Date(trimmed);
@@ -49,6 +51,21 @@ export function applyTransform(raw: string, transform: ReadSpec["transform"]): s
       return date.toISOString();
     }
   }
+}
+
+/**
+ * `Number("")` is `0`, not `NaN` — so an empty or symbols-only cell used to
+ * extract as the number **0** and throw nothing. On a capability whose whole
+ * job is reading a balance, silently returning zero is the worst available
+ * failure: the caller cannot tell it apart from a real zero balance.
+ */
+function toFiniteNumber(cleaned: string, raw: string, label: string): number {
+  if (cleaned.trim() === "" || !/[0-9]/.test(cleaned)) {
+    throw new Error(`could not parse "${raw}" as ${label}: no numeric content`);
+  }
+  const num = Number(cleaned);
+  if (!Number.isFinite(num)) throw new Error(`could not parse "${raw}" as ${label}`);
+  return num;
 }
 
 export async function extractValue(locator: Locator, read: ReadSpec): Promise<string | number> {

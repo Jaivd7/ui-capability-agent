@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import express from "express";
@@ -41,7 +41,6 @@ export interface InterventionResult {
  */
 export async function raiseIntervention(opts: RaiseInterventionOptions): Promise<InterventionResult> {
   const { page, context, logger, evidenceDir } = opts;
-  const raisedAt = new Date().toISOString();
   const actions: HumanAction[] = [];
 
   mkdirSync(evidenceDir, { recursive: true });

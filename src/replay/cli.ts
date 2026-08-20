@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArtifact } from "../artifact/index.js";
 import { computeContentHash } from "../artifact/hash.js";
-import { readonlyCredentials, tellerCredentials } from "../shared/credentials.js";
+import { credentialsForRole, isSessionRole, type SessionRole } from "../shared/credentials.js";
 import { startAuthenticatedSession } from "../shared/session.js";
 import { createRunLogger } from "../logging/logger.js";
 import { loadGuardrailsConfig } from "../guardrails/config.js";
@@ -17,7 +17,7 @@ import type { ReplayResult } from "./result.js";
 
 interface Args {
   capability: string;
-  role: "teller" | "readonly";
+  role: SessionRole;
   /** Kept as raw strings here; coerced per the artifact's declared param types
    * once the artifact is loaded (see coerceParams). */
   rawParams: Record<string, string>;
@@ -26,19 +26,39 @@ interface Args {
   allowHashMismatch: boolean;
 }
 
+/**
+ * Reads `--flag value`, rejecting the case where the "value" is itself a flag.
+ * `--capability --escalate` previously yielded the capability "--escalate" and
+ * then failed with a confusing missing-file error.
+ */
+function flagValue(argv: string[], flag: string): string | undefined {
+  const idx = argv.indexOf(flag);
+  if (idx === -1) return undefined;
+  const value = argv[idx + 1];
+  if (value === undefined || value.startsWith("--")) {
+    console.error(`${flag} requires a value`);
+    process.exit(1);
+  }
+  return value;
+}
+
 function parseArgs(argv: string[]): Args {
-  const capIdx = argv.indexOf("--capability");
-  const capability = capIdx !== -1 ? argv[capIdx + 1] : undefined;
+  const capability = flagValue(argv, "--capability");
   if (!capability) {
     console.error(
       "Usage: npm run replay -- --capability <id> [--param name=value ...] [--role teller|readonly] [--evidence-dir replay-run] [--escalate] [--allow-hash-mismatch]",
     );
     process.exit(1);
   }
-  const roleIdx = argv.indexOf("--role");
-  const role = (roleIdx !== -1 ? argv[roleIdx + 1] : "teller") as "teller" | "readonly";
-  const evidenceDirIdx = argv.indexOf("--evidence-dir");
-  const evidenceDir = evidenceDirIdx !== -1 ? argv[evidenceDirIdx + 1]! : "replay-run";
+  // An unchecked cast here meant `--role telller` silently authenticated as
+  // readonly and the run failed later with a confusing PERMISSION_DENIED.
+  const rawRole = flagValue(argv, "--role") ?? "teller";
+  if (!isSessionRole(rawRole)) {
+    console.error(`--role must be "teller" or "readonly", got "${rawRole}"`);
+    process.exit(1);
+  }
+  const role: SessionRole = rawRole;
+  const evidenceDir = flagValue(argv, "--evidence-dir") ?? "replay-run";
   const escalate = argv.includes("--escalate");
   const allowHashMismatch = argv.includes("--allow-hash-mismatch");
 
@@ -162,7 +182,7 @@ async function main() {
 
   console.log(`Replaying "${artifact.id}" v${artifact.version} (run "${runId}")...`);
   if (escalate) console.log("Escalation enabled: a stuck run will pause and open an operator console.");
-  const credentials = role === "teller" ? tellerCredentials() : readonlyCredentials();
+  const credentials = credentialsForRole(role);
   const session = await startAuthenticatedSession(artifact.target.baseUrl, credentials);
 
   try {
@@ -172,8 +192,8 @@ async function main() {
       artifact,
       params,
       page: session.page,
-      dialogEvents: session.dialogEvents,
       logger,
+      sessionRole: role,
       guardrail: (step, ctx) => evaluateGuardrails(step, ctx, guardrailsConfig),
       ...(escalate ? { escalate: createEscalationHandler(session.page, logger, evidenceOutDir) } : {}),
     });

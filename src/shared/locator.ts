@@ -22,10 +22,22 @@ export interface ResolvedTarget {
 }
 
 export class LocatorResolutionError extends Error {
+  /**
+   * True when every candidate simply failed to find a visible element in time,
+   * as opposed to failing *structurally* — an invalid ARIA role, a malformed
+   * CSS selector, a detached frame.
+   *
+   * The distinction matters for `notExists`, which treats a resolution failure
+   * as proof of absence. Without it, an assertion passes precisely because its
+   * own locator is broken, which is the most misleading way an assertion can
+   * succeed.
+   */
+  public readonly allTimedOut: boolean;
+
   constructor(
     public readonly frame: FrameLocator[],
     public readonly chain: LocatorChain,
-    public readonly attempts: { candidate: LocatorCandidate; error: string }[],
+    public readonly attempts: { candidate: LocatorCandidate; error: string; timedOut: boolean }[],
   ) {
     super(
       `Could not resolve any locator candidate` +
@@ -36,6 +48,7 @@ export class LocatorResolutionError extends Error {
           .join("\n"),
     );
     this.name = "LocatorResolutionError";
+    this.allTimedOut = attempts.length > 0 && attempts.every((a) => a.timedOut);
   }
 }
 
@@ -167,7 +180,7 @@ export async function resolveLocator(
 ): Promise<ResolvedTarget> {
   const root = resolveFrameRoot(page, frame);
   const perCandidateMs = Math.max(500, Math.floor(opts.timeoutMs / chain.length));
-  const attempts: { candidate: LocatorCandidate; error: string }[] = [];
+  const attempts: { candidate: LocatorCandidate; error: string; timedOut: boolean }[] = [];
 
   for (let i = 0; i < chain.length; i++) {
     const candidate = chain[i]!;
@@ -185,7 +198,13 @@ export async function resolveLocator(
       return { locator, candidate, candidateIndex: i, matchCount };
     } catch (err) {
       opts.onAttempt?.(candidate, i, false);
-      attempts.push({ candidate, error: err instanceof Error ? err.message : String(err) });
+      attempts.push({
+        candidate,
+        error: err instanceof Error ? err.message : String(err),
+        // Playwright names its wait timeouts; anything else means the locator
+        // itself could not be evaluated.
+        timedOut: err instanceof Error && err.name === "TimeoutError",
+      });
     }
   }
   throw new LocatorResolutionError(frame, chain, attempts);

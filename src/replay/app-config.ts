@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import type { Target } from "../artifact/schema.js";
 import { performLogin } from "../shared/login.js";
-import { tellerCredentials } from "../shared/credentials.js";
+import { credentialsForRole, type SessionRole } from "../shared/credentials.js";
 
 /**
  * App-level recovery actions, keyed by target.app then by the action name a
@@ -22,6 +22,8 @@ export type RecoveryScope = "restart_flow" | "retry_step";
 export interface RecoveryContext {
   page: Page;
   target: Target;
+  /** The role this run authenticated as, so recovery restores it rather than escalating it. */
+  sessionRole: SessionRole;
 }
 
 export interface RecoveryActionImpl {
@@ -33,7 +35,10 @@ const LEGACY_CORE_BANKING_ACTIONS: Record<string, RecoveryActionImpl> = {
   reauth: {
     scope: "restart_flow",
     run: async (ctx) => {
-      await performLogin(ctx.page, ctx.target.baseUrl, tellerCredentials());
+      // The run's own role, not a hardcoded teller. Re-authenticating with
+      // more privilege than the run started with turns a permission-denied
+      // business outcome into a silently-succeeding wrong answer.
+      await performLogin(ctx.page, ctx.target.baseUrl, credentialsForRole(ctx.sessionRole));
     },
   },
   dismissAndRetry: {

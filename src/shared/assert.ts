@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { AssertionKind, FrameLocator, LocatorChain } from "../artifact/schema.js";
-import { resolveLocator } from "./locator.js";
+import { LocatorResolutionError, resolveLocator } from "./locator.js";
 
 /**
  * Shared by discovery (verifying the checkpoint a model proposes when it
@@ -20,9 +20,18 @@ export async function assertCondition(
   timeoutMs: number,
 ): Promise<void> {
   if (assertion === "notExists") {
-    const resolvedOrNull = await resolveLocator(page, frame, locator, { timeoutMs }).catch(() => null);
-    if (resolvedOrNull) throw new Error("Expected element to not exist, but it was found.");
-    return;
+    // Catching *every* error meant an invalid ARIA role, a malformed CSS
+    // selector or a detached frame all read as "the element is absent" — an
+    // assertion that passes precisely because it is broken. Only a genuine
+    // failure to resolve counts as absence; anything else is a real error and
+    // has to surface.
+    try {
+      await resolveLocator(page, frame, locator, { timeoutMs });
+    } catch (err) {
+      if (err instanceof LocatorResolutionError && err.allTimedOut) return;
+      throw err;
+    }
+    throw new Error("Expected element to not exist, but it was found.");
   }
   const resolved = await resolveLocator(page, frame, locator, { timeoutMs });
   switch (assertion) {

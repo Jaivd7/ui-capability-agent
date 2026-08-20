@@ -6,7 +6,7 @@ import { createRunLogger } from "../logging/logger.js";
 import { startAuthenticatedSession } from "../shared/session.js";
 import type { Page } from "playwright";
 import type { ParamValue } from "../artifact/template.js";
-import { readonlyCredentials, tellerCredentials } from "../shared/credentials.js";
+import { credentialsForRole, type SessionRole } from "../shared/credentials.js";
 import { createEscalationHandler } from "../escalation/operator-server.js";
 import { buildArtifact } from "./build-artifact.js";
 import { CAPABILITY_PRESETS, resolveTarget } from "./capability-presets.js";
@@ -31,6 +31,10 @@ function parseArgs(argv: string[]): {
   const capability = capIdx !== -1 ? argv[capIdx + 1] : undefined;
   const roleIdx = argv.indexOf("--role");
   const role = roleIdx !== -1 ? argv[roleIdx + 1] : "teller";
+  if (capability !== undefined && capability.startsWith("--")) {
+    console.error(`--capability requires a value, got "${capability}"`);
+    process.exit(1);
+  }
   const escalate = argv.includes("--escalate");
   const verify = !argv.includes("--no-verify");
   if (!capability || !CAPABILITY_PRESETS[capability]) {
@@ -57,7 +61,7 @@ async function main() {
 
   console.log(`Starting discovery run "${runId}" for capability "${preset.id}"...`);
   if (escalate) console.log("Escalation enabled: getting stuck will pause and open an operator console.");
-  const credentials = role === "teller" ? tellerCredentials() : readonlyCredentials();
+  const credentials = credentialsForRole(role);
   const target = resolveTarget();
   const session = await startAuthenticatedSession(target.baseUrl, credentials);
 
@@ -137,7 +141,7 @@ async function main() {
     // that is neither a parameter nor an extracted value (a member's name).
     // Costs a few seconds and no API spend.
     const probe = verify
-      ? await runDifferentialProbe(artifact, preset.verifyParams, session.page, evidenceDir, runId)
+      ? await runDifferentialProbe(artifact, preset.verifyParams, session.page, evidenceDir, runId, role)
       : undefined;
 
     const score = scoreRecording(artifact, {
@@ -214,6 +218,7 @@ async function runDifferentialProbe(
   page: Page,
   evidenceDir: string,
   runId: string,
+  sessionRole: SessionRole,
 ): Promise<ReplayResult | undefined> {
   console.log(`\nVerifying the recording against a different argument set: ${JSON.stringify(params)}`);
   const probeLogger = createRunLogger(`${runId}.probe`, evidenceDir);
@@ -224,8 +229,8 @@ async function runDifferentialProbe(
       artifact,
       params,
       page,
-      dialogEvents: [],
       logger: probeLogger,
+      sessionRole,
       guardrail: (step, ctx) => evaluateGuardrails(step, ctx, guardrailsConfig),
     });
   } catch (err) {
