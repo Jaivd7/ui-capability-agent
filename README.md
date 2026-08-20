@@ -14,17 +14,36 @@ determinism/error-handling, multi-tenant story, escalation, safety, cuts).
 
 | Path | What it is |
 |---|---|
-| `mock-app/` | The target: a deliberately legacy-ish "Meridian Core Banking" app (table layout, no test IDs, an iframe, one field with no accessible label at all) — see `REPORT.md` §4 for why this stand-in was chosen |
+| `mock-app/` | The *original* target: a deliberately legacy-ish "Meridian Core Banking" app (table layout, no test IDs, an iframe, one field with no accessible label at all) — see `REPORT.md` §4 for why this stand-in was chosen |
 | `src/artifact/` | The capability schema (zod) — the reusable, versioned contract discovery produces and replay consumes |
 | `src/discovery/` | The LLM-driven observe → decide → act loop (Claude Sonnet 5 + Playwright), and the compiler that turns a successful run into an artifact |
 | `src/replay/` | The deterministic replay engine — no LLM — with the three-tier result contract (success / business outcome / hard failure) |
 | `src/guardrails/` | Allowlist enforcement, irreversible-action gating, redaction |
 | `src/escalation/` | The human handoff mechanism: pause, cede control of the *same* live session, resume |
 | `src/shared/` | Locator resolution, value extraction, session/login — used identically by discovery and replay |
-| `capabilities/` | The two recorded capability artifacts (the reusable output) |
-| `evidence/` | Logs and results from real runs — see `evidence/README.md` |
+| `src/apps/` | Per-app adapters: target, roles, login, recovery actions, locator guidance — the seam a second target plugs into |
+| `src/server/` | The capability API and the dashboard (Express, server-rendered, no build step) |
+| `capabilities/<app>/` | The recorded capability artifacts, namespaced by target |
+| `evidence/<app>/` | Logs and results from real runs, namespaced by target — see `evidence/README.md` |
 | `config/guardrails.json` | The allowlist / irreversible-action policy (edit this, not code, to change it) |
 | `LEARNING_NOTES.md` | Gitignored — my own running design log, not part of this submission |
+
+## Two targets
+
+The same engine drives two applications, which is the evidence that pointing it
+at a new one is configuration rather than a rewrite:
+
+| App id | What it is |
+|---|---|
+| `meridian-core` | **MERIDIAN CORE** at `web-sample.interface-hiring.com` — a hosted, period-accurate credit-union servicing console with no test IDs, no labels, no roles and no ids anywhere |
+| `legacy-core-banking` | the original local mock app, kept so both can be run side by side |
+
+Everything per-app lives in `src/apps/` — target, roles, login, recovery
+actions, locator guidance. Guardrail policy is in `config/guardrails.json`,
+keyed by app.
+
+See `/ADAPTATION-REPORT.md` for what adapting to the hosted target actually
+took, and `/REPORT.md` for the original core's design.
 
 ## Setup
 
@@ -43,7 +62,46 @@ replay never calls an LLM):
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-## Demo path — the exact commands
+## Demo path — the dashboard
+
+```sh
+npm run dashboard      # http://localhost:4300
+```
+
+Nothing else needs starting: MERIDIAN CORE is hosted, and the dashboard owns
+its own browser. From there, without touching a terminal:
+
+1. **Capabilities** — the catalog, grouped by app. Each card shows the typed
+   call contract, the business-outcome codes it can return, whether it needs a
+   supervisor, and whether it contains an irreversible step. Expand one to read
+   the recorded recipe.
+2. **Invoke** — the form is generated from the capability's `inputParams`, with
+   each declared type shown next to its field. Submit and you land on the run
+   page.
+3. **Watch it** — the run page streams a live screenshot and a step-by-step
+   timeline, then renders the structured result: typed outputs on success, a
+   neutral card for a business outcome, and the failing step with expected vs.
+   observed on a hard failure.
+
+The overview page has three one-click demo links covering the happy path, a
+business outcome, and a permission denial.
+
+**To see the unhappy paths deliberately:** the **Faults** page arms MERIDIAN
+CORE's own fault injection (validation / notfound / permission / timeout /
+maintenance / server, plus a random failure rate). Arm one, invoke anything, and
+watch replay classify it. A banner stays on every page until you disarm it.
+
+**To see an escalation:** invoke `meridian-funds-transfer` with an `amount` at
+or above 100. The guardrail refuses to run the irreversible post step
+unattended, the run pauses, and the run page links to an operator console with a
+live screenshot. Approving there runs the artifact's *own* recorded step. The
+console is inside the guardrails too — try navigating it to `/settings` and it
+is refused and recorded in the run's evidence.
+
+## CLI path — the exact commands
+
+These target the local mock app. For MERIDIAN CORE, pass a `meridian-` capability
+id and skip step 1 — it is hosted.
 
 **1. Start the mock app** (leave running in its own terminal):
 

@@ -1,0 +1,6 @@
+{
+  "status": "hard_failure",
+  "stepId": "step-1",
+  "stepDescription": "(recoverable condition \"maintenance-interstitial\")",
+  "reason": "Recoverable condition \"maintenance-interstitial\" detected but exhausted its 2 recovery attempt(s)."
+}

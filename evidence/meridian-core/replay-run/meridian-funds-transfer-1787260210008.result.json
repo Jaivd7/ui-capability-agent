@@ -1,6 +1,0 @@
-{
-  "status": "hard_failure",
-  "stepId": "step-10",
-  "stepDescription": "Post Transfer button - commits the transfer",
-  "reason": "Blocked by guardrail: Step is marked irreversible and its amount (150) is at or above the 100 approval threshold.."
-}
