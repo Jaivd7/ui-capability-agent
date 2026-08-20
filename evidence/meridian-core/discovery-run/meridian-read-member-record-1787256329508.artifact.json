@@ -1,0 +1,375 @@
+{
+  "schemaVersion": "1.1.0",
+  "id": "meridian-read-member-record",
+  "name": "Read member record and share balance",
+  "description": "Reads a member's contact details and the balance and status of one of their shares. Pairs with the update-contact capability, which needs those current values.",
+  "version": 1,
+  "contentHash": "6d7fbcd018fb39df7841124da258c96b5e7d58c737a1bffb44e1375742c5babd",
+  "createdAt": "2026-08-20T20:06:19.654Z",
+  "discovery": {
+    "model": "claude-sonnet-5",
+    "discoveredAt": "2026-08-20T20:06:19.654Z"
+  },
+  "target": {
+    "app": "meridian-core",
+    "baseUrl": "https://web-sample.interface-hiring.com",
+    "entryRoute": "/menu",
+    "tenant": null
+  },
+  "preconditions": {
+    "authRequired": true,
+    "startRoute": "/menu"
+  },
+  "inputParams": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "required": true,
+      "description": "Member number.",
+      "sensitive": false,
+      "example": "100234"
+    },
+    {
+      "name": "shareCode",
+      "type": "string",
+      "required": true,
+      "description": "Share suffix identifying which share to read, e.g. S0001, S0070, MMKT, CERT.",
+      "sensitive": false,
+      "example": "S0070"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "memberName",
+      "type": "string",
+      "description": "Extract member full name",
+      "sensitive": true
+    },
+    {
+      "name": "email",
+      "type": "string",
+      "description": "Extract member email",
+      "sensitive": true
+    },
+    {
+      "name": "phone",
+      "type": "string",
+      "description": "Extract member phone",
+      "sensitive": true
+    },
+    {
+      "name": "address",
+      "type": "string",
+      "description": "Extract member mailing address",
+      "sensitive": true
+    },
+    {
+      "name": "balance",
+      "type": "currency",
+      "description": "Extract balance for share 100234-S0070",
+      "sensitive": true
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "description": "Extract status for share 100234-S0070",
+      "sensitive": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-1",
+      "description": "Navigate to member record page for member ${memberId}",
+      "retryable": false,
+      "irreversible": false,
+      "type": "navigate",
+      "urlTemplate": "/members/${memberId}"
+    },
+    {
+      "id": "step-2",
+      "description": "Extract member full name",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='Name:']/following-sibling::td[1]",
+          "reason": "cell immediately following the Name label cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "memberName",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-3",
+      "description": "Extract member email",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='E-mail:']/following-sibling::td[1]",
+          "reason": "cell immediately following the E-mail label cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "email",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-4",
+      "description": "Extract member phone",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='Phone:']/following-sibling::td[1]",
+          "reason": "cell immediately following the Phone label cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "phone",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-5",
+      "description": "Extract member mailing address",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='Address:']/following-sibling::td[1]",
+          "reason": "cell immediately following the Address label cell"
+        }
+      ],
+      "type": "extract",
+      "outputName": "address",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-6",
+      "description": "Extract balance for share ${memberId}-${shareCode}",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='${memberId}-${shareCode}']/following-sibling::td[2]",
+          "reason": "balance cell is the 2nd sibling after the Share ID cell in this row"
+        }
+      ],
+      "type": "extract",
+      "outputName": "balance",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-7",
+      "description": "Extract status for share ${memberId}-${shareCode}",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='${memberId}-${shareCode}']/following-sibling::td[3]",
+          "reason": "status cell is the 3rd sibling after the Share ID cell in this row"
+        }
+      ],
+      "type": "extract",
+      "outputName": "status",
+      "read": {
+        "from": "innerText"
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "description": "Confirm we are on the member record page for the given member number",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "heading",
+          "name": "MEMBER RECORD",
+          "exact": false,
+          "reason": "static page heading present on every member record page"
+        }
+      ],
+      "assertion": "urlMatches",
+      "expected": "/members/${memberId:regexEscape}"
+    },
+    {
+      "description": "Confirm the member number label is present on the page",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "cell",
+          "name": "Member No.:",
+          "exact": false,
+          "reason": "static label cell present for every member's record"
+        }
+      ],
+      "assertion": "exists"
+    },
+    {
+      "description": "Confirm the SHARES / BALANCES table row for the target share ID exists",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "cell",
+          "name": "${memberId}-${shareCode}",
+          "exact": false,
+          "reason": "share ID composed from input parameters memberId and shareCode, deterministic and not read off the page"
+        }
+      ],
+      "assertion": "exists"
+    },
+    {
+      "description": "Confirm the E-mail label is present on the member record page",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "cell",
+          "name": "E-mail:",
+          "exact": false,
+          "reason": "static label cell present for every member's record"
+        }
+      ],
+      "assertion": "exists"
+    }
+  ],
+  "knownOutcomes": [
+    {
+      "id": "session-expired",
+      "description": "The operator session ended (idle timeout or forced expiry) and the host returned to sign-on.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "YOUR SESSION HAS TIMED OUT",
+            "exact": false,
+            "reason": "Branded 440 session-ended page rendered when the timeout happens on this request."
+          },
+          {
+            "strategy": "css",
+            "selector": "input[name=\"operator\"]",
+            "reason": "The sign-on form's operator field, which exists on no other page — the signal when a later request finds the session already gone."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "reauth",
+        "maxAttempts": 1
+      }
+    },
+    {
+      "id": "maintenance-interstitial",
+      "description": "The host is briefly unavailable behind a scheduled-maintenance interstitial.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "SCHEDULED MAINTENANCE IN PROGRESS",
+            "exact": false,
+            "reason": "Exact header text of the 503 maintenance interstitial."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "dismissAndRetry",
+        "maxAttempts": 2
+      }
+    },
+    {
+      "id": "server-error",
+      "description": "The host returned an unexpected application error.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "unexpected error occurred while processing your request",
+            "exact": false,
+            "reason": "Stable prose of the 500 error page; the ERR-xxxxxxxx reference beside it is random per occurrence."
+          }
+        ]
+      },
+      "classification": "recoverable",
+      "recovery": {
+        "action": "reloadAndRetry",
+        "maxAttempts": 2
+      }
+    },
+    {
+      "id": "member-not-found",
+      "description": "No member record matches the supplied identifier.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "RECORD NOT FOUND",
+            "exact": false,
+            "reason": "Header of the 404 page returned when a member record is addressed directly."
+          },
+          {
+            "strategy": "text",
+            "text": "No member records matched your search.",
+            "exact": false,
+            "reason": "Inline notice on the 200 search-results page when nothing matched."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "MEMBER_NOT_FOUND",
+        "message": "No member record matches the supplied identifier."
+      }
+    },
+    {
+      "id": "permission-denied",
+      "description": "The signed-on operator's role does not permit this function.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "text",
+            "text": "is not authorized to perform this function",
+            "exact": false,
+            "reason": "Body text of the 403 page. Deliberately not \"SUPERVISOR OVERRIDE REQUIRED\", which also appears as a static warning on the healthy Place Hold form."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "PERMISSION_DENIED",
+        "message": "The signed-on operator is not authorized to perform this function; a supervisor must complete it."
+      }
+    }
+  ]
+}

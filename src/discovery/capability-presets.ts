@@ -1,6 +1,7 @@
 import type { CapabilityArtifact } from "../artifact/schema.js";
 import type { DiscoveryParam } from "./loop.js";
 import type { ParamValue } from "../artifact/template.js";
+import { MERIDIAN_PRESETS } from "./presets-meridian.js";
 
 export interface CapabilityPreset {
   id: string;
@@ -38,7 +39,7 @@ export interface CapabilityPreset {
    * indistinguishable from static page chrome. Deliberately picked to differ
    * in every dimension the capability accepts.
    */
-  verifyParams: Record<string, ParamValue>;
+  verifyParams?: Record<string, ParamValue>;
 }
 
 /**
@@ -49,7 +50,7 @@ export interface CapabilityPreset {
  * detectors, not something that benefits from LLM judgment, and I can and
  * did verify each one directly against the live app before trusting it).
  */
-export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
+const LEGACY_PRESETS: Record<string, CapabilityPreset> = {
   "lookup-member-balance": {
     id: "lookup-member-balance",
     app: "legacy-core-banking",
@@ -224,4 +225,9 @@ export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
       },
     ],
   },
+};
+
+export const CAPABILITY_PRESETS: Record<string, CapabilityPreset> = {
+  ...LEGACY_PRESETS,
+  ...MERIDIAN_PRESETS,
 };

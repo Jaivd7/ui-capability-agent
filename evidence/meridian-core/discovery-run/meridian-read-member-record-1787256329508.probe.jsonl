@@ -1,0 +1,19 @@
+{"timestamp":"2026-08-20T20:06:19.666Z","type":"run_start","kind":"replay","runId":"meridian-read-member-record-1787256329508-probe","capabilityId":"meridian-read-member-record","capabilityVersion":1,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"101555","shareCode":"S0001"}}
+{"timestamp":"2026-08-20T20:06:19.919Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T20:06:23.440Z","type":"extracted","stepId":"step-2","outputName":"memberName","value":"H[REDACTED]e"}
+{"timestamp":"2026-08-20T20:06:23.441Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T20:06:26.961Z","type":"extracted","stepId":"step-3","outputName":"email","value":"g[REDACTED]m"}
+{"timestamp":"2026-08-20T20:06:26.961Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T20:06:30.476Z","type":"extracted","stepId":"step-4","outputName":"phone","value":"5[REDACTED]9"}
+{"timestamp":"2026-08-20T20:06:30.476Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T20:06:33.993Z","type":"extracted","stepId":"step-5","outputName":"address","value":"1[REDACTED]n"}
+{"timestamp":"2026-08-20T20:06:33.994Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T20:06:37.512Z","type":"extracted","stepId":"step-6","outputName":"balance","value":"[REDACTED]"}
+{"timestamp":"2026-08-20T20:06:37.514Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T20:06:41.031Z","type":"extracted","stepId":"step-7","outputName":"status","value":"OPEN"}
+{"timestamp":"2026-08-20T20:06:41.031Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-20T20:06:44.552Z","type":"checkpoint_passed","description":"Confirm we are on the member record page for the given member number"}
+{"timestamp":"2026-08-20T20:06:44.563Z","type":"checkpoint_passed","description":"Confirm the member number label is present on the page"}
+{"timestamp":"2026-08-20T20:06:44.570Z","type":"checkpoint_passed","description":"Confirm the SHARES / BALANCES table row for the target share ID exists"}
+{"timestamp":"2026-08-20T20:06:44.575Z","type":"checkpoint_passed","description":"Confirm the E-mail label is present on the member record page"}
+{"timestamp":"2026-08-20T20:06:44.575Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":["memberName","email","phone","address","balance","status"],"humanIntervened":false}

@@ -31,7 +31,7 @@ function parseArgs(argv: string[]): {
   const capability = capIdx !== -1 ? argv[capIdx + 1] : undefined;
   const roleIdx = argv.indexOf("--role");
   // Validated against the preset's app below — role vocabularies are per-app.
-  const role = roleIdx !== -1 ? argv[roleIdx + 1] : "";
+  const role = (roleIdx !== -1 ? argv[roleIdx + 1] : "") ?? "";
   if (capability !== undefined && capability.startsWith("--")) {
     console.error(`--capability requires a value, got "${capability}"`);
     process.exit(1);
@@ -42,10 +42,6 @@ function parseArgs(argv: string[]): {
     console.error(
       `Usage: npm run discover -- --capability <${Object.keys(CAPABILITY_PRESETS).join("|")}> [--role teller|readonly] [--escalate] [--no-verify]`,
     );
-    process.exit(1);
-  }
-  if (role !== "teller" && role !== "readonly") {
-    console.error(`--role must be "teller" or "readonly", got "${role}"`);
     process.exit(1);
   }
   return { capability, role, escalate, verify };
@@ -154,14 +150,23 @@ async function main() {
     // app — which is the only way to catch a checkpoint asserting page data
     // that is neither a parameter nor an extracted value (a member's name).
     // Costs a few seconds and no API spend.
-    const probe = verify
-      ? await runDifferentialProbe(artifact, preset.verifyParams, session.page, evidenceDir, runId, role)
-      : undefined;
+    const probe =
+      verify && preset.verifyParams
+        ? await runDifferentialProbe(artifact, preset.verifyParams, session.page, evidenceDir, runId, resolvedRole)
+        : undefined;
+    if (!probe) {
+      // Say so rather than letting an absent check look like a passed one.
+      const why = !verify
+        ? "--no-verify was passed"
+        : "this capability mutates a shared, stateful target, so a probe would run a second real transaction";
+      console.log(`\nDifferential probe SKIPPED: ${why}.`);
+    }
 
     const score = scoreRecording(artifact, {
       extractedValues: result.extractedValues,
       compileFindings,
-      ...(probe ? { probe: { params: preset.verifyParams, result: probe } } : {}),
+      ...(probe && preset.verifyParams ? { probe: { params: preset.verifyParams, result: probe } } : {}),
+      probeSkipped: !probe,
     });
     console.log(formatScoreReport(score, artifact.id));
 

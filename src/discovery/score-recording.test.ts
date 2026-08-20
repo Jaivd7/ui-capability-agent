@@ -86,6 +86,55 @@ describe("scoreRecording", () => {
     expect(found.map((f) => f.code)).not.toContain("brittle_locator_root");
   });
 
+  it("does not call a content-anchored xpath positional", () => {
+    // //td[text()='E-mail:']/following-sibling::td[1] is keyed on the label a
+    // human reads, so it survives row insertion and reordering — the failure
+    // modes that actually matter. Only a purely structural path is a guess.
+    const artifact = baseArtifact();
+    const step = artifact.steps[2]!;
+    if (step.type !== "extract") throw new Error("fixture changed");
+    step.locator = [
+      {
+        strategy: "xpath",
+        expression: "//td[normalize-space(text())='E-mail:']/following-sibling::td[1]",
+        reason: "cell immediately following the E-mail label cell",
+      },
+    ];
+    expect(codes(artifact)).not.toContain("brittle_locator_only");
+  });
+
+  it("still calls a purely structural xpath positional", () => {
+    const artifact = baseArtifact();
+    const step = artifact.steps[2]!;
+    if (step.type !== "extract") throw new Error("fixture changed");
+    step.locator = [
+      { strategy: "xpath", expression: "//table/tr[2]/td[2]", reason: "second cell of the second row" },
+    ];
+    expect(codes(artifact)).toContain("brittle_locator_only");
+  });
+
+  it("counts an output as verified when a checkpoint anchors on the same text", () => {
+    // The extract and the checkpoint may legitimately reach the same cell by
+    // different strategies; comparing strategy+text exactly asked the wrong
+    // question.
+    const artifact = baseArtifact();
+    const step = artifact.steps[2]!;
+    if (step.type !== "extract") throw new Error("fixture changed");
+    step.frame = [];
+    step.locator = [
+      { strategy: "xpath", expression: "//td[text()='Savings Balance']/following-sibling::td[1]", reason: "value cell" },
+    ];
+    artifact.checkpoints = [
+      {
+        description: "Balance row is present",
+        frame: [],
+        locator: [{ strategy: "role", role: "cell", name: "Savings Balance", exact: false, reason: "static label cell" }],
+        assertion: "exists",
+      },
+    ];
+    expect(scoreRecording(artifact).metrics.outputsVerified).toBe(1);
+  });
+
   it("flags an extracted value that survived into a checkpoint", () => {
     const artifact = baseArtifact();
     artifact.checkpoints[0]!.assertion = "textContains";

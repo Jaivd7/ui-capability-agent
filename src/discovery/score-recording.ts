@@ -40,7 +40,8 @@ export type FindingCode =
   | "weak_reason"
   | "irreversible_unmarked"
   | "compile_degraded"
-  | "differential_probe_failed";
+  | "differential_probe_failed"
+  | "differential_probe_skipped";
 
 export type Severity = "error" | "warn" | "info";
 
@@ -81,6 +82,8 @@ export interface ScoreContext {
   compileFindings?: CompileFinding[];
   /** The differential probe: this artifact replayed with a *different* parameter set. */
   probe?: { params: Record<string, unknown>; result: ReplayResult };
+  /** True when no probe was run at all — recorded so an absent check doesn't read as a passed one. */
+  probeSkipped?: boolean;
 }
 
 /** Tunable in one place rather than buried in the sum. */
@@ -105,10 +108,49 @@ const ACCESSIBILITY_STRATEGIES = new Set(["role", "label", "text", "placeholder"
  */
 function isContractSelector(c: LocatorCandidate): boolean {
   if (c.strategy === "testId") return true;
-  if (c.strategy !== "css") return false; // xpath is positional by nature
-  const sel = c.selector;
+  const sel = c.strategy === "css" ? c.selector : c.strategy === "xpath" ? c.expression : undefined;
+  if (sel === undefined) return false;
+  // A *content anchor* — a predicate keyed on the text a human reads — makes a
+  // selector semantic rather than positional, even when it then steps
+  // relatively from there. `//td[text()='E-mail:']/following-sibling::td[1]`
+  // survives row insertion and reordering; `tr:nth-child(2) td` does not. The
+  // first version of this rule said "xpath is positional by nature", which is
+  // how a target with no labels at all made every one of its perfectly
+  // sensible locators look brittle.
+  if (/text\(\)\s*=|normalize-space|:text-is\(|:has-text\(|contains\(\s*text/.test(sel)) return true;
   if (/:nth-child|:nth-of-type|:nth-match|:first|:last|[>+~]/.test(sel)) return false;
+  if (c.strategy === "xpath") return /@[A-Za-z_:-]+\s*=/.test(sel); // an attribute predicate also anchors
   return /\[[A-Za-z_:-]+\s*[~|^$*]?=/.test(sel) || /#[A-Za-z_]/.test(sel);
+}
+
+/**
+ * The text a locator keys off, used to tell whether a checkpoint and an extract
+ * step are talking about the same thing.
+ */
+function anchorTexts(c: LocatorCandidate): string[] {
+  const out: string[] = [];
+  const push = (v: string | undefined) => {
+    if (v && v.trim()) out.push(v.trim().toLowerCase());
+  };
+  switch (c.strategy) {
+    case "role":
+      push(c.name);
+      break;
+    case "label":
+    case "text":
+    case "placeholder":
+      push(c.text);
+      break;
+    case "css":
+    case "xpath": {
+      const sel = c.strategy === "css" ? c.selector : c.expression;
+      for (const m of sel.matchAll(/['"]([^'"]{2,})['"]/g)) push(m[1]);
+      break;
+    }
+    default:
+      break;
+  }
+  return out;
 }
 
 function isAccessibilityStrategy(c: LocatorCandidate): boolean {
@@ -361,12 +403,16 @@ export function scoreRecording(artifact: CapabilityArtifact, ctx: ScoreContext =
         s.type === "extract" && s.outputName === output.name,
     );
     if (!producer) continue;
+    // "Does a checkpoint prove the thing this output was read from was really
+    // there?" Comparing strategy+text exactly was the wrong test: a checkpoint
+    // may legitimately assert the same cell by a different strategy than the
+    // extract used. Comparing the *text each locator anchors on* asks the
+    // question that was actually meant.
+    const producerAnchors = new Set(producer.locator.flatMap(anchorTexts));
     const verified = artifact.checkpoints.some(
       (cp) =>
         sameFrame(cp.frame, producer.frame) &&
-        cp.locator.some((c) =>
-          producer.locator.some((p) => p.strategy === c.strategy && candidateText(p) === candidateText(c)),
-        ),
+        cp.locator.flatMap(anchorTexts).some((a) => producerAnchors.has(a)),
     );
     if (verified) outputsVerified += 1;
     else {
@@ -400,6 +446,16 @@ export function scoreRecording(artifact: CapabilityArtifact, ctx: ScoreContext =
       code: "compile_degraded",
       where: f.where,
       message: f.message,
+    });
+  }
+  if (ctx.probeSkipped) {
+    findings.push({
+      severity: "warn",
+      code: "differential_probe_skipped",
+      where: "(differential probe)",
+      message: "not verified against a second argument set, so over-fitting to the recorded arguments is unchecked",
+      suggestion:
+        "expected for a capability that mutates a shared target; re-check by hand if this recording is ever relied on",
     });
   }
   if (ctx.probe && ctx.probe.result.status !== "success") {

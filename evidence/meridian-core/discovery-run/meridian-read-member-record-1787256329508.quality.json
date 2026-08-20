@@ -1,0 +1,206 @@
+{
+  "capabilityId": "meridian-read-member-record",
+  "score": 45,
+  "grade": "D",
+  "metrics": {
+    "steps": 7,
+    "chains": 10,
+    "meanChainDepth": 1,
+    "singleCandidateChains": 10,
+    "brittleRootedChains": 6,
+    "brittleOnlyChains": 6,
+    "checkpoints": 4,
+    "structuralCheckpoints": 4,
+    "paramsDeclared": 2,
+    "paramsBoundInSteps": 2,
+    "paramsAssertedInCheckpoints": 2,
+    "outputs": 6,
+    "outputsVerified": 0
+  },
+  "findings": [
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "steps[1].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "steps[1].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "steps[2].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "steps[2].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "steps[3].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "steps[3].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[4].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "steps[4].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "steps[4].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[5].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "steps[5].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "steps[5].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[6].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "steps[6].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "steps[6].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[0].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.memberName",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.email",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.phone",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.address",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.balance",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.status",
+      "message": "no checkpoint touches the element this output is read from"
+    }
+  ]
+}
