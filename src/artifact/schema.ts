@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { parseTemplate } from "./template.js";
+import { forEachTemplateSite } from "./template-sites.js";
 
 /**
  * The capability artifact schema — the contract between:
@@ -105,6 +107,12 @@ export const AssertionKindSchema = z.enum([
   "notExists",
   "textEquals",
   "textContains",
+  // Regex match against the element's text. Exists so a checkpoint can assert
+  // the *shape* of a value without recording the value itself — "the balance
+  // cell holds a dollar amount" is `textMatches ^\\$[0-9,]+\\.[0-9]{2}$`,
+  // where `textContains "$3482.10"` would bake one member's data into a
+  // capability every other member has to replay. See docs/artifact-schema.md.
+  "textMatches",
   "urlMatches",
   "attributeEquals",
 ]);
@@ -113,6 +121,7 @@ export type AssertionKind = z.infer<typeof AssertionKindSchema>;
 const assertionFieldsRequiringExpected: AssertionKind[] = [
   "textEquals",
   "textContains",
+  "textMatches",
   "urlMatches",
   "attributeEquals",
 ];
@@ -356,11 +365,23 @@ export type DiscoveryProvenance = z.infer<typeof DiscoveryProvenanceSchema>;
 // The artifact
 // ---------------------------------------------------------------------------
 
+/** Every artifact format version this engine can still read. */
+export const SCHEMA_VERSIONS = ["1.0.0", "1.1.0"] as const;
+/** What a freshly compiled artifact is stamped with. */
+export const CURRENT_SCHEMA_VERSION = "1.1.0";
+
 export const CapabilityArtifactSchema = z
   .object({
     // Version of this *format*, independent of the capability's own
     // revision. A future breaking schema change bumps this, not `version`.
-    schemaVersion: z.literal("1.0.0"),
+    // 1.0.0 -> 1.1.0 added the `textMatches` assertion and generalized the
+    // `${param}` template convention beyond `navigate.urlTemplate`. The bump
+    // is not cosmetic: a 1.0.0 engine handed a `textMatches` checkpoint falls
+    // through an unhandled `switch` case in assertCondition and the assertion
+    // silently *passes*, which is exactly the failure a version discriminator
+    // exists to prevent. It also marks which artifacts predate the fix for
+    // page data leaking into checkpoints.
+    schemaVersion: z.enum(SCHEMA_VERSIONS),
     id: z.string().min(1),
     name: z.string().min(1),
     description: z.string().min(1),
@@ -404,19 +425,9 @@ export const CapabilityArtifactSchema = z
           path: ["steps", i, "value", "param"],
         });
       }
-      if (step.type === "navigate") {
-        for (const match of step.urlTemplate.matchAll(/\$\{(\w+)\}/g)) {
-          const paramName = match[1]!;
-          if (!paramNames.has(paramName)) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `step "${step.id}" urlTemplate references unknown param "${paramName}"`,
-              path: ["steps", i, "urlTemplate"],
-            });
-          }
-        }
-      }
     });
+
+    validateTemplateSites(artifact, ctx);
 
     const outputNames = new Set(artifact.outputs.map((o) => o.name));
     const producedOutputs = new Set<string>();
@@ -454,3 +465,59 @@ export const CapabilityArtifactSchema = z
   });
 
 export type CapabilityArtifact = z.infer<typeof CapabilityArtifactSchema>;
+
+/**
+ * Checks every `${param}` reference in the artifact against the declared
+ * input params. This guards *hand-edited* artifacts, not the compiler — the
+ * model never authors a template, and `src/discovery/generalize.ts` only ever
+ * emits refs to params it was given. See src/artifact/template.ts.
+ */
+function validateTemplateSites(
+  artifact: CapabilityArtifact,
+  ctx: z.RefinementCtx,
+): void {
+  const byName = new Map(artifact.inputParams.map((p) => [p.name, p]));
+  forEachTemplateSite(artifact, (value, site) => {
+    const { refs, unknownFormats } = parseTemplate(value);
+    for (const format of unknownFormats) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `unknown template format "${format}" at ${site.path}`,
+        path: [site.path],
+      });
+    }
+    for (const ref of refs) {
+      const param = byName.get(ref.param);
+      if (!param) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${site.path} references unknown param "${ref.param}"`,
+          path: [site.path],
+        });
+        continue;
+      }
+      if (!param.required) {
+        // Materialization throws on a missing value, so an optional param at
+        // a template site means a perfectly well-formed call could blow up
+        // mid-flow. Reject the artifact instead.
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${site.path} references optional param "${ref.param}"; template sites require a required param`,
+          path: [site.path],
+        });
+      }
+      if (param.sensitive) {
+        // A sensitive value templated into a locator ends up in
+        // LocatorResolutionError's message (which prints every candidate via
+        // describeCandidate), and from there in the JSONL run log and the
+        // failure DOM/screenshot evidence. A secret is never a search key
+        // anyway — sensitive params belong in `fill.value` ValueRefs only.
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${site.path} references sensitive param "${ref.param}"; sensitive values may only be used as a fill/select value`,
+          path: [site.path],
+        });
+      }
+    }
+  });
+}

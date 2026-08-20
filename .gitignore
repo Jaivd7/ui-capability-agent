@@ -144,6 +144,7 @@ vite.config.ts.timestamp-*
 
 ASSIGNMENT.md
 LEARNING_NOTES.md
+ADAPTATION.md
 
 # Env
 .env

@@ -9,14 +9,17 @@ import { loadGuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
 import { createEscalationHandler } from "../escalation/operator-server.js";
 import { redactValue } from "../guardrails/redact.js";
-import type { CapabilityArtifact } from "../artifact/schema.js";
-import { runReplay, type ParamValue } from "./engine.js";
+import type { CapabilityArtifact, ParamType } from "../artifact/schema.js";
+import type { ParamValue } from "../artifact/template.js";
+import { runReplay } from "./engine.js";
 import type { ReplayResult } from "./result.js";
 
 interface Args {
   capability: string;
   role: "teller" | "readonly";
-  params: Record<string, ParamValue>;
+  /** Kept as raw strings here; coerced per the artifact's declared param types
+   * once the artifact is loaded (see coerceParams). */
+  rawParams: Record<string, string>;
   evidenceDir: string;
   escalate: boolean;
 }
@@ -36,7 +39,7 @@ function parseArgs(argv: string[]): Args {
   const evidenceDir = evidenceDirIdx !== -1 ? argv[evidenceDirIdx + 1]! : "replay-run";
   const escalate = argv.includes("--escalate");
 
-  const params: Record<string, ParamValue> = {};
+  const rawParams: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] !== "--param") continue;
     const pair = argv[i + 1];
@@ -45,16 +48,67 @@ function parseArgs(argv: string[]): Args {
       console.error(`--param must be name=value, got "${pair}"`);
       process.exit(1);
     }
-    const name = pair.slice(0, eq);
-    const raw = pair.slice(eq + 1);
-    params[name] = /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw;
+    rawParams[pair.slice(0, eq)] = pair.slice(eq + 1);
   }
 
-  return { capability, role, params, evidenceDir, escalate };
+  return { capability, role, rawParams, evidenceDir, escalate };
+}
+
+/**
+ * Coerces CLI strings using the artifact's own declared param types rather
+ * than guessing from the text. The previous "looks numeric -> Number()" rule
+ * turned `--param memberId=0042` into 42 for a param declared `string` — a
+ * silent corruption that was harmless while params only reached `fill`, and
+ * is not harmless now that they also reach locators, URLs and assertions.
+ */
+function coerceParams(
+  artifact: CapabilityArtifact,
+  raw: Record<string, string>,
+): Record<string, ParamValue> {
+  const declared = new Map(artifact.inputParams.map((p) => [p.name, p.type]));
+  const out: Record<string, ParamValue> = {};
+  for (const [name, text] of Object.entries(raw)) {
+    const type = declared.get(name);
+    if (type === undefined) {
+      console.warn(`Warning: --param ${name} is not declared by this capability; passing through as a string.`);
+      out[name] = text;
+      continue;
+    }
+    out[name] = coerceOne(name, text, type);
+  }
+  return out;
+}
+
+function coerceOne(name: string, text: string, type: ParamType): ParamValue {
+  switch (type) {
+    case "string":
+    case "date":
+      // Left verbatim on purpose: leading zeros, formatting and locale are all
+      // meaningful to the app, and the artifact declared this as text.
+      return text;
+    case "boolean": {
+      const lowered = text.trim().toLowerCase();
+      if (["true", "1", "yes"].includes(lowered)) return true;
+      if (["false", "0", "no"].includes(lowered)) return false;
+      console.error(`--param ${name} must be a boolean (true/false), got "${text}"`);
+      return process.exit(1);
+    }
+    case "number":
+    case "currency": {
+      const cleaned = text.replace(/[$,\s]/g, "");
+      // Number("") is 0, not NaN — check emptiness before parsing.
+      const value = cleaned === "" ? Number.NaN : Number(cleaned);
+      if (!Number.isFinite(value)) {
+        console.error(`--param ${name} must be a ${type}, got "${text}"`);
+        return process.exit(1);
+      }
+      return value;
+    }
+  }
 }
 
 async function main() {
-  const { capability, role, params, evidenceDir, escalate } = parseArgs(process.argv.slice(2));
+  const { capability, role, rawParams, evidenceDir, escalate } = parseArgs(process.argv.slice(2));
 
   const artifactPath = join(process.cwd(), "capabilities", `${capability}.json`);
   if (!existsSync(artifactPath)) {
@@ -68,6 +122,8 @@ async function main() {
     process.exit(1);
   }
   const artifact = parsed.artifact;
+
+  const params = coerceParams(artifact, rawParams);
 
   for (const p of artifact.inputParams) {
     if (p.required && !(p.name in params)) {

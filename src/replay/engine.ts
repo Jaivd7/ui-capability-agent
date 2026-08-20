@@ -9,6 +9,7 @@ import type { GuardrailContext, GuardrailDecision } from "../guardrails/policy.j
 import type { RunLogger } from "../logging/logger.js";
 import type { EscalationHandler, HumanIntervention, InterventionContext } from "../escalation/types.js";
 import { getRecoveryAction } from "./app-config.js";
+import { materializeArtifact } from "./materialize.js";
 import type { ReplayHardFailure, ReplayResult } from "./result.js";
 
 const ACTION_TIMEOUT_MS = 10_000;
@@ -18,7 +19,8 @@ const DETECTOR_TIMEOUT_MS = 1_000;
 const MAX_FLOW_RESTARTS = 2;
 const MAX_STEP_RETRIES = 2;
 
-export type ParamValue = string | number | boolean;
+export type { ParamValue } from "../artifact/template.js";
+import type { ParamValue } from "../artifact/template.js";
 
 /**
  * A step-execution outcome that hasn't yet been resolved into a caller-facing
@@ -65,8 +67,17 @@ export interface ReplayOptions {
  * hard failure) per docs/artifact-schema.md's error taxonomy, and verifies
  * the final checkpoint(s) before declaring success.
  */
-export async function runReplay(opts: ReplayOptions): Promise<ReplayResult> {
-  validateParams(opts.artifact, opts.params);
+export async function runReplay(rawOpts: ReplayOptions): Promise<ReplayResult> {
+  validateParams(rawOpts.artifact, rawOpts.params);
+
+  // Resolve every `${param}` in the artifact once, before anything touches the
+  // browser, so the rest of this function (and every helper it calls) works
+  // with concrete strings and an unresolved placeholder aborts the run rather
+  // than surfacing mid-flow. See src/replay/materialize.ts.
+  const opts: ReplayOptions = {
+    ...rawOpts,
+    artifact: materializeArtifact(rawOpts.artifact, rawOpts.params),
+  };
 
   const outputs: Record<string, string | number> = {};
   const recoveryAttempts = new Map<string, number>();
@@ -94,10 +105,7 @@ export async function runReplay(opts: ReplayOptions): Promise<ReplayResult> {
     for (const step of opts.artifact.steps) {
       const guardCtx: GuardrailContext = { currentUrl: opts.page.url() };
       if (step.type === "navigate") {
-        guardCtx.targetUrl = new URL(
-          substituteUrlTemplate(step.urlTemplate, opts.params),
-          opts.artifact.target.baseUrl,
-        ).toString();
+        guardCtx.targetUrl = new URL(step.urlTemplate, opts.artifact.target.baseUrl).toString();
       }
       const guardDecision = opts.guardrail?.(step, guardCtx);
 
@@ -385,7 +393,7 @@ async function executeStep(
   const { page } = opts;
   switch (step.type) {
     case "navigate": {
-      const url = new URL(substituteUrlTemplate(step.urlTemplate, opts.params), opts.artifact.target.baseUrl);
+      const url = new URL(step.urlTemplate, opts.artifact.target.baseUrl);
       await page.goto(url.toString(), { timeout: ACTION_TIMEOUT_MS, waitUntil: "load" });
       return;
     }
@@ -545,14 +553,6 @@ function resolveValueRef(ref: ValueRef, params: Record<string, ParamValue>): str
   const value = params[ref.param];
   if (value === undefined) throw new Error(`Missing required param "${ref.param}".`);
   return String(value);
-}
-
-function substituteUrlTemplate(template: string, params: Record<string, ParamValue>): string {
-  return template.replace(/\$\{(\w+)\}/g, (_match, name: string) => {
-    const value = params[name];
-    if (value === undefined) throw new Error(`Missing required param "${name}" for urlTemplate.`);
-    return String(value);
-  });
 }
 
 function validateParams(artifact: CapabilityArtifact, params: Record<string, ParamValue>): void {

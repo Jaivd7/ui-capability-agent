@@ -1,112 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseArtifact } from "./index.js";
 import { computeContentHash } from "./hash.js";
-import type { CapabilityArtifact } from "./schema.js";
-
-function baseArtifact(): CapabilityArtifact {
-  return {
-    schemaVersion: "1.0.0",
-    id: "lookup-member-balance",
-    name: "Look up member and read savings balance",
-    description:
-      "Searches for a member by ID and extracts their current savings balance.",
-    version: 1,
-    contentHash: "placeholder",
-    createdAt: "2026-08-13T00:00:00.000Z",
-    discovery: { model: "claude-sonnet-5", discoveredAt: "2026-08-13T00:00:00.000Z" },
-    target: {
-      app: "legacy-core-banking",
-      baseUrl: "http://localhost:4000",
-      entryRoute: "/members",
-      tenant: null,
-    },
-    preconditions: { authRequired: true, startRoute: "/members" },
-    inputParams: [
-      { name: "memberId", type: "string", required: true, sensitive: false },
-    ],
-    outputs: [
-      { name: "savingsBalance", type: "currency", sensitive: true },
-    ],
-    steps: [
-      {
-        id: "step-1",
-        description: "Fill member ID search box",
-        type: "fill",
-        frame: [],
-        locator: [
-          {
-            strategy: "role",
-            role: "textbox",
-            name: "Member ID",
-            exact: false,
-            reason: "stable accessible name, survives markup rewrites",
-          },
-        ],
-        value: { kind: "param", param: "memberId" },
-        retryable: false,
-        irreversible: false,
-      },
-      {
-        id: "step-2",
-        description: "Click search",
-        type: "click",
-        frame: [],
-        locator: [
-          { strategy: "role", role: "button", name: "Search", exact: true, reason: "unambiguous accessible name" },
-        ],
-        retryable: false,
-        irreversible: false,
-      },
-      {
-        id: "step-3",
-        description: "Extract savings balance from detail panel iframe",
-        type: "extract",
-        frame: [{ strategy: "name", value: "account-detail" }],
-        locator: [
-          { strategy: "label", text: "Savings Balance", exact: false, reason: "legacy table has no test id, label text is stable" },
-        ],
-        outputName: "savingsBalance",
-        read: { from: "innerText", transform: "currency" },
-        retryable: false,
-        irreversible: false,
-      },
-    ],
-    checkpoints: [
-      {
-        description: "Savings balance panel is visible",
-        frame: [{ strategy: "name", value: "account-detail" }],
-        locator: [
-          { strategy: "label", text: "Savings Balance", exact: false, reason: "confirms detail panel actually loaded" },
-        ],
-        assertion: "exists",
-      },
-    ],
-    knownOutcomes: [
-      {
-        id: "member-not-found",
-        description: "Search returns no matching member",
-        checkAfterStepId: "step-2",
-        classification: "business",
-        detect: {
-          frame: [],
-          locator: [{ strategy: "text", text: "No member found", exact: false, reason: "app's literal not-found banner text" }],
-        },
-        outcome: { code: "MEMBER_NOT_FOUND", message: "No member found with the given ID." },
-      },
-      {
-        id: "session-expired",
-        description: "Session timed out mid-flow",
-        checkAfterStepId: "step-2",
-        classification: "recoverable",
-        detect: {
-          frame: [],
-          locator: [{ strategy: "text", text: "Session expired", exact: false, reason: "app's literal session-timeout banner text" }],
-        },
-        recovery: { action: "reauth", maxAttempts: 1 },
-      },
-    ],
-  };
-}
+import { CURRENT_SCHEMA_VERSION } from "./schema.js";
+import { baseArtifact } from "./test-fixtures.js";
 
 describe("CapabilityArtifactSchema", () => {
   it("accepts a well-formed artifact", () => {
@@ -196,5 +92,87 @@ describe("CapabilityArtifactSchema", () => {
       bStep.locator[0] = { strategy: "css", selector: "#memberId", reason: "changed for test" };
     }
     expect(computeContentHash(a)).not.toBe(computeContentHash(b));
+  });
+});
+
+describe("template site validation", () => {
+  function expectRejected(artifact: ReturnType<typeof baseArtifact>, needle: string) {
+    const result = parseArtifact(artifact);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.some((e) => e.includes(needle))).toBe(true);
+    }
+  }
+
+  it("accepts the current schema version", () => {
+    const artifact = baseArtifact();
+    artifact.schemaVersion = CURRENT_SCHEMA_VERSION;
+    expect(parseArtifact(artifact).success).toBe(true);
+  });
+
+  it("still accepts 1.0.0 artifacts", () => {
+    const artifact = baseArtifact();
+    artifact.schemaVersion = "1.0.0";
+    expect(parseArtifact(artifact).success).toBe(true);
+  });
+
+  it("rejects a checkpoint expected referencing an unknown param", () => {
+    const artifact = baseArtifact();
+    artifact.checkpoints[0]!.assertion = "textContains";
+    artifact.checkpoints[0]!.expected = "Member ${nope}";
+    expectRejected(artifact, 'references unknown param "nope"');
+  });
+
+  it("rejects a locator string referencing an unknown param", () => {
+    const artifact = baseArtifact();
+    const candidate = artifact.checkpoints[0]!.locator[0]!;
+    if (candidate.strategy !== "label") throw new Error("fixture changed");
+    candidate.text = "Balance for ${nope}";
+    expectRejected(artifact, "checkpoints[0].locator[0].text");
+  });
+
+  it("rejects an unknown template format", () => {
+    const artifact = baseArtifact();
+    artifact.steps[0]!.description = "Search for ${memberId:bogus}";
+    expectRejected(artifact, 'unknown template format "bogus"');
+  });
+
+  it("rejects a sensitive param used at a locator site", () => {
+    // A sensitive value in a locator surfaces in LocatorResolutionError's
+    // message, and from there in the run log and the failure evidence.
+    const artifact = baseArtifact();
+    artifact.inputParams[0]!.sensitive = true;
+    const candidate = artifact.checkpoints[0]!.locator[0]!;
+    if (candidate.strategy !== "label") throw new Error("fixture changed");
+    candidate.text = "Balance for ${memberId}";
+    expectRejected(artifact, "sensitive param");
+  });
+
+  it("still allows a sensitive param as a fill value", () => {
+    const artifact = baseArtifact();
+    artifact.inputParams[0]!.sensitive = true;
+    expect(parseArtifact(artifact).success).toBe(true);
+  });
+
+  it("rejects an optional param at a template site", () => {
+    // Materialization throws on a missing value, so an optional param in a
+    // template means a well-formed call could still fail mid-flow.
+    const artifact = baseArtifact();
+    artifact.inputParams[0]!.required = false;
+    artifact.steps[0]!.description = "Search for ${memberId}";
+    expectRejected(artifact, "optional param");
+  });
+
+  it("requires expected on a textMatches checkpoint", () => {
+    const artifact = baseArtifact();
+    artifact.checkpoints[0]!.assertion = "textMatches";
+    expectRejected(artifact, 'requires "expected"');
+  });
+
+  it("accepts a well-formed textMatches checkpoint", () => {
+    const artifact = baseArtifact();
+    artifact.checkpoints[0]!.assertion = "textMatches";
+    artifact.checkpoints[0]!.expected = "^\\$[0-9,]+\\.[0-9]{2}$";
+    expect(parseArtifact(artifact).success).toBe(true);
   });
 });

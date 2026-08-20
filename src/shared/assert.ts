@@ -40,6 +40,13 @@ export async function assertCondition(
       }
       return;
     }
+    case "textMatches": {
+      const text = (await resolved.locator.innerText()).trim();
+      if (!expected || !new RegExp(expected).test(text)) {
+        throw new Error(`Expected text to match /${expected}/, got "${text}".`);
+      }
+      return;
+    }
     case "urlMatches": {
       const url = page.url();
       if (!expected || !new RegExp(expected).test(url)) {
