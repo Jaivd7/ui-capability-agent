@@ -6,7 +6,7 @@ import { startAuthenticatedSession, type BrowserSession } from "../shared/sessio
 import { createRunLogger, type LogEvent, type RunLogger } from "../logging/logger.js";
 import { setGuardrailsConfigForTest, type GuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
-import { createEscalationHandler } from "../escalation/operator-server.js";
+import { startCliEscalation } from "../escalation/index.js";
 import { runReplay } from "./engine.js";
 
 /**
@@ -498,7 +498,7 @@ describe("replay engine (live, against the mock app)", () => {
           page: session.page,
           logger,
           guardrail: (step, ctx) => evaluateGuardrails(step, ctx, testGuardrailsConfig),
-          escalate: createEscalationHandler(session.page, logger, "/tmp/replay-engine-test"),
+          escalate: (await startCliEscalation({ page: session.page, logger, evidenceDir: "/tmp/replay-engine-test", app: "legacy-core-banking" })).handler,
         });
 
         // Act as the human operator would: load the console, then approve —
@@ -509,7 +509,7 @@ describe("replay engine (live, against the mock app)", () => {
         expect(consoleHtml).toContain("Approve");
         expect(consoleHtml).toContain(dangerousStepId);
 
-        const approveRes = await fetch(new URL("/approve", url), { method: "POST" });
+        const approveRes = await fetch(`${url}/approve`, { method: "POST" });
         expect(approveRes.ok).toBe(true);
 
         const result = await resultPromise;
@@ -549,11 +549,11 @@ describe("replay engine (live, against the mock app)", () => {
           page: session.page,
           logger,
           guardrail: (step, ctx) => evaluateGuardrails(step, ctx, testGuardrailsConfig),
-          escalate: createEscalationHandler(session.page, logger, "/tmp/replay-engine-test"),
+          escalate: (await startCliEscalation({ page: session.page, logger, evidenceDir: "/tmp/replay-engine-test", app: "legacy-core-banking" })).handler,
         });
 
         const url = await consoleUrl;
-        const rejectRes = await fetch(new URL("/reject", url), { method: "POST" });
+        const rejectRes = await fetch(`${url}/reject`, { method: "POST" });
         expect(rejectRes.ok).toBe(true);
 
         const result = await resultPromise;
@@ -602,21 +602,21 @@ describe("replay engine (live, against the mock app)", () => {
           params: { memberId: "1001", accountType: "Standard Savings", openingDeposit: "100" },
           page: session.page,
           logger,
-          escalate: createEscalationHandler(session.page, logger, "/tmp/replay-engine-test"),
+          escalate: (await startCliEscalation({ page: session.page, logger, evidenceDir: "/tmp/replay-engine-test", app: "legacy-core-banking" })).handler,
         });
 
         const url = await consoleUrl;
         const consoleHtml = await (await fetch(url)).text();
         expect(consoleHtml).toContain("Manual action");
 
-        const clickRes = await fetch(new URL("/action", url), {
+        const clickRes = await fetch(`${url}/action`, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ type: "click", target: "#continueBtn" }),
         });
         expect(clickRes.ok).toBe(true);
 
-        const resumeRes = await fetch(new URL("/resume", url), { method: "POST" });
+        const resumeRes = await fetch(`${url}/resume`, { method: "POST" });
         expect(resumeRes.ok).toBe(true);
 
         const result = await resultPromise;

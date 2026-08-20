@@ -24,6 +24,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`\n${signal} received; finishing in-flight work.`);
     server.close();
+    deps.interventions.abortAll("server shut down while awaiting operator");
     await deps.executor.drain(10_000);
     await deps.pool.shutdown();
     process.exit(0);

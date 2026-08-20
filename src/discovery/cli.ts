@@ -7,7 +7,7 @@ import { startAuthenticatedSession } from "../shared/session.js";
 import type { Page } from "playwright";
 import type { ParamValue } from "../artifact/template.js";
 import { isKnownRole, listRoles, resolveTargetFor } from "../apps/index.js";
-import { createEscalationHandler } from "../escalation/operator-server.js";
+import { startCliEscalation } from "../escalation/index.js";
 import { buildArtifact } from "./build-artifact.js";
 import { CAPABILITY_PRESETS } from "./capability-presets.js";
 import { runDiscovery, type DiscoveryResult } from "./loop.js";
@@ -74,6 +74,11 @@ async function main() {
     baseUrl: target.baseUrl,
   });
 
+  const cliEscalation = escalate
+    ? await startCliEscalation({ page: session.page, logger, evidenceDir, app: preset.app })
+    : undefined;
+  if (cliEscalation) console.log(`Operator console will be served at ${cliEscalation.url}`);
+
   try {
     const result = await runDiscovery({
       runId,
@@ -85,7 +90,7 @@ async function main() {
       page: session.page,
       dialogEvents: session.dialogEvents,
       logger,
-      ...(escalate ? { escalate: createEscalationHandler(session.page, logger, evidenceDir) } : {}),
+      ...(cliEscalation ? { escalate: cliEscalation.handler } : {}),
     });
 
     const knownSensitiveValues = sensitiveValuesFrom(result.extractedValues);
@@ -193,6 +198,7 @@ async function main() {
     console.log(`Artifact saved to ${artifactPath}`);
     console.log(`Evidence saved to ${evidenceDir}/${runId}.*`);
   } finally {
+    await cliEscalation?.close();
     await session.close();
   }
 }

@@ -56,7 +56,14 @@ export interface RunExecutorDeps {
    * run's identity and its evidence directory to write the operator's
    * screenshots and actions alongside the rest of the run's evidence.
    */
-  escalate?: (runId: string, evidenceDir: string) => EscalationHandler | undefined;
+  escalate?: (ctx: {
+    runId: string;
+    evidenceDir: string;
+    page: import("playwright").Page;
+    logger: RunLogger;
+    app: string;
+    artifact: CapabilityArtifact;
+  }) => EscalationHandler | undefined;
   /** Defaults to the real engine; overridden in tests. */
   replay?: ReplayFn;
   /** Defaults to `<cwd>/evidence`. Overridden in tests so they don't write into the repo. */
@@ -217,7 +224,9 @@ export function createRunExecutor(deps: RunExecutorDeps): RunExecutor {
       });
 
       const guardrailsConfig = loadGuardrailsConfig(artifact.target.app);
-      const escalate = ctx.escalateEnabled ? wrapEscalation(runId, evidenceOutDir) : undefined;
+      const escalate = ctx.escalateEnabled
+        ? wrapEscalation(runId, evidenceOutDir, session.page, logger, artifact.target.app, artifact)
+        : undefined;
 
       result = await replay({
         runId,
@@ -322,8 +331,15 @@ export function createRunExecutor(deps: RunExecutorDeps): RunExecutor {
    * single-flight lock, and the 409 a caller gets would give them no way to
    * discover that a human is the thing they're waiting on.
    */
-  function wrapEscalation(runId: string, evidenceOutDir: string): EscalationHandler | undefined {
-    const handler = deps.escalate?.(runId, evidenceOutDir);
+  function wrapEscalation(
+    runId: string,
+    evidenceOutDir: string,
+    page: import("playwright").Page,
+    logger: RunLogger,
+    app: string,
+    artifact: CapabilityArtifact,
+  ): EscalationHandler | undefined {
+    const handler = deps.escalate?.({ runId, evidenceDir: evidenceOutDir, page, logger, app, artifact });
     if (!handler) return undefined;
     return async (ctx: InterventionContext, executeApprovedStep?: () => Promise<void>) => {
       const raisedAt = new Date().toISOString();

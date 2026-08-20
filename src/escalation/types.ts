@@ -29,7 +29,17 @@ export interface InterventionContext {
 export interface HumanAction {
   timestamp: string;
   type: "click" | "fill" | "select" | "navigate" | "approve_step" | "reject" | "resume" | "abort";
+  /** Human-readable, and already redacted — see action-policy.ts. */
   detail: string;
+  /** The selector or path acted on, when there was one. */
+  target?: string;
+  /** Only carried for actions whose value is not sensitive by nature (select, navigate). */
+  value?: string;
+  /** True when the policy refused this action, or walked the page back after it. */
+  blocked?: boolean;
+  blockReason?: string;
+  /** True when the target matches a step the artifact marks irreversible. Recorded, not prevented. */
+  irreversibleTarget?: boolean;
 }
 
 export type EscalationOutcome =

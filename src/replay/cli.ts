@@ -6,7 +6,7 @@ import { startAuthenticatedSession } from "../shared/session.js";
 import { createRunLogger } from "../logging/logger.js";
 import { loadGuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
-import { createEscalationHandler } from "../escalation/operator-server.js";
+import { startCliEscalation } from "../escalation/index.js";
 import { redactValue } from "../guardrails/redact.js";
 import type { CapabilityArtifact } from "../artifact/schema.js";
 import { runReplay } from "./engine.js";
@@ -128,6 +128,17 @@ async function main() {
     baseUrl: artifact.target.baseUrl,
   });
 
+  const cliEscalation = escalate
+    ? await startCliEscalation({
+        page: session.page,
+        logger,
+        evidenceDir: evidenceOutDir,
+        app,
+        artifact,
+      })
+    : undefined;
+  if (cliEscalation) console.log(`Operator console will be served at ${cliEscalation.url}`);
+
   try {
     const guardrailsConfig = loadGuardrailsConfig(app);
     const result = await runReplay({
@@ -138,7 +149,7 @@ async function main() {
       logger,
       sessionRole: resolvedRole,
       guardrail: (step, ctx) => evaluateGuardrails(step, ctx, guardrailsConfig),
-      ...(escalate ? { escalate: createEscalationHandler(session.page, logger, evidenceOutDir) } : {}),
+      ...(cliEscalation ? { escalate: cliEscalation.handler } : {}),
     });
 
     // The in-memory `result` keeps real values (a real caller invoking this
@@ -177,6 +188,7 @@ async function main() {
 
     process.exit(result.status === "hard_failure" ? 1 : 0);
   } finally {
+    await cliEscalation?.close();
     await session.close();
   }
 }
