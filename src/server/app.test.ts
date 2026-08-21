@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDashboardApp } from "./app.js";
 import { createLiveView } from "./runtime/live-view.js";
 import { PresetNotFoundError } from "./runtime/discovery-runner.js";
+import { baseArtifact } from "../artifact/test-fixtures.js";
+import { RunnerBusyError } from "./types.js";
 import type {
   Catalog,
   LiveView,
@@ -91,11 +93,16 @@ function pageReturning(bytes: string): Page {
 let server: Server | undefined;
 let base = "";
 
-function start(deps: { runs: RunRegistry; liveView?: LiveView }): Promise<void> {
+function start(deps: {
+  runs: RunRegistry;
+  liveView?: LiveView;
+  catalog?: Catalog;
+  executor?: RunExecutor;
+}): Promise<void> {
   const app = createDashboardApp({
-    catalog: stubCatalog,
+    catalog: deps.catalog ?? stubCatalog,
     runs: deps.runs,
-    executor: stubExecutor,
+    executor: deps.executor ?? stubExecutor,
     ...(deps.liveView ? { liveView: deps.liveView } : {}),
   });
   return new Promise((resolve) => {
@@ -237,6 +244,90 @@ describe("the run page's own links resolve", () => {
 
     const res = await fetch(`${base}/runs/cap-1/screenshot?t=12345`);
     expect(res.status).toBe(200);
+  });
+});
+
+describe("evidence links", () => {
+  it("every evidence link on the run page reaches a route that serves evidence", async () => {
+    // These pointed at /runs/:id/evidence/:file, which was never implemented,
+    // so all of them 404'd through express's default handler. Asserting the
+    // *body* distinguishes "route exists, this run has no such file" from
+    // "there is no route" — the string assertion in the view test could not.
+    // A hard failure, so the page renders its failure-screenshot and DOM
+    // links; the evidence card itself lists only files present on disk.
+    await start({
+      runs: stubRegistry([
+        record({
+          status: "failed",
+          result: {
+            status: "hard_failure",
+            stepId: "step-2",
+            stepDescription: "Click Search",
+            reason: "Locator never resolved",
+          },
+        }),
+      ]),
+    });
+
+    const html = await (await fetch(`${base}/runs/cap-1`)).text();
+    const links = [...html.matchAll(/href="(\/[^"]*\/evidence\/[^"]+)"/g)].map((m) => m[1]!);
+    expect(links.length, "the run page rendered no evidence links at all").toBeGreaterThan(0);
+
+    for (const link of links) {
+      const res = await fetch(`${base}${link}`);
+      const body = (await res.json()) as { error?: { code?: string } };
+      expect(body.error?.code, `${link} is not served by the evidence route`).toBe("evidence_not_found");
+    }
+  });
+});
+
+describe("invoking while the runner is busy", () => {
+  it("re-renders the form with the busy banner instead of a JSON error body", async () => {
+    // The form post fell through to the API's error mapper, so a browser got a
+    // bare 409 JSON document. Losing this race is the *likely* case, not the
+    // exotic one: the button only disables once the poll notices.
+    const busy = record({ runId: "busy-1", capabilityId: "cap", status: "running" });
+    const artifact = baseArtifact();
+    const detail = {
+      id: artifact.id,
+      name: artifact.name,
+      description: artifact.description,
+      version: artifact.version,
+      schemaVersion: artifact.schemaVersion,
+      contentHash: artifact.contentHash,
+      app: artifact.target.app,
+      appDisplayName: artifact.target.app,
+      baseUrl: artifact.target.baseUrl,
+      requiredRole: null,
+      irreversible: false,
+      inputParams: artifact.inputParams,
+      outputs: artifact.outputs,
+      knownOutcomes: [],
+      artifact,
+    };
+
+    await start({
+      runs: stubRegistry([busy]),
+      catalog: { list: () => [detail], get: () => detail, refresh: () => undefined },
+      executor: {
+        ...stubExecutor,
+        invoke: async () => {
+          throw new RunnerBusyError(busy);
+        },
+      },
+    });
+
+    const res = await fetch(`${base}/capabilities/${artifact.id}/invoke`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ memberId: "1001" }),
+    });
+    const body = await res.text();
+
+    expect(res.status).toBe(409);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(body).toContain("The runner is busy");
+    expect(body).toContain("busy-1");
   });
 });
 

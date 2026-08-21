@@ -201,15 +201,31 @@ export function runnerPollScript(opts?: { pollMs?: number }): string {
   var stopped = false;
   var consecutiveErrors = 0;
 
+  // Both directions. This used to only ever *enable*: a run started in another
+  // tab left every Invoke button live, so the next click lost the race for the
+  // single-flight runner and got an error instead of a disabled control.
+  var ENABLED = ["bg-slate-900", "text-white"];
+  var DISABLED = ["bg-slate-300", "text-slate-500", "cursor-not-allowed"];
+
+  function swapClasses(el, remove, add) {
+    var classes = el.className.split(/\s+/).filter(function (c) {
+      return c !== "" && remove.indexOf(c) === -1;
+    });
+    for (var i = 0; i < add.length; i++) {
+      if (classes.indexOf(add[i]) === -1) classes.push(add[i]);
+    }
+    el.className = classes.join(" ");
+  }
+
   function setFree(free) {
     var controls = document.querySelectorAll("[data-runner-lock]");
     for (var i = 0; i < controls.length; i++) {
       if (free) {
         controls[i].removeAttribute("disabled");
-        controls[i].className = controls[i].className
-          .replace("cursor-not-allowed", "")
-          .replace("bg-slate-300", "bg-slate-900")
-          .replace("text-slate-500", "text-white");
+        swapClasses(controls[i], DISABLED, ENABLED);
+      } else {
+        controls[i].setAttribute("disabled", "disabled");
+        swapClasses(controls[i], ENABLED, DISABLED);
       }
     }
     var banners = document.querySelectorAll("[data-runner-banner]");

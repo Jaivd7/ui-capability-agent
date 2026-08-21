@@ -10,6 +10,12 @@ import {
  * Arming a fault is how a reviewer sees the error taxonomy do its job. Each
  * option is labelled with the HTTP status and what it models, so the choice is
  * "show me a session timeout" rather than "pick a word".
+ *
+ * "Disarm everything" is its own form carrying its own fixed values. As a
+ * second submit button inside the main form it posted the *live* error rate
+ * alongside `forcedInject=none`, so disarming left a random failure rate armed
+ * and the banner still up — and it depended on the browser sending the clicked
+ * button after the select, which is convention rather than guarantee.
  */
 export function faultsPage(opts: {
   app: string;
@@ -53,11 +59,15 @@ export function faultsPage(opts: {
           value="${escapeHtml(String(s?.errorRate ?? 0))}"
           class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
       </div>
-      <div class="flex items-center gap-3 pt-2">
+      <div class="pt-2">
         <button type="submit" class="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">Apply</button>
-        <button type="submit" name="forcedInject" value="none" formnovalidate
-          class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Disarm everything</button>
       </div>
+    </form>
+    <form method="post" action="/faults" class="mt-3 border-t border-slate-100 pt-3">
+      <input type="hidden" name="forcedInject" value="none" />
+      <input type="hidden" name="errorRate" value="0" />
+      <button type="submit" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Disarm everything</button>
+      <span class="ml-2 text-xs text-slate-500">Clears the forced fault <em>and</em> the random failure rate.</span>
     </form>`;
 
   return `<div class="mb-6">

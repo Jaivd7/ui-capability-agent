@@ -1,0 +1,16 @@
+{
+  "status": "success",
+  "outputs": {
+    "memberName": "H[REDACTED]e",
+    "email": "g[REDACTED]m",
+    "phone": "5[REDACTED]9",
+    "address": "1[REDACTED]t"
+  },
+  "checkpointsPassed": [
+    "URL is the member record page for the requested member number",
+    "Page shows the MEMBER RECORD heading",
+    "Member No. label cell is present, confirming member identifier field is shown",
+    "Address label cell exists on the record, confirming the mailing address field is present"
+  ],
+  "stepsExecuted": 5
+}

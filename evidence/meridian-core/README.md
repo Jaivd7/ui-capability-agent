@@ -8,6 +8,21 @@ Each run has a `.jsonl` (the structured log), plus a `.result.json`,
 `.transcript.json`, `.artifact.json`, `.quality.json`, `.probe.jsonl`,
 `.failure.png` or `.escalation.png` where the run produced one.
 
+## Which directory to read
+
+| Directory | What it is |
+|---|---|
+| `curated/` | **Start here.** One clean example per case, named by what it demonstrates. This is the guided tour the rest of this file describes. |
+| `discovery-run/` | Raw output from discovery runs, named by run id. Includes recordings made from the dashboard's Discovery tab as well as from `npm run discover`. |
+| `replay-run/` | Raw output from replay and escalation runs, named by run id. |
+
+`discovery-run/` and `replay-run/` are **uncurated**: they are what the system
+actually wrote while the dashboard was being built and demonstrated, kept
+because a reviewer asking "is the curated set representative or is it the
+highlight reel?" deserves to be able to check. They include failed runs,
+repeated attempts at the same thing, and runs deliberately given bad arguments
+to exercise a path. Nothing in them is required to follow this README.
+
 ## The one to read first
 
 **`escalation-with-refused-operator-actions.*`** — the whole safety story in a

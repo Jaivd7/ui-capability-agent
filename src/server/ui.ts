@@ -24,7 +24,7 @@ import {
   type InjectKind,
 } from "./runtime/fault-injection.js";
 import { pollScript, runnerPollScript } from "./views/poll-script.js";
-import { isTerminalStatus, type RunStatus, type ServerDeps } from "./types.js";
+import { isTerminalStatus, RunnerBusyError, type RunStatus, type ServerDeps } from "./types.js";
 
 /**
  * The pages. Every one is rendered complete on the server and works with
@@ -124,6 +124,9 @@ export function createUiRouter(deps: ServerDeps): Router {
       // 303 so a refresh of the run page cannot re-submit the invocation.
       return res.redirect(303, accepted.runUrl);
     } catch (err) {
+      // A browser gets the form back with the problem on it. Falling through to
+      // `invokeError` would answer an HTML form post with a JSON error body —
+      // which is right for the API and useless in a tab.
       if (err instanceof ParamValidationError || err instanceof CapabilityNotFoundError) {
         const active = deps.runs.active();
         return res.status(400).send(
@@ -136,6 +139,23 @@ export function createUiRouter(deps: ServerDeps): Router {
               values: form,
               errors: err instanceof ParamValidationError ? err.fields : [{ name: "capability", problem: err.message }],
             }),
+          }),
+        );
+      }
+      // Losing a race for the single-flight runner is the most likely failure
+      // here, not the least: the invoke button is only disabled once the poll
+      // notices, so two tabs — or one impatient double-click — reach this.
+      if (err instanceof RunnerBusyError) {
+        return res.status(409).send(
+          page({
+            title: `Invoke ${entry.name}`,
+            activeNav: "capabilities",
+            body: invokePage(entry, {
+              roles: listRoles(entry.app),
+              busyWith: err.activeRun,
+              values: form,
+            }),
+            pollScript: runnerPollScript(),
           }),
         );
       }
@@ -344,25 +364,30 @@ function countByStatus(deps: ServerDeps): Record<RunStatus, number> {
  */
 function demoLinks(deps: ServerDeps): DemoLink[] {
   const links: DemoLink[] = [];
-  const read = deps.catalog.get("meridian-read-member-record");
-  if (read) {
+  if (deps.catalog.get("meridian-read-member-record")) {
     links.push({
       label: "Happy path",
-      description: "Read a member's record and one share balance.",
-      href: "/capabilities/meridian-read-member-record/invoke?memberId=101555&shareCode=S0001",
+      description: "Read a member's name and contact details off the record page.",
+      href: "/capabilities/meridian-read-member-record/invoke?memberId=101555",
     });
     links.push({
       label: "Business outcome",
       description: "The same capability against a member that does not exist — a legitimate answer, not a crash.",
-      href: "/capabilities/meridian-read-member-record/invoke?memberId=999999&shareCode=S0001",
+      href: "/capabilities/meridian-read-member-record/invoke?memberId=999999",
     });
   }
-  const hold = deps.catalog.get("meridian-place-account-hold");
-  if (hold) {
+  if (deps.catalog.get("meridian-place-account-hold")) {
     links.push({
       label: "Permission denied",
       description: "A supervisor-only action invoked as a teller — refused before the run touches the host.",
       href: "/capabilities/meridian-place-account-hold/invoke?memberId=101555&shareCode=MMKT-5&reasonCode=LEGAL&notes=Demo&role=teller",
+    });
+  }
+  if (deps.catalog.get("meridian-read-share-balance")) {
+    links.push({
+      label: "Hard failure, escalated",
+      description: "A share code that does not exist. No known outcome matches, so the run stops and hands you the live session.",
+      href: "/capabilities/meridian-read-share-balance/invoke?memberId=101555&shareCode=BOGUS-9",
     });
   }
   return links;

@@ -19,6 +19,7 @@ import { overviewPage } from "./pages/overview.js";
 import { runDetailPage } from "./pages/run-detail.js";
 import { runsPage } from "./pages/runs.js";
 import { pollScript, runnerPollScript } from "./poll-script.js";
+import { faultsPage } from "./pages/faults.js";
 
 /**
  * The view layer is pure functions from data to strings, which is exactly what
@@ -461,7 +462,10 @@ describe("runDetailPage", () => {
     expect(html).toContain("Re-invoke with these");
     expect(html).toContain("/capabilities/lookup-member-balance/invoke?memberId=1001");
     expect(html).toContain("Run log (JSONL)");
-    expect(html).toContain('href="/runs/lookup-member-balance-1787246804295/evidence/jsonl"');
+    // The route that actually serves it. This assertion previously locked in
+    // a URL nothing implemented, which is why 404ing evidence links survived
+    // a green suite.
+    expect(html).toContain('href="/api/runs/lookup-member-balance-1787246804295/evidence/jsonl"');
   });
 
   it("renders every interesting event kind in the timeline with elapsed times", () => {
@@ -533,8 +537,8 @@ describe("runDetailPage", () => {
     expect(failure).toContain("Search button");
     expect(failure).toContain("nothing matched");
     expect(failure).toMatch(/ring-red-300/);
-    expect(failure).toContain("/evidence/failure.png");
-    expect(failure).toContain("/evidence/failure.dom.html");
+    expect(failure).toContain("/api/runs/lookup-member-balance-1787246804295/evidence/failure.png");
+    expect(failure).toContain("/api/runs/lookup-member-balance-1787246804295/evidence/failure.dom.html");
   });
 
   it("banners a pending escalation", () => {
@@ -686,6 +690,27 @@ describe("poll scripts", () => {
     expect(html).toContain("data-runner-lock");
     expect(html).toContain("removeAttribute(\"disabled\")");
     expect(html).toContain("data-runner-banner");
+  });
+
+  it("also disables them again when a run starts somewhere else", () => {
+    // It only ever enabled. A run started in another tab left every Invoke
+    // button live, so the next click lost the race for the single-flight
+    // runner and got an error where a disabled button belonged.
+    const html = runnerPollScript();
+    expect(html).toContain('setAttribute("disabled"');
+  });
+});
+
+describe("faults page", () => {
+  it("disarms the random failure rate as well as the forced fault", () => {
+    // As a second submit button in the main form it posted the *live* error
+    // rate next to forcedInject=none, so "Disarm everything" left a random
+    // failure rate armed and the banner up.
+    const html = faultsPage({ app: "meridian-core", settings: { forcedInject: "timeout", errorRate: 0.5 } });
+    const disarm = html.slice(html.indexOf("Disarm everything") - 600, html.indexOf("Disarm everything"));
+
+    expect(disarm).toContain('name="forcedInject" value="none"');
+    expect(disarm).toContain('name="errorRate" value="0"');
   });
 });
 

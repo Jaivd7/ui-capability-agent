@@ -116,8 +116,8 @@ function demoCard(links: DemoLink[]): string {
 
   return card(
     "Demo script",
-    `<p class="mb-3 text-sm text-slate-500">Three clicks that show the three things worth seeing. Each opens a prefilled invoke form &mdash; nothing runs until you submit.</p>
-     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">${buttons}</div>`,
+    `<p class="mb-3 text-sm text-slate-500">One click per branch of the result contract. Each opens a prefilled invoke form &mdash; nothing runs until you submit.</p>
+     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${buttons}</div>`,
   );
 }
 

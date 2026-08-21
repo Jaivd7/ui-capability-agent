@@ -560,10 +560,10 @@ function resultSection(record: RunRecord): string {
   }
 
   const failureLinks = `<div class="mt-4 flex flex-wrap gap-3 border-t border-red-100 pt-3 text-xs">
-      <a class="font-medium text-red-700 underline underline-offset-2" href="/runs/${escapeUrl(
+      <a class="font-medium text-red-700 underline underline-offset-2" href="/api/runs/${escapeUrl(
         record.runId,
       )}/evidence/failure.png">Failure screenshot</a>
-      <a class="font-medium text-red-700 underline underline-offset-2" href="/runs/${escapeUrl(
+      <a class="font-medium text-red-700 underline underline-offset-2" href="/api/runs/${escapeUrl(
         record.runId,
       )}/evidence/failure.dom.html">DOM snapshot</a>
     </div>`;
@@ -619,7 +619,7 @@ function humanSection(record: RunRecord): string {
       label: "Screenshot",
       value: intervention.screenshotPath
         ? {
-            html: `<a class="underline underline-offset-2" href="/runs/${escapeUrl(
+            html: `<a class="underline underline-offset-2" href="/api/runs/${escapeUrl(
               record.runId,
             )}/evidence/escalation.png">escalation.png</a>`,
           }
@@ -648,6 +648,16 @@ function isBlocked(action: HumanAction): boolean {
 // Evidence
 // ---------------------------------------------------------------------------
 
+/**
+ * Evidence is served by the API route, and these link straight at it.
+ *
+ * There is one reader of the evidence tree and it already gets the details
+ * right: a fixed filename set rather than a path parameter, a DOM snapshot
+ * served as text so it cannot execute in the dashboard's origin. A second
+ * copy on the UI router would be a second place for those to drift. These
+ * links pointed at a `/runs/:runId/evidence/:file` page that was never
+ * implemented, so every one of them 404'd.
+ */
 const EVIDENCE_LABELS: Record<EvidenceFile, string> = {
   jsonl: "Run log (JSONL)",
   "result.json": "Result JSON",
@@ -665,7 +675,7 @@ function evidenceCard(record: RunRecord, evidence: EvidenceFile[]): string {
     ? `<ul class="divide-y divide-slate-100">${evidence
         .map(
           (file) => `<li class="flex items-center justify-between gap-3 py-2 text-sm">
-            <a class="text-slate-700 underline underline-offset-2 hover:text-slate-900" href="/runs/${escapeUrl(
+            <a class="text-slate-700 underline underline-offset-2 hover:text-slate-900" href="/api/runs/${escapeUrl(
               record.runId,
             )}/evidence/${escapeUrl(file)}">${escapeHtml(EVIDENCE_LABELS[file])}</a>
             <span class="font-mono text-[11px] text-slate-400">${escapeHtml(file)}</span>
