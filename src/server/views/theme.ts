@@ -16,11 +16,21 @@
  */
 
 export const COLORS = {
-  paper: "#FAFAF9",
+  /**
+   * Warm manila, not off-white.
+   *
+   * This was `#FAFAF9` — one percent away from the `#FFFFFF` of every card sat
+   * on it, which is no separation at all. Cards read as regions of the page
+   * rather than as objects on it, and the whole console came across as "white",
+   * which is the generic look the serif and the teal were chosen to avoid. The
+   * ramp below is warmed to match: a cool grey rule on warm paper is the tell
+   * that a palette was assembled rather than chosen.
+   */
+  paper: "#F3F0E8",
   surface: "#FFFFFF",
-  rule: "#E7E5E4",
+  rule: "#DDD7CA",
   ink: "#1C1917",
-  muted: "#78716C",
+  muted: "#6E665B",
   accent: "#0F4C5C",
   accentHover: "#0B3A46",
   accentSoft: "#E6F0F2",

@@ -2,6 +2,13 @@
  * The page shell: one `<html>` document, one nav, one place where the
  * fault-injection banner lives.
  *
+ * The header is a solid accent band rather than another white surface. It is
+ * the only structural use of the accent in the console — everywhere else teal
+ * is a button or a link — and it exists so the page has a top edge instead of
+ * white chrome dissolving into a white body. The seven semantic hues are
+ * untouched by it: nothing in the band carries meaning, so it cannot compete
+ * with the status colours, which is the constraint theme.ts sets out.
+ *
  * Everything in `src/server/views/` is a pure function from data to an HTML
  * string — no express, no data access, no I/O. That is what makes the view
  * layer testable on its own (see views.test.ts) and buildable in parallel with
@@ -83,9 +90,12 @@ export function layout(opts: LayoutOptions): string {
 
   const nav = NAV.map((item) => {
     const active = item.key === activeNav;
+    // On the accent band the underline cannot also be the accent, so the active
+    // item is marked in white and the rest are held back rather than greyed:
+    // stone-400 on teal is legible where `muted` (tuned for paper) is not.
     const cls = active
-      ? "text-ink after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:bg-accent"
-      : "text-muted hover:text-ink";
+      ? "text-white after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:bg-white"
+      : "text-stone-300 hover:text-white";
     return `<a href="${escapeHtml(
       item.href,
     )}" class="relative px-2 py-4 text-sm font-medium transition-colors ${cls}"${
@@ -114,11 +124,11 @@ export function layout(opts: LayoutOptions): string {
 ${THEME_HEAD}
 </head>
 <body class="h-full bg-paper font-sans text-stone-800 antialiased">
-<header class="sticky top-0 z-20 border-b border-rule bg-surface/95 backdrop-blur">
+<header class="sticky top-0 z-20 bg-accent">
   <div class="mx-auto flex max-w-6xl items-center gap-8 px-6">
     <a href="/" class="flex shrink-0 items-center gap-2.5 py-3.5">
-      <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-accent font-serif text-[13px] font-semibold text-white">C</span>
-      <span class="font-serif text-[15px] font-semibold tracking-tight text-ink">Capability Console</span>
+      <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-white font-serif text-[13px] font-semibold text-accent">C</span>
+      <span class="font-serif text-[15px] font-semibold tracking-tight text-white">Capability Console</span>
     </a>
     <nav class="flex items-center gap-5">${nav}</nav>
   </div>
