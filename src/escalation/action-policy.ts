@@ -1,9 +1,11 @@
 import type { Page } from "playwright";
 import type { CapabilityArtifact, FrameLocator } from "../artifact/schema.js";
+import type { ReadSpec } from "../shared/extract.js";
 import { resolveFrameRoot } from "../shared/locator.js";
 import type { GuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
 import { redactValue } from "../guardrails/redact.js";
+import { applyTransform, readRaw } from "../shared/extract.js";
 import type { HumanAction } from "./types.js";
 
 /**
@@ -239,6 +241,95 @@ function urlWithinScope(url: string, guardrails: GuardrailsConfig): { allowed: b
     return { allowed: false, reason: `Route "${parsed.pathname}" does not match any allowed route pattern.` };
   }
   return { allowed: true };
+}
+
+/**
+ * Reads one declared output off the live page, on an operator's instruction.
+ *
+ * This is the verb the console was missing. Without it, a replay that failed on
+ * an extract step was unrescuable by construction: `resolveHardFailure` gates
+ * success on the capability having produced its declared outputs, and the
+ * console had no way to produce one — so a human could see the balance on
+ * screen and still be failed for not having it.
+ *
+ * It reads rather than accepts. The operator chooses *which element* to read;
+ * they never type the value. That distinction is the whole reason this goes
+ * through `readRaw`/`applyTransform` — the same two functions every recorded
+ * extract step uses — instead of taking a string: an output in `outputs` should
+ * mean "the system read this off the page", and a human-asserted number that
+ * looked identical would quietly make that untrue on a banking system.
+ *
+ * The transform comes from the artifact's own extract step for this output
+ * where there is one, so a currency is parsed by the same accounting-notation
+ * code path as it would have been. Failing that it falls back to the declared
+ * output type, which is the same information one step removed.
+ */
+export async function performExtract(
+  page: Page,
+  req: { target: string; frame?: FrameLocator[]; outputName: string },
+  policy: HumanActionPolicy,
+  declared: { type: string; sensitive: boolean },
+): Promise<{ action: HumanAction; value: string | number }> {
+  const root = resolveFrameRoot(page, req.frame ?? []);
+  const locator = root.locator(req.target);
+
+  const count = await locator.count();
+  if (count > 1) {
+    throw new HumanActionError(
+      "selector_ambiguous",
+      `"${req.target}" matches ${count} elements. Narrow it — the console will not guess which one you meant.`,
+    );
+  }
+  if (count === 0) {
+    throw new HumanActionError("selector_not_found", `"${req.target}" matches nothing on this page.`);
+  }
+
+  const read = readSpecFor(req.outputName, declared.type, policy.artifact);
+  let value: string | number;
+  try {
+    value = applyTransform(await readRaw(locator, read), read.transform);
+  } catch (err) {
+    // A cell that will not parse as the declared type is the operator having
+    // picked the wrong one, which is worth saying plainly rather than storing a
+    // wrong value typed correctly.
+    throw new HumanActionError(
+      "extract_failed",
+      `Could not read "${req.outputName}" from that element: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  const sensitive = declared.sensitive;
+  const action: HumanAction = {
+    timestamp: new Date().toISOString(),
+    type: "extract",
+    detail: `read "${req.outputName}" = ${sensitive ? "[REDACTED]" : String(value)} from "${req.target}"`,
+    target: req.target,
+  };
+  return { action, value };
+}
+
+/**
+ * The artifact's own read spec for an output, else one derived from the type
+ * the capability declares for it.
+ *
+ * The declared type is passed in rather than looked up on `policy.artifact`,
+ * which is optional — and when it was absent this silently produced an
+ * untransformed string, so a `currency` output came back as "$3482.10" instead
+ * of 3482.1 and nothing complained. The intervention context always carries the
+ * declared type, because the engine derived the missing-output list from the
+ * artifact in the first place, so there is no reason to depend on the weaker
+ * source.
+ */
+function readSpecFor(outputName: string, declaredType: string, artifact?: CapabilityArtifact): ReadSpec {
+  for (const step of artifact?.steps ?? []) {
+    if (step.type === "extract" && step.outputName === outputName) return step.read;
+  }
+  const transform =
+    declaredType === "currency" ? ("currency" as const)
+    : declaredType === "number" ? ("number" as const)
+    : declaredType === "date" ? ("date" as const)
+    : undefined;
+  return { from: "innerText", ...(transform ? { transform } : {}) } as ReadSpec;
 }
 
 export class HumanActionError extends Error {

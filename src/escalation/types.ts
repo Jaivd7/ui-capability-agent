@@ -24,11 +24,20 @@ export interface InterventionContext {
   goal?: string;
   /** irreversible_confirmation only: what approving would actually do. */
   pendingAction?: { description: string; locatorSummary: string };
+  /**
+   * replay_hard_failure only: declared outputs this run has not captured.
+   *
+   * Handing back re-checks the capability's contract, and that contract
+   * includes its outputs — so a console that cannot supply a missing one can
+   * only ever hand back into the same failure. This is what the console offers
+   * to read off the page.
+   */
+  missingOutputs?: Array<{ name: string; type: string; sensitive: boolean; description?: string }>;
 }
 
 export interface HumanAction {
   timestamp: string;
-  type: "click" | "fill" | "select" | "navigate" | "approve_step" | "reject" | "resume" | "abort";
+  type: "click" | "fill" | "select" | "navigate" | "extract" | "approve_step" | "reject" | "resume" | "abort";
   /** Human-readable, and already redacted — see action-policy.ts. */
   detail: string;
   /** The selector or path acted on, when there was one. */
@@ -43,8 +52,8 @@ export interface HumanAction {
 }
 
 export type EscalationOutcome =
-  | { decision: "resumed"; actions: HumanAction[] }
-  | { decision: "aborted"; actions: HumanAction[] };
+  | { decision: "resumed"; actions: HumanAction[]; capturedOutputs?: Record<string, string | number> }
+  | { decision: "aborted"; actions: HumanAction[]; capturedOutputs?: Record<string, string | number> };
 
 export interface HumanIntervention {
   raisedAt: string;

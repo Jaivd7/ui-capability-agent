@@ -75,9 +75,21 @@ export function loadGuardrailsConfig(app: string, path = DEFAULT_CONFIG_PATH): G
   return config;
 }
 
-/** Test-only escape hatch: bypasses the file-backed cache to inject a config in-memory. */
+/**
+ * Test-only escape hatch: bypasses the file-backed cache to inject a config
+ * in-memory.
+ *
+ * `loadedFrom` has to be stamped too. `loadGuardrailsConfig` honours the cache
+ * only when it has already read from this path, so an injection made before any
+ * load left `loadedFrom` null, the next call re-read the file, and the injected
+ * policy was silently overwritten by the real one. The tests that use this
+ * passed only because some earlier test in the same file had already triggered
+ * a load — a test that works because of its neighbours, which is exactly the
+ * failure mode a filtered run exposes.
+ */
 export function setGuardrailsConfigForTest(app: string, config: GuardrailsConfig): void {
   cache.set(app, config);
+  loadedFrom = DEFAULT_CONFIG_PATH;
 }
 
 /** Test-only: drops everything injected or loaded, so one test can't leak policy into the next. */

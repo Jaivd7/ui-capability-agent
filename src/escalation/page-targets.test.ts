@@ -72,10 +72,12 @@ describe("describePageTargets", () => {
     await load(`<table><tr><td>Unlabelled:</td><td><input type="text"></td></tr></table>`);
 
     const targets = await describePageTargets(page);
+    // The label cell is offered too, as a readable value; this test is about
+    // the input.
+    const fillable = targets.filter((t) => t.kind === "fill");
 
-    expect(targets).toHaveLength(1);
-    expect(targets[0]?.kind).toBe("fill");
-    await expect(page.locator(targets[0]!.selector).count()).resolves.toBe(1);
+    expect(fillable).toHaveLength(1);
+    await expect(page.locator(fillable[0]!.selector).count()).resolves.toBe(1);
   });
 
   it("every offered selector resolves to exactly one element", async () => {
@@ -89,7 +91,11 @@ describe("describePageTargets", () => {
 
     const targets = await describePageTargets(page);
 
-    expect(targets.length).toBe(6);
+    // Three inputs and three links to act on, plus the three label cells as
+    // readable values. Uniqueness is asserted over every one of them: a `text`
+    // target is picked the same way and refused the same way if ambiguous.
+    expect(targets.filter((t) => t.kind !== "text").length).toBe(6);
+    expect(targets.filter((t) => t.kind === "text").length).toBe(3);
     for (const target of targets) {
       await expect(page.locator(target.selector).count(), target.selector).resolves.toBe(1);
     }
@@ -134,9 +140,14 @@ describe("describePageTargets", () => {
     await page.goto("about:blank");
   });
 
-  it("returns an empty list rather than throwing on a page with nothing to do", async () => {
+  it("offers nothing to act on for a page with nothing to do", async () => {
     await load(`<p>Maintenance in progress.</p>`);
-    await expect(describePageTargets(page)).resolves.toEqual([]);
+    const targets = await describePageTargets(page);
+    expect(targets.filter((t) => t.kind !== "text")).toEqual([]);
+    // The message itself is still offered as a readable value, which is right:
+    // a maintenance interstitial is exactly the page an operator lands on, and
+    // its text may be the thing worth capturing.
+    expect(targets.map((t) => t.label)).toEqual(["Maintenance in progress."]);
   });
 });
 

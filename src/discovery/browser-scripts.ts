@@ -49,7 +49,16 @@ export interface RawPickerOption {
 }
 
 export interface RawPickerTarget {
-  kind: "click" | "fill" | "select";
+  /**
+   * `text` is a value the operator can *read off* the page rather than act on.
+   *
+   * It exists because a run that hard-failed on an extract step could not be
+   * rescued: the console had no verb that puts a value into `outputs`, so an
+   * operator could navigate to the page, see the balance, hand back, and still
+   * be failed by the missing-outputs check. Naming these separately keeps the
+   * action panel to things that change the page.
+   */
+  kind: "click" | "fill" | "select" | "text";
   /** What the operator reads. Never a selector. */
   label: string;
   /** A CSS selector verified unique *within this document*. */
@@ -255,6 +264,38 @@ export function collectPickerTargets(): RawPickerTarget[] {
       label: clean(o.textContent) || o.value,
     }));
     add(el, "select", options);
+  }
+
+  /**
+   * Readable values: leaf elements carrying short text.
+   *
+   * Leaf-only (no element children) because an ancestor's text is the
+   * concatenation of everything beneath it — offering the whole shares table as
+   * one "value" would hand the operator a blob, and offering both it and its
+   * cells would bury the cells. The tag list is where a legacy server-rendered
+   * app puts a value; anything outside it is reachable through the raw selector.
+   *
+   * The label here is the text itself rather than `describe()`'s anchor, since
+   * for a value the thing worth reading *is* the value — that is what lets the
+   * operator confirm they picked the right cell before committing.
+   */
+  const READABLE = "td, th, span, div, p, dd, li, strong, b, em, code, label, h1, h2, h3, h4";
+  for (const el of Array.from(document.querySelectorAll(READABLE))) {
+    if (el.children.length > 0) continue;
+    const text = clean(el.textContent);
+    if (!text) continue;
+    if (!visible(el)) continue;
+    const selector = uniqueSelector(el);
+    if (!selector || seen.has(selector)) continue;
+    seen.add(selector);
+    // Anchored on the cell to its left where there is one, so "$53.00" reads as
+    // "Balance — $53.00" on the kind of table this app is built from.
+    const anchor = describe(el);
+    targets.push({
+      kind: "text",
+      label: anchor && anchor !== text ? `${text}   (${anchor})` : text,
+      selector,
+    });
   }
 
   return targets;

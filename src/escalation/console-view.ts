@@ -47,6 +47,8 @@ export interface ConsoleViewOptions {
   currentUrl?: string;
   /** Rendered when the last action was refused by policy. */
   notice?: { tone: "error" | "warn"; message: string };
+  /** Outputs the operator has already read off the page this intervention. */
+  captured?: Record<string, string | number>;
 }
 
 export function renderConsole(
@@ -145,6 +147,7 @@ export function renderConsole(
   .verb-name { font-weight: 600; font-size: 13px; }
   .verb-what { color: var(--muted); font-size: 12px; }
   .verb-off { margin: 0; color: var(--muted); font-size: 12px; font-style: italic; }
+  .captured { margin: 0 0 6px; color: #065F46; font-size: 12px; }
 </style></head>
 <body>
   <div class="banner">
@@ -178,6 +181,7 @@ export function renderConsole(
     <form class="inline" method="post" action="${basePath}/reject">${stamp}<button class="safe" type="submit">Reject</button></form>
   </fieldset>`
       : `
+  ${missingOutputsPanel(basePath, ctx, opts.targets ?? [], opts.captured ?? {}, stamp)}
   ${manualActionPanel(basePath, opts.targets ?? [], stamp)}
   <fieldset>
     <legend>When you are done</legend>
@@ -257,21 +261,110 @@ function handBackNote(kind: InterventionKind): string {
   }
   return (
     "Handing back re-checks the capability's own checkpoints from wherever you leave the page. It does not re-run " +
-    "steps, so a capability whose outputs were never extracted still reports a failure — with what you did recorded against it."
+    "steps, so anything still listed above as outstanding has to be read off the page first — otherwise the run " +
+    "reports a failure, with what you did recorded against it."
   );
 }
 
 function guidancePanel(ctx: InterventionContext): string {
   const g = guidanceFor(ctx.kind);
+  const outstanding = ctx.missingOutputs ?? [];
+  // Named up front rather than left to the panel below, because on a failed
+  // extract this *is* the recovery — "get the page into the right state" is
+  // advice for a different failure, and following it alone ends in the same
+  // missing-outputs refusal.
+  const askedFor =
+    outstanding.length > 0
+      ? `${g.askedFor} This run has not captured ${outstanding.map((o) => o.name).join(", ")}, ` +
+        `which it has to before it can succeed — read ${outstanding.length === 1 ? "it" : "them"} off the page below.`
+      : g.askedFor;
   return `
   <div class="why">
     <h2>Why you are seeing this</h2>
     <dl>
       <dt>What happened</dt><dd>${escape(g.what)}</dd>
-      <dt>What you can do</dt><dd>${escape(g.askedFor)}</dd>
+      <dt>What you can do</dt><dd>${escape(askedFor)}</dd>
     </dl>
     <p class="meta raw"><strong>Reported by the engine:</strong> <span class="mono">${escape(ctx.reason)}</span></p>
   </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Supplying the outputs the run never captured
+// ---------------------------------------------------------------------------
+
+/**
+ * The outputs this capability promised and has not delivered, each offering the
+ * page's own readable values.
+ *
+ * This is the panel that makes handing back able to succeed. Before it, the
+ * console's fine print told the operator that a capability whose outputs were
+ * never extracted would still report a failure — accurate, and a dead end,
+ * since nothing on the page let them do anything about it. The commonest
+ * replay failure is an extract step whose locator drifted, so the commonest
+ * rescue was the one that could not work.
+ *
+ * The operator picks a value, not a selector, and never types the value itself:
+ * the dropdown shows the text as it appears on the page, so what they are
+ * confirming is "this is the right cell". What lands in `outputs` was read by
+ * the same code a recorded extract uses.
+ */
+function missingOutputsPanel(
+  basePath: string,
+  ctx: InterventionContext,
+  targets: PageTarget[],
+  captured: Record<string, string | number>,
+  stamp: string,
+): string {
+  const missing = ctx.missingOutputs ?? [];
+  if (missing.length === 0) return "";
+  const readable = targets.filter((t) => t.kind === "text");
+
+  const rows = missing
+    .map((output) => {
+      const already = captured[output.name];
+      if (already !== undefined) {
+        return `<div class="verb">
+          <div class="verb-head">
+            <span class="verb-name">${escape(output.name)}</span>
+            <span class="verb-what">${escape(output.type)}</span>
+          </div>
+          <p class="captured">&#10003; captured as <span class="mono">${escape(String(already))}</span>
+          &mdash; pick again below to replace it.</p>
+          ${readable.length ? pickForm(basePath, output.name, readable, stamp, "Replace") : ""}
+        </div>`;
+      }
+      return `<div class="verb">
+        <div class="verb-head">
+          <span class="verb-name">${escape(output.name)}</span>
+          <span class="verb-what">${escape(output.type)}${
+            output.description ? ` &mdash; ${escape(output.description)}` : ""
+          }</span>
+        </div>
+        ${
+          readable.length
+            ? pickForm(basePath, output.name, readable, stamp, "Capture it")
+            : absent("No readable values could be found on this page. Navigate to the screen that shows this value.")
+        }
+      </div>`;
+    })
+    .join("");
+
+  return `<fieldset>
+    <legend>Outputs this run still owes</legend>
+    <p class="meta" style="margin:0 0 8px;">Handing back checks the capability's declared outputs, so these have to be
+    read before this run can succeed. Pick the value as it appears on the page &mdash; the console reads it the same
+    way the recorded step would have, and you never type it yourself.</p>
+    ${rows}
+  </fieldset>`;
+}
+
+function pickForm(basePath: string, outputName: string, readable: PageTarget[], stamp: string, verb: string): string {
+  return `<form method="post" action="${basePath}/extract" class="row">
+    ${stamp}<input type="hidden" name="outputName" value="${escape(outputName)}" />
+    <label>Read from <select name="pick">${optionsFor(readable)}</select></label>
+    <button type="submit">${escape(verb)}</button>
+  </form>`;
 }
 
 // ---------------------------------------------------------------------------

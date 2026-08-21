@@ -3,6 +3,7 @@ import { safeRouter } from "../shared/express-safety.js";
 import {
   checkHumanAction,
   HumanActionError,
+  performExtract,
   performHumanAction,
   targetsIrreversibleStep,
 } from "./action-policy.js";
@@ -83,6 +84,7 @@ export function escalationRouter(registry: InterventionRegistry): Router {
         waitingMs: Date.now() - new Date(pending.raisedAt).getTime(),
         currentUrl: pending.page.url(),
         targets,
+        captured: pending.captured,
         ...(notice ? { notice: { tone: "error" as const, message: notice } } : {}),
       }),
     );
@@ -156,6 +158,82 @@ export function escalationRouter(registry: InterventionRegistry): Router {
         ...(body.target ? { target: body.target } : {}),
         blocked: true,
         blockReason: err instanceof HumanActionError ? err.code : "action_failed",
+      });
+      return res.redirect(303, `${basePath(pending.runId)}?notice=${encodeURIComponent(message)}`);
+    }
+  });
+
+  /**
+   * Read one declared output off the live page.
+   *
+   * Separate from `/action` because it is not an action: nothing about the page
+   * changes, and the vocabulary in `action-policy.ts` is deliberately limited
+   * to things that do. What it shares with `/action` is the scope check — a
+   * page outside the allowlist is not readable either, since "this session may
+   * only touch these routes" is a property of the session, not of the verb.
+   */
+  router.post("/extract", async (req, res) => {
+    const pending = resolvePending(req, res);
+    if (!pending) return;
+    const raw = (req.body ?? {}) as { pick?: string; outputName?: string; interventionId?: string };
+    if (staleSubmission(pending, raw, res)) return;
+
+    const outputName = typeof raw.outputName === "string" ? raw.outputName : "";
+    const declared = pending.context.missingOutputs?.find((o) => o.name === outputName);
+    if (!outputName || !declared) {
+      return res.redirect(
+        303,
+        `${basePath(pending.runId)}?notice=${encodeURIComponent(
+          `"${outputName}" is not an output this capability declares as outstanding.`,
+        )}`,
+      );
+    }
+
+    const picked = decodePick(raw.pick);
+    if (!picked) {
+      return res.redirect(
+        303,
+        `${basePath(pending.runId)}?notice=${encodeURIComponent("Choose which value on the page to read.")}`,
+      );
+    }
+
+    // Same allowlist question the action routes ask, for the same reason.
+    const scope = checkHumanAction(
+      { type: "click", target: picked.selector },
+      { currentUrl: pending.page.url() },
+      pending.policy,
+    );
+    if (!scope.allowed) {
+      pending.record({
+        timestamp: new Date().toISOString(),
+        type: "extract",
+        detail: `refused: ${scope.reason}`,
+        target: picked.selector,
+        blocked: true,
+        blockReason: scope.code,
+      });
+      return res.redirect(303, `${basePath(pending.runId)}?notice=${encodeURIComponent(scope.reason)}`);
+    }
+
+    try {
+      const { action, value } = await performExtract(
+        pending.page,
+        { target: picked.selector, frame: picked.frame, outputName },
+        pending.policy,
+        declared,
+      );
+      pending.capture(outputName, value);
+      pending.record(action);
+      return res.redirect(303, basePath(pending.runId));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      pending.record({
+        timestamp: new Date().toISOString(),
+        type: "extract",
+        detail: `failed: ${message}`,
+        target: picked.selector,
+        blocked: true,
+        blockReason: err instanceof HumanActionError ? err.code : "extract_failed",
       });
       return res.redirect(303, `${basePath(pending.runId)}?notice=${encodeURIComponent(message)}`);
     }

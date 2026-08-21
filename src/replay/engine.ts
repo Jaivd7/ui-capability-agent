@@ -331,6 +331,19 @@ async function resolveHardFailure(
   if (!opts.escalate) return failure;
 
   const raisedAt = new Date().toISOString();
+  // What the capability promised and has not delivered. The console offers to
+  // read exactly these off the page: without them, handing back can only ever
+  // land in `missingOutputsFailure` below, which is the dead end the operator
+  // console used to document rather than solve.
+  const missingOutputs = opts.artifact.outputs
+    .filter((o) => outputs[o.name] === undefined)
+    .map((o) => ({
+      name: o.name,
+      type: o.type,
+      sensitive: o.sensitive,
+      ...(o.description ? { description: o.description } : {}),
+    }));
+
   const ctx: InterventionContext = {
     runId: opts.runId,
     capabilityId: opts.artifact.id,
@@ -339,6 +352,7 @@ async function resolveHardFailure(
     currentUrl: opts.page.url(),
     currentStepId: failure.stepId,
     currentStepDescription: failure.stepDescription,
+    ...(missingOutputs.length > 0 ? { missingOutputs } : {}),
   };
   const escalationOutcome = await opts.escalate(ctx);
   const intervention: HumanIntervention = {
@@ -352,6 +366,14 @@ async function resolveHardFailure(
 
   if (escalationOutcome.decision === "aborted") {
     return { ...failure, humanIntervention: intervention };
+  }
+
+  // Values the operator read off the live page join the run's own outputs.
+  // They went through the same readRaw/applyTransform a recorded extract uses,
+  // so what lands here is a value the system read, not one a human asserted —
+  // and the intervention on the result says a human directed the reading.
+  for (const [name, value] of Object.entries(escalationOutcome.capturedOutputs ?? {})) {
+    outputs[name] = value;
   }
 
   const verification = await verifyCheckpoints(opts);

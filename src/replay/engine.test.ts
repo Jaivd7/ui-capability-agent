@@ -635,4 +635,110 @@ describe("replay engine (live, against the mock app)", () => {
     },
     45_000,
   );
+
+  it(
+    "escalation: a human reads the output a broken extract step never captured, and the run succeeds",
+    async () => {
+      // The rescue that was impossible until the console had a read verb. The
+      // capability's only extract step is broken, so the run hard-fails with
+      // its one declared output missing -- and handing back re-checks that
+      // contract, so before this the operator could stare at the balance on
+      // screen and still be failed for not having it.
+      // Set here rather than inherited: the earlier tests that install this
+      // also skip under a -t filter, and a test that only passes when its
+      // neighbours run is not a test.
+      setGuardrailsConfigForTest("legacy-core-banking", {
+        allowedOrigins: [BASE_URL],
+        allowedRoutePatterns: ["^/(login|logout|members(/.*)?|dev/expire-session)$"],
+        allowedActionTypes: ["navigate", "click", "fill", "select", "check", "waitFor", "extract"],
+        irreversibleActionPolicy: "block",
+      });
+
+      await withSession(async (session) => {
+        const artifact = loadArtifact("lookup-member-balance");
+        const brokenArtifact: CapabilityArtifact = {
+          ...artifact,
+          steps: artifact.steps.map((s) =>
+            s.type === "extract"
+              ? { ...s, locator: [{ strategy: "css", selector: "#noSuchCell", reason: "deliberately broken" }] }
+              : s,
+          ),
+        };
+
+        const { logger, consoleUrl } = loggerCapturingConsoleUrl("test-escalation-extract-recovery");
+        const resultPromise = runReplay({
+          runId: "test-escalation-extract-recovery",
+          artifact: brokenArtifact,
+          params: { memberId: "1001" },
+          page: session.page,
+          logger,
+          escalate: (
+            await startCliEscalation({
+              page: session.page,
+              logger,
+              evidenceDir: "/tmp/replay-engine-test",
+              app: "legacy-core-banking",
+            })
+          ).handler,
+        });
+
+        const url = await consoleUrl;
+        const html = await (await fetch(url)).text();
+
+        // The console names the output the run still owes and offers the page's
+        // own readable values -- it found the balance cell without anything
+        // here telling it where the balance lives.
+        expect(html).toContain("/extract");
+        expect(html).toContain("savingsBalance");
+
+        const pick = pickOptionMatching(html, "3482.10");
+        expect(pick, "the console should offer the balance cell as a readable value").toBeTruthy();
+
+        const captureRes = await fetch(`${url}/extract`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ outputName: "savingsBalance", pick: pick! }),
+        });
+        expect(captureRes.ok).toBe(true);
+
+        expect((await fetch(`${url}/resume`, { method: "POST" })).ok).toBe(true);
+
+        const result = await resultPromise;
+        expect(result.status).toBe("success");
+        if (result.status === "success") {
+          // Read off the page and coerced by the same currency transform the
+          // recorded step declared -- not a number a human typed.
+          expect(result.outputs.savingsBalance).toBe(3482.1);
+          expect(result.humanIntervention?.decision).toBe("resumed");
+          expect(result.humanIntervention?.actions.map((a) => a.type)).toEqual(["extract", "resume"]);
+          // savingsBalance is declared sensitive, so the log line masks it even
+          // though the value itself is returned to the caller.
+          const extractAction = result.humanIntervention!.actions[0]!;
+          expect(extractAction.detail).toContain("[REDACTED]");
+          expect(extractAction.detail).not.toContain("3482.10");
+        }
+      });
+    },
+    45_000,
+  );
 });
+
+/**
+ * Pulls the encoded pick whose visible label contains `text` out of the
+ * console's HTML, the way an operator choosing from the dropdown would.
+ */
+function pickOptionMatching(html: string, text: string): string | undefined {
+  for (const match of html.matchAll(/<option value="([^"]*)">([^<]*)<\/option>/g)) {
+    if (match[2]!.includes(text)) return unescapeHtml(match[1]!);
+  }
+  return undefined;
+}
+
+function unescapeHtml(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}

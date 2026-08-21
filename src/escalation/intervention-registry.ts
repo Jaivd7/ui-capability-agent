@@ -36,6 +36,8 @@ export interface PendingIntervention {
   page: Page;
   logger: RunLogger;
   actions: HumanAction[];
+  /** Values the operator read off the page, merged into the run's outputs on resume. */
+  captured: Record<string, string | number>;
   screenshotPath: string;
   policy: HumanActionPolicy;
   /** irreversible_confirmation only: runs the real pending step on approval. */
@@ -43,12 +45,14 @@ export interface PendingIntervention {
   /** Ran before a resume/approve, so a session that died while waiting is caught. */
   preResumeCheck?: ((p: PendingIntervention) => Promise<string | null>) | undefined;
   record(action: HumanAction): void;
+  /** Records a value read off the live page against one of the capability's declared outputs. */
+  capture(name: string, value: string | number): void;
   resolve(decision: "resumed" | "aborted"): void;
 }
 
 export interface InterventionRegistry {
   register(
-    pending: Omit<PendingIntervention, "record" | "resolve" | "interventionId">,
+    pending: Omit<PendingIntervention, "record" | "resolve" | "capture" | "interventionId" | "captured">,
     settle: (outcome: EscalationOutcome) => void,
   ): PendingIntervention;
   get(runId: string): PendingIntervention | undefined;
@@ -67,6 +71,7 @@ export function createInterventionRegistry(): InterventionRegistry {
       const entry: PendingIntervention = {
         ...base,
         interventionId: `${base.runId}#${counter}`,
+        captured: {},
         record(action) {
           entry.actions.push(action);
           entry.logger.log({
@@ -77,6 +82,9 @@ export function createInterventionRegistry(): InterventionRegistry {
             ...(action.blocked ? { blocked: true, blockReason: action.blockReason } : {}),
             ...(action.irreversibleTarget ? { irreversibleTarget: true } : {}),
           });
+        },
+        capture(name, value) {
+          entry.captured[name] = value;
         },
         resolve(decision) {
           // Identity, not presence: `pending.has(runId)` was true again as soon
@@ -90,7 +98,11 @@ export function createInterventionRegistry(): InterventionRegistry {
             decision,
             actionCount: entry.actions.length,
           });
-          settle({ decision, actions: entry.actions });
+          settle({
+            decision,
+            actions: entry.actions,
+            ...(Object.keys(entry.captured).length > 0 ? { capturedOutputs: { ...entry.captured } } : {}),
+          });
         },
       };
       pending.set(entry.runId, entry);
