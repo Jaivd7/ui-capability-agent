@@ -5,7 +5,7 @@ import { resolveFrameRoot } from "../shared/locator.js";
 import type { GuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
 import { redactValue } from "../guardrails/redact.js";
-import { applyTransform, readRaw } from "../shared/extract.js";
+import { applyTransform, defaultTransformForType, readRaw } from "../shared/extract.js";
 import type { HumanAction } from "./types.js";
 
 /**
@@ -321,15 +321,21 @@ export async function performExtract(
  * source.
  */
 function readSpecFor(outputName: string, declaredType: string, artifact?: CapabilityArtifact): ReadSpec {
+  const fallback = defaultTransformForType(declaredType);
   for (const step of artifact?.steps ?? []) {
-    if (step.type === "extract" && step.outputName === outputName) return step.read;
+    if (step.type === "extract" && step.outputName === outputName) {
+      // The recorded step's transform, defaulted from the declared type the
+      // same way the engine defaults it. Returning `step.read` verbatim was
+      // wrong in the one case that matters: no artifact in this catalog sets a
+      // transform, so a rescued `currency` output came back as the string
+      // "$17,925.98" while the same output extracted normally came back as
+      // 17925.98. Caught against the live target, because the mock-app test
+      // passed no artifact and so never took this branch.
+      const transform = step.read.transform ?? fallback;
+      return { ...step.read, ...(transform ? { transform } : {}) };
+    }
   }
-  const transform =
-    declaredType === "currency" ? ("currency" as const)
-    : declaredType === "number" ? ("number" as const)
-    : declaredType === "date" ? ("date" as const)
-    : undefined;
-  return { from: "innerText", ...(transform ? { transform } : {}) } as ReadSpec;
+  return { from: "innerText", ...(fallback ? { transform: fallback } : {}) } as ReadSpec;
 }
 
 export class HumanActionError extends Error {

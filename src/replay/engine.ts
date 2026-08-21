@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import type { CapabilityArtifact, Step, ValueRef } from "../artifact/schema.js";
 import { assertCondition, detectorMatches } from "../shared/assert.js";
-import { extractValue } from "../shared/extract.js";
+import { defaultTransformForType, extractValue } from "../shared/extract.js";
 import { resolveLocator } from "../shared/locator.js";
 import type { FrameLocator, LocatorChain } from "../artifact/schema.js";
 import { redactValue } from "../guardrails/redact.js";
@@ -635,18 +635,6 @@ async function executeStep(
   }
 }
 
-function defaultTransformForType(type: string | undefined): "trim" | "currency" | "number" | "date" | undefined {
-  switch (type) {
-    case "currency":
-      return "currency";
-    case "number":
-      return "number";
-    case "date":
-      return "date";
-    default:
-      return undefined;
-  }
-}
 
 /**
  * Checks every knownOutcome whose checkAfterStepId is either unset (global —

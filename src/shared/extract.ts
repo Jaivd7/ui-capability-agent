@@ -25,6 +25,33 @@ export async function readRaw(locator: Locator, read: ReadSpec): Promise<string>
   }
 }
 
+/**
+ * The transform a declared output type implies, for a recorded step that did
+ * not set one.
+ *
+ * The call contract in `outputs[]` should hold regardless of what discovery
+ * happened to record — no current artifact sets a transform on any extract
+ * step, yet four outputs across the catalog declare `currency` or `number`, so
+ * without this every one of them would return a string.
+ *
+ * Lives here rather than in the replay engine because the operator console
+ * reads values too, and the two must agree: an output rescued by a human should
+ * be the same type as one the engine extracted, or a caller cannot treat them
+ * the same way.
+ */
+export function defaultTransformForType(type: string | undefined): ReadSpec["transform"] {
+  switch (type) {
+    case "currency":
+      return "currency";
+    case "number":
+      return "number";
+    case "date":
+      return "date";
+    default:
+      return undefined;
+  }
+}
+
 /** Applies the declared transform, producing the value handed back to the caller. */
 export function applyTransform(raw: string, transform: ReadSpec["transform"]): string | number {
   const trimmed = raw.trim();

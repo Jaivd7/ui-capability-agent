@@ -239,6 +239,21 @@ export function collectPickerTargets(): RawPickerTarget[] {
     return null;
   }
 
+  /**
+   * How a reader tells one row's value from another's: the row's own leading
+   * cell, falling back to the cell immediately left. On a shares table that
+   * makes the share id the anchor, so "HOLD [HOLD]   (101555-MMKT-4)" is
+   * unambiguous where "HOLD [HOLD]" was not.
+   */
+  function rowAnchor(el: Element, ownText: string): string {
+    const cell = el.closest("td, th");
+    if (!cell) return "";
+    const first = clean(cell.closest("tr")?.querySelector("td, th")?.textContent);
+    if (first && first !== ownText) return first;
+    const previous = clean(cell.previousElementSibling?.textContent);
+    return previous && previous !== ownText ? previous : "";
+  }
+
   const seen = new Set<string>();
   const targets: RawPickerTarget[] = [];
 
@@ -280,20 +295,35 @@ export function collectPickerTargets(): RawPickerTarget[] {
    * operator confirm they picked the right cell before committing.
    */
   const READABLE = "td, th, span, div, p, dd, li, strong, b, em, code, label, h1, h2, h3, h4";
+  // Anything that would make this element a *container* rather than a value.
+  // Leaf-only was the first rule and it was too strict for the markup this
+  // project exists for: MERIDIAN CORE renders a status as
+  // `<td>HOLD <font class="err">[HOLD]</font></td>`, so the cell has a child and
+  // was skipped, while the child on its own reads "[HOLD]" — the annotation
+  // without the value. Neither was offerable and the output could not be
+  // captured. Inline decoration does not stop a cell being a value; a nested
+  // table or list does.
+  const CONTAINER = "table, tr, td, th, ul, ol, li, div, p, form, select, input, textarea, button, a";
   for (const el of Array.from(document.querySelectorAll(READABLE))) {
-    if (el.children.length > 0) continue;
+    if (el.querySelector(CONTAINER)) continue;
     const text = clean(el.textContent);
     if (!text) continue;
     if (!visible(el)) continue;
     const selector = uniqueSelector(el);
     if (!selector || seen.has(selector)) continue;
     seen.add(selector);
-    // Anchored on the cell to its left where there is one, so "$53.00" reads as
-    // "Balance — $53.00" on the kind of table this app is built from.
-    const anchor = describe(el);
+    // Which *row* it came from, which is the part a value alone cannot say.
+    //
+    // `describe()` is no help here: for a cell carrying its own text it returns
+    // that text and never reaches its table-anchor rung, so every one of the
+    // seven "HOLD [HOLD]" status cells on a member record came out with an
+    // identical label and the operator had no way to tell which share they were
+    // reading. Verified against the live target, which is exactly where it
+    // matters -- a member with one share would never have shown it.
+    const anchor = rowAnchor(el, text);
     targets.push({
       kind: "text",
-      label: anchor && anchor !== text ? `${text}   (${anchor})` : text,
+      label: anchor ? `${text}   (${anchor})` : text,
       selector,
     });
   }

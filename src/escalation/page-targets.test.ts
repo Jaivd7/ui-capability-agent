@@ -140,6 +140,26 @@ describe("describePageTargets", () => {
     await page.goto("about:blank");
   });
 
+  it("offers a value cell that carries inline decoration, and anchors it on its row", async () => {
+    // The exact markup MERIDIAN CORE renders for a share's status. Leaf-only
+    // skipped the cell (it has a child) and the child alone reads "[HOLD]" —
+    // the annotation without the value — so `status` could not be captured at
+    // all. Verified against the live target before being written down here.
+    await load(`<table>
+      <tr class="lbl"><td>Share ID</td><td>Balance</td><td>Status</td></tr>
+      <tr><td>101555-S0001</td><td>$17,925.98</td><td>HOLD <font class="err">[HOLD]</font></td></tr>
+      <tr><td>101555-MMKT-4</td><td>$26.00</td><td>HOLD <font class="err">[HOLD]</font></td></tr>
+    </table>`);
+
+    const labels = (await describePageTargets(page)).filter((t) => t.kind === "text").map((t) => t.label);
+
+    // The whole value, not just its decoration.
+    expect(labels).toContain("HOLD [HOLD]   (101555-S0001)");
+    expect(labels).toContain("HOLD [HOLD]   (101555-MMKT-4)");
+    // And the two rows are told apart, which a bare "HOLD [HOLD]" could not do.
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
   it("offers nothing to act on for a page with nothing to do", async () => {
     await load(`<p>Maintenance in progress.</p>`);
     const targets = await describePageTargets(page);
