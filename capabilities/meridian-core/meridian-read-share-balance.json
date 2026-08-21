@@ -3,12 +3,12 @@
   "id": "meridian-read-share-balance",
   "name": "Read a share's balance and status",
   "description": "Reads the balance and status of one of a member's shares, identified by its share-code suffix (S0001, S0070, MMKT, CERT, or a numbered variant such as MMKT-4).",
-  "version": 1,
-  "contentHash": "03cb7857ec2dde347e5a2e85517525851dd94b85855809114b91008ee293bb0a",
-  "createdAt": "2026-08-20T21:57:25.907Z",
+  "version": 3,
+  "contentHash": "9976a479bd4ba2e6c00a37c6fd7316519720a109f2e8922a9df98ffd591cbf09",
+  "createdAt": "2026-08-21T15:30:02.737Z",
   "discovery": {
     "model": "claude-sonnet-5",
-    "discoveredAt": "2026-08-20T21:57:25.907Z"
+    "discoveredAt": "2026-08-21T15:30:02.737Z"
   },
   "target": {
     "app": "meridian-core",
@@ -42,19 +42,19 @@
     {
       "name": "shareId",
       "type": "string",
-      "description": "Extract Share ID for the row matching member number + shareCode",
+      "description": "Extract the Share ID for the row matching memberId-shareCode",
       "sensitive": false
     },
     {
       "name": "balance",
       "type": "currency",
-      "description": "Extract Balance value for the row matching member number + shareCode",
+      "description": "Extract the Balance for the row matching memberId-shareCode",
       "sensitive": true
     },
     {
       "name": "status",
       "type": "string",
-      "description": "Extract Status text for the row matching member number + shareCode",
+      "description": "Extract the Status for the row matching memberId-shareCode",
       "sensitive": false
     }
   ],
@@ -69,22 +69,20 @@
     },
     {
       "id": "step-2",
-      "description": "Extract Share ID for the row matching member number + shareCode",
+      "description": "Extract the Share ID for the row matching memberId-shareCode",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
-          "strategy": "role",
-          "role": "cell",
-          "name": "${memberId}-${shareCode}",
-          "exact": true,
-          "reason": "Share ID cell exact match on its own text, unique within shares table"
+          "strategy": "xpath",
+          "expression": "//td[normalize-space(text())='${memberId}-${shareCode}']",
+          "reason": "exact match on td cell text avoids ambiguity with row accessible name"
         },
         {
-          "strategy": "xpath",
-          "expression": "//table//tr[td[1][normalize-space(text())='${memberId}-${shareCode}']]/td[1]",
-          "reason": "positional fallback: first cell of row whose first cell text matches the share id pattern"
+          "strategy": "css",
+          "selector": "table table tr:nth-child(3) td:nth-child(1)",
+          "reason": "positional fallback: third row (header + S0001 + S0070), first column is Share ID"
         }
       ],
       "type": "extract",
@@ -95,15 +93,20 @@
     },
     {
       "id": "step-3",
-      "description": "Extract Balance value for the row matching member number + shareCode",
+      "description": "Extract the Balance for the row matching memberId-shareCode",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
           "strategy": "xpath",
-          "expression": "//table//tr[td[1][normalize-space(text())='${memberId}-${shareCode}']]/td[3]",
-          "reason": "Balance cell (3rd column) in the row identified by the target Share ID"
+          "expression": "//td[normalize-space(text())='${memberId}-${shareCode}']/following-sibling::td[2]",
+          "reason": "Balance cell is second sibling after the Share ID cell in the same row"
+        },
+        {
+          "strategy": "css",
+          "selector": "table table tr:nth-child(3) td:nth-child(3)",
+          "reason": "positional fallback: third row, third column is Balance"
         }
       ],
       "type": "extract",
@@ -114,15 +117,20 @@
     },
     {
       "id": "step-4",
-      "description": "Extract Status text for the row matching member number + shareCode",
+      "description": "Extract the Status for the row matching memberId-shareCode",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
           "strategy": "xpath",
-          "expression": "//table//tr[td[1][normalize-space(text())='${memberId}-${shareCode}']]/td[4]",
-          "reason": "Status cell (4th column) in the row identified by the target Share ID"
+          "expression": "//td[normalize-space(text())='${memberId}-${shareCode}']/following-sibling::td[3]",
+          "reason": "Status cell is third sibling after the Share ID cell in the same row"
+        },
+        {
+          "strategy": "css",
+          "selector": "table table tr:nth-child(3) td:nth-child(4)",
+          "reason": "positional fallback: third row, fourth column is Status"
         }
       ],
       "type": "extract",
@@ -134,20 +142,7 @@
   ],
   "checkpoints": [
     {
-      "description": "URL reflects the member record page for the given memberId",
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "css",
-          "selector": "body",
-          "reason": "URL check applies to the whole page"
-        }
-      ],
-      "assertion": "urlMatches",
-      "expected": "/members/${memberId:regexEscape}"
-    },
-    {
-      "description": "Member Record heading is present, confirming correct page type",
+      "description": "URL is the member record page for the given memberId",
       "frame": [],
       "locator": [
         {
@@ -155,34 +150,48 @@
           "role": "heading",
           "name": "MEMBER RECORD",
           "exact": false,
-          "reason": "static page heading present on every member record page"
+          "reason": "Static page heading present on the member record page"
         }
       ],
-      "assertion": "exists"
+      "assertion": "urlMatches",
+      "expected": "/members/${memberId:regexEscape}"
     },
     {
-      "description": "SHARES / BALANCES section heading text is present",
+      "description": "Member number cell shows the memberId parameter",
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "cell",
+          "name": "${memberId}",
+          "exact": false,
+          "reason": "Cell showing the member number, matches the memberId input parameter"
+        }
+      ],
+      "assertion": "textContains",
+      "expected": "${memberId}"
+    },
+    {
+      "description": "SHARES / BALANCES section heading exists on the page",
       "frame": [],
       "locator": [
         {
           "strategy": "text",
           "text": "SHARES / BALANCES",
           "exact": false,
-          "reason": "static section label present on every member record page"
+          "reason": "Static section label present for every member record"
         }
       ],
       "assertion": "exists"
     },
     {
-      "description": "The Share ID column header exists in the shares table, confirming table structure",
+      "description": "A row exists in the shares table whose Share ID cell contains both the memberId and shareCode parameters (structurally identifies the target share row without hardcoding the extracted value)",
       "frame": [],
       "locator": [
         {
-          "strategy": "role",
-          "role": "cell",
-          "name": "Share ID",
-          "exact": true,
-          "reason": "static column heading in the shares table"
+          "strategy": "xpath",
+          "expression": "//td[contains(text(), '${memberId}') and contains(text(), '${shareCode}')]",
+          "reason": "Built directly from the memberId and shareCode input parameters to locate the target row's Share ID cell, not from any value read off the page"
         }
       ],
       "assertion": "exists"
