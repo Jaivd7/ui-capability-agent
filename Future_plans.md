@@ -128,7 +128,99 @@ D-graded artifacts would be worse than no builder at all.**
 
 ---
 
-## 2. Other open items
+## 2. Let the ask box route to any page, not just an invoke form
+
+**The idea.** The router resolves a sentence to a capability and opens its
+invoke form. It should be able to open *any* dashboard page and fill in
+whatever is valid for that page — runs, a specific run, discovery, faults.
+
+**What prompted it.** Asked *"Show me the results from our most recent run"*,
+the router replied:
+
+> I don't have access to any record of a previous run or its results — could you
+> clarify what task or capability you'd like me to run now?
+
+That is the model behaving **correctly**. The system prompt tells it never to
+invent an identifier, and it had no tool for the request, so declining was the
+only honest move available to it. The bug is the tool set, not the model.
+
+### The design decision that matters
+
+Do not give the model run data. The strongest property the router has today is
+that **no capability output ever reaches a model** — balances, e-mail addresses
+and phone numbers never enter a model context, so there is no transcript to
+redact. If the router starts reading run history to find "the most recent run",
+that property is gone.
+
+Split it the same way `pickDeclaredParams` already splits parameters:
+
+> **The model expresses criteria. The server resolves identity.**
+
+The model emits `{ which: "most_recent", capabilityId: "meridian-funds-transfer" }`.
+It never sees a run id and never emits one. The server queries
+`deps.runs.list()`, picks the winner, and redirects. Nothing matching lands back
+on `/` with a plain explanation, which is the existing failure path.
+
+### Tool set
+
+| tool | resolves to | notes |
+| --- | --- | --- |
+| `invoke_capability` | `/capabilities/:id/invoke?…` | existing behaviour, unchanged |
+| `open_run` | `/runs/:runId` | takes `which: most_recent \| most_recent_failed \| most_recent_escalated` plus optional `capabilityId` / `kind` — **never a run id** |
+| `list_runs` | `/runs?app=…&capabilityId=…&kind=…&status=…` | filters, not identity |
+| `open_catalog` | `/` | optionally anchored to one capability |
+| `open_discovery` | `/discovery` | the page only |
+| `open_faults` | `/faults` | the page only |
+
+### The safety line
+
+**The router may only ever produce a GET navigation.** That is implicitly true
+today because the invoke form is a GET, but it becomes load-bearing as soon as
+more pages are reachable, because two POST endpoints are genuinely dangerous:
+
+- `POST /discovery/:id/run` starts a real discovery run — minutes, real API
+  spend, a real browser against the live target.
+- `POST /faults` arms fault injection against the live target.
+
+The router routes *to* those pages and a human presses the button, exactly as it
+routes to an invoke form rather than invoking. Worth a test asserting every URL
+the router can emit is a GET path, so the rule cannot quietly erode.
+
+This also settles the vague half of "fill in information when valid". For runs
+that means filters, which is well defined. For faults and discovery there is no
+meaningful prefill that is not also one click from arming a fault or starting a
+run, so both should be navigation-only, and the code should say why.
+
+### Estimate — 3 to 5 hours
+
+| piece | |
+| --- | --- |
+| Restructure `resolveIntent` into tool groups | ~1.5h |
+| Server-side resolvers (most-recent, filters → URL) | ~1h |
+| `status` / `escalated` filters on `/runs` | ~0.5h |
+| Tests: stubbed model → expected URL, resolver units, GET-only assertion | ~1.5h |
+
+No new dependencies, no schema changes. The existing unroutable path — no tool
+call, back to `/` with the model's own sentence — already covers the rest.
+
+### Worth doing regardless
+
+`/runs` reads `app`, `capabilityId` and `kind` from the query (`ui.ts:223`) but
+ignores `status` and `escalated`, which `RunQuery` already supports. So "show me
+the failed runs" has no URL today, for a human or a router. That is about twenty
+minutes and stands on its own.
+
+### Why not now
+
+Judged not worth the cost against a working demo. The dashboard is four pages
+with a nav bar; the distance between "I want the runs list" and clicking **Runs**
+is one click, so the router saves a click on pages that are already one click
+away. Its real value is the invoke form, where it fills in typed arguments — and
+that already works.
+
+---
+
+## 3. Other open items
 
 Smaller, all previously identified, none blocking.
 
