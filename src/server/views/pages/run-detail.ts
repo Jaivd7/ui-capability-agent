@@ -4,6 +4,7 @@ import { isTerminalStatus } from "../../types.js";
 import { escapeHtml, escapeUrl } from "../layout.js";
 import { icon } from "../icons.js";
 import { TYPE } from "../theme.js";
+import { describeTable, parseDelimitedTable, type DelimitedTable } from "../tabular.js";
 import {
   appBadge,
   card,
@@ -669,13 +670,26 @@ function resultSection(record: RunRecord): string {
   }
 
   if (result.status === "success") {
-    const rows = Object.entries(result.outputs).map(([name, value]) => [
-      { html: `<span class="font-mono text-stone-800">${escapeHtml(name)}</span>` },
-      { html: typeBadge(typeof value === "number" ? "number" : "string") },
-      { html: `<span class="font-mono text-stone-900">${escapeHtml(String(value))}</span>` },
-    ]);
+    // An output that is a whole table arrives as one tab/newline-delimited
+    // string (see views/tabular.ts). Rendering it in the Value cell is what
+    // produced a single unreadable line, so a tabular value is summarised here
+    // and drawn as a real table underneath, where it has the width to be read.
+    const tabular: Array<{ name: string; parsed: DelimitedTable; raw: string }> = [];
+    const rows = Object.entries(result.outputs).map(([name, value]) => {
+      const parsed = parseDelimitedTable(value);
+      if (parsed) tabular.push({ name, parsed, raw: String(value) });
+      return [
+        { html: `<span class="font-mono text-stone-800">${escapeHtml(name)}</span>` },
+        { html: typeBadge(typeof value === "number" ? "number" : "string") },
+        {
+          html: parsed
+            ? `<span class="text-stone-500">${escapeHtml(describeTable(parsed))}</span>`
+            : `<span class="font-mono text-stone-900">${escapeHtml(String(value))}</span>`,
+        },
+      ];
+    });
     const outputs = rows.length
-      ? table(["Output", "Type", "Value"], rows)
+      ? table(["Output", "Type", "Value"], rows) + tabular.map(tabularOutput).join("")
       : `<p class="text-sm text-stone-500">No outputs declared for this capability.</p>`;
     const checkpoints = result.checkpointsPassed.length
       ? `<ul class="mt-3 space-y-1">${result.checkpointsPassed
@@ -748,6 +762,27 @@ function resultSection(record: RunRecord): string {
 // ---------------------------------------------------------------------------
 // Human intervention
 // ---------------------------------------------------------------------------
+
+/**
+ * One table-valued output, drawn full width under the outputs list.
+ *
+ * The raw string stays reachable in a disclosure rather than being replaced.
+ * What the capability actually returned is the evidence — the table is a
+ * reading of it — and a reviewer checking a balance against a screenshot needs
+ * the bytes, not this function's interpretation of them.
+ */
+function tabularOutput(entry: { name: string; parsed: DelimitedTable; raw: string }): string {
+  return `<div class="mt-4 border-t border-stone-100 pt-3">
+    <h3 class="${TYPE.label}">${escapeHtml(entry.name)}</h3>
+    <div class="mt-2">${table(entry.parsed.header, entry.parsed.rows.map((r) => r.map((c) => c)))}</div>
+    <details class="mt-2">
+      <summary class="cursor-pointer text-xs text-muted">Raw extracted value</summary>
+      <pre class="mt-2 overflow-x-auto rounded-lg bg-stone-900 px-3 py-2 text-xs text-stone-100">${escapeHtml(
+        entry.raw,
+      )}</pre>
+    </details>
+  </div>`;
+}
 
 function humanSection(record: RunRecord): string {
   const intervention: HumanIntervention | undefined =
