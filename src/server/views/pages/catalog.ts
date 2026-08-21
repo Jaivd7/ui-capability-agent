@@ -87,7 +87,7 @@ export function catalogPage(entries: CatalogEntry[], opts: CatalogPageOptions = 
 
 function pageHeader(count: number): string {
   return `<div class="mb-6">
-    <h1 class="${TYPE.pageTitle}">Capabilities</h1>
+    <h2 class="${TYPE.pageTitle}">Capabilities</h2>
     <p class="mt-1.5 max-w-2xl ${TYPE.body}">${
       count === 0
         ? "Recorded capability artifacts, grouped by target app."

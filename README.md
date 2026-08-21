@@ -71,20 +71,26 @@ npm run dashboard      # http://localhost:4300
 Nothing else needs starting: MERIDIAN CORE is hosted, and the dashboard owns
 its own browser. From there, without touching a terminal:
 
-1. **Capabilities** — the catalog, grouped by app. Each card shows the typed
-   call contract, the business-outcome codes it can return, whether it needs a
-   supervisor, and whether it contains an irreversible step. Expand one to read
-   the recorded recipe.
-2. **Invoke** — the form is generated from the capability's `inputParams`, with
+1. **Ask** — the box at the top of the landing page. Describe what you want in
+   a sentence ("read member 101555's contact details") and it resolves that to
+   one capability and opens its invoke form with the stated values filled in.
+   It is a router, not a driver: it never invokes anything, and every URL it
+   produces is one you could type yourself. Needs `ANTHROPIC_API_KEY`; without
+   one it disables itself and says so, and nothing else on the console changes.
+2. **Capabilities** — the catalog, directly below the ask box, grouped by app.
+   Each card shows the typed call contract, the business-outcome codes it can
+   return, whether it needs a supervisor, and whether it contains an
+   irreversible step. Expand one to read the recorded recipe.
+3. **Invoke** — the form is generated from the capability's `inputParams`, with
    each declared type shown next to its field. Submit and you land on the run
    page.
-3. **Watch it** — the run page streams a live screenshot and a step-by-step
+4. **Watch it** — the run page streams a live screenshot and a step-by-step
    timeline, then renders the structured result: typed outputs on success, a
    neutral card for a business outcome, and the failing step with expected vs.
    observed on a hard failure.
 
-The overview page has three one-click demo links covering the happy path, a
-business outcome, and a permission denial.
+The landing page carries one-click demo links covering the happy path, a
+business outcome, a permission denial and an escalation.
 
 **To see the unhappy paths deliberately:** the **Faults** page arms MERIDIAN
 CORE's own fault injection (validation / notfound / permission / timeout /
@@ -213,7 +219,8 @@ browser (no LLM, so no API cost). Takes about a minute.
 - `config/guardrails.json` — allowed origins/routes/action types, and the
   irreversible-action policy. Edit this to change what the agent is
   permitted to do; no code change required.
-- `.env` — `ANTHROPIC_API_KEY` (discovery only), `MOCK_APP_PORT`,
+- `.env` — `ANTHROPIC_API_KEY` (discovery, and the ask box's intent routing —
+  never replay), `MOCK_APP_PORT`,
   `MOCK_APP_BASE_URL`, `SESSION_TTL_MS`, `HEADLESS=false` to watch the browser
   during discovery/replay, and `MOCK_TELLER_USERNAME` / `MOCK_TELLER_PASSWORD` /
   `MOCK_READONLY_USERNAME` / `MOCK_READONLY_PASSWORD` to override the mock

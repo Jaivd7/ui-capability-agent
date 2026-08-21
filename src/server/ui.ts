@@ -9,6 +9,8 @@ import { listAvailableEvidence } from "./runtime/evidence-reader.js";
 import { livePlaceholderSvg } from "./runtime/live-view.js";
 import { layout } from "./views/layout.js";
 import { catalogPage, type DemoLink } from "./views/pages/catalog.js";
+import { askPanel } from "./views/pages/ask.js";
+import { invokeUrlFor, resolveIntent, type RoutableCapability } from "../chat/resolve-intent.js";
 import { invokePage } from "./views/pages/invoke.js";
 import { runDetailPage } from "./views/pages/run-detail.js";
 import { runsPage } from "./views/pages/runs.js";
@@ -62,17 +64,26 @@ export function createUiRouter(deps: ServerDeps): Router {
    * whatever anyone has already bookmarked, and a redirect would put a pointless
    * round trip on the most-followed link in the app.
    */
-  const renderCatalog = (_req: unknown, res: Response) => {
+  const renderCatalog = (req: { query?: unknown }, res: Response) => {
     // Pass the *detail* entries: the catalog type deliberately omits steps and
     // locators, because those are UI knowledge an agent shouldn't need — but a
     // human reviewer reading the page wants the recipe.
     const details = deps.catalog.list().map((e) => deps.catalog.get(e.id) ?? e);
     const active = deps.runs.active();
+    // The ask box sits above the catalog rather than on a page of its own, so
+    // the manual route is never more than a scroll away — see views/pages/ask.ts.
+    const q = queryValues(req.query);
+    const ask = askPanel({
+      modelConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
+      ...(q.request ? { request: q.request } : {}),
+      ...(q.note ? { note: q.note } : {}),
+      examples: askExamples(details),
+    });
     res.send(
       page({
         title: "Capabilities",
         activeNav: "capabilities",
-        body: catalogPage(details, {
+        body: ask + catalogPage(details, {
           ...(active ? { active } : {}),
           counts: countByStatus(deps),
           demoLinks: demoLinks(deps),
@@ -85,6 +96,51 @@ export function createUiRouter(deps: ServerDeps): Router {
 
   ui.get("/", renderCatalog);
   ui.get("/capabilities", renderCatalog);
+
+  /**
+   * Resolve a sentence to a prefilled invoke form.
+   *
+   * A 303 to a URL a person could have typed is the entire output — this route
+   * never invokes, never touches the browser pool, and adds no reach a human
+   * did not already have. The failure modes all land back on the catalog with
+   * an explanation rather than on an error page, because the catalog is the
+   * fallback: everything the router might have found is listed on it.
+   */
+  ui.post("/ask", async (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const request = typeof body.request === "string" ? body.request.trim() : "";
+    const back = (note?: string) =>
+      res.redirect(
+        303,
+        `/?${new URLSearchParams({ ...(request ? { request } : {}), ...(note ? { note } : {}) }).toString()}`,
+      );
+
+    if (!request) return back();
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return back("ANTHROPIC_API_KEY is not set, so requests cannot be routed. Pick a capability below instead.");
+    }
+
+    const capabilities: RoutableCapability[] = deps.catalog.list().map((e) => ({
+      id: e.id,
+      name: e.name,
+      description: e.description,
+      inputParams: e.inputParams,
+    }));
+
+    try {
+      const { default: Anthropic } = await import("@anthropic-ai/sdk");
+      const intent = await resolveIntent(request, {
+        client: new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }),
+        capabilities,
+      });
+      if (intent.kind === "unclear") return back(intent.message);
+      return res.redirect(303, invokeUrlFor(intent));
+    } catch (err) {
+      // A router outage must not take the console down with it. The catalog is
+      // right there and works.
+      return back(`Could not reach the model to route that (${err instanceof Error ? err.message : String(err)}).`);
+    }
+  });
 
   ui.get("/capabilities/:id/invoke", (req, res) => {
     const entry = deps.catalog.get(req.params.id);
@@ -435,6 +491,24 @@ function demoLinks(deps: ServerDeps): DemoLink[] {
     });
   }
   return links;
+}
+
+/**
+ * Sample requests for the ask box, phrased from what is actually recorded.
+ *
+ * Built from the catalog rather than hard-coded, so a console with different
+ * capabilities suggests different things — and an example never references a
+ * capability that is not there to route to. The member number is the one the
+ * app's own demo data panel already publishes, so it is a value a reviewer has
+ * seen before rather than a magic constant.
+ */
+function askExamples(entries: Array<{ id: string; inputParams: Array<{ name: string }> }>): string[] {
+  const has = (id: string) => entries.some((e) => e.id === id);
+  const out: string[] = [];
+  if (has("meridian-read-member-record")) out.push("read member 101555's contact details");
+  if (has("meridian-read-share-balance")) out.push("balance of share S0001 for 101555");
+  if (has("meridian-find-member-by-name")) out.push("find the member called Turing");
+  return out.slice(0, 3);
 }
 
 /** Query params prefill the invoke form, which is what makes "re-invoke with these" a link. */
