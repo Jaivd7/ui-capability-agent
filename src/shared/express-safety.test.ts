@@ -94,7 +94,7 @@ describe("safeRouter", () => {
       throw new Error("nope");
     });
     let sawError = false;
-    router.use(((err: unknown, _req: unknown, res: express.Response, _next: unknown) => {
+    router.use(((_err: unknown, _req: unknown, res: express.Response, _next: unknown) => {
       sawError = true;
       res.status(503).send("handled by the router's own error middleware");
     }) as express.ErrorRequestHandler);

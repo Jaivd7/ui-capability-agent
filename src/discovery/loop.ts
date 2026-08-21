@@ -373,7 +373,13 @@ export async function runDiscovery(opts: RunDiscoveryOptions): Promise<Discovery
       // either (replay's is already correct and already committed in
       // evidence/), discovery additionally emits `status` in replay's
       // vocabulary so one reader can classify both without branching.
-      status: finalOutcome === "success" || finalOutcome === "escalated_completed" ? "success" : "hard_failure",
+      // Only a clean `success` is a success. `escalated_completed` used to be
+      // counted here too, which contradicted the rest of the system: neither
+      // cli.ts nor discovery-runner.ts builds an artifact for it, because a
+      // human clicking through the console records no steps and discovery's
+      // output *is* the recording. A run that produced nothing was landing in
+      // history as a green row.
+      status: finalOutcome === "success" ? "success" : "hard_failure",
       reason,
       stepCount: steps.length,
       outputCount: outputs.length,

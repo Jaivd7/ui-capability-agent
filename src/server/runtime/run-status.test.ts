@@ -95,12 +95,15 @@ describe("statusFromEvents: discovery outcomes", () => {
         DISCOVERY_START,
         { type: "escalation_raised", kind: "discovery_stuck", reason: "stuck" },
         { type: "escalation_resolved", decision: "resumed", actionCount: 1 },
-        { type: "run_end", outcome: "escalated_completed", status: "success", humanIntervened: true },
+        { type: "run_end", outcome: "escalated_completed", status: "hard_failure", humanIntervened: true },
       ),
       false,
     );
 
-    expect(state.status).toBe("succeeded");
+    // Not succeeded: a human unblocking a stuck discovery records no steps, so
+    // no artifact is built for this outcome. The intervention is still on the
+    // run -- what happened is visible, it just was not a recording.
+    expect(state.status).toBe("failed");
     expect(state.discoveryOutcome).toBe("escalated_completed");
     expect(state.escalated).toBe(true);
   });

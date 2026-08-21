@@ -32,8 +32,12 @@ export interface PageTarget extends RawPickerTarget {
  *
  * One level rather than arbitrary depth: nested framesets exist but are rare,
  * and the recursion is only worth writing once something needs it. A control
- * deeper than that is missed by the picker and still reachable through the raw
- * selector escape hatch, which is exactly what that escape hatch is for.
+ * deeper than that is missed by the picker, and the raw selector escape hatch
+ * can only aim at a frame this function found — so a control nested two levels
+ * down is currently out of reach of both. That is a real limit, stated here
+ * rather than papered over: this comment used to claim the escape hatch covered
+ * the case, which was untrue, because a bare CSS selector cannot cross a frame
+ * boundary at all.
  */
 export async function describePageTargets(page: Page): Promise<PageTarget[]> {
   const targets: PageTarget[] = [];
@@ -148,6 +152,26 @@ export interface DecodedPick {
 }
 
 const FRAME_STRATEGIES = new Set(["name", "url", "index"]);
+
+/**
+ * Parses the raw form's frame field: a bare `FrameLocator[]`, no selector.
+ *
+ * Shares `decodePick`'s validation by wrapping the value in the same envelope,
+ * so a frame path from the escape hatch is checked exactly as strictly as one
+ * from the picker.
+ */
+export function decodeFramePath(raw: unknown): FrameLocator[] {
+  if (typeof raw !== "string" || raw.trim() === "") return [];
+  return decodePick(JSON.stringify({ s: "*", f: safeParse(raw) }))?.frame ?? [];
+}
+
+function safeParse(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 /** Returns undefined for anything that isn't a well-formed pick, including absent input. */
 export function decodePick(raw: unknown): DecodedPick | undefined {

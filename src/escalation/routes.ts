@@ -7,7 +7,7 @@ import {
   targetsIrreversibleStep,
 } from "./action-policy.js";
 import { renderConsole } from "./console-view.js";
-import { decodePick, describePageTargets } from "./page-targets.js";
+import { decodeFramePath, decodePick, describePageTargets } from "./page-targets.js";
 import type { InterventionRegistry, PendingIntervention } from "./intervention-registry.js";
 
 /**
@@ -39,6 +39,33 @@ export function escalationRouter(registry: InterventionRegistry): Router {
 
   const basePath = (runId: string) => `/runs/${runId}/escalation`;
 
+  /**
+   * True when this submission came from a console for a *different*
+   * intervention on the same run — a tab left open on an earlier one.
+   *
+   * Checked only when the field is present. A browser always sends it, so every
+   * real stale tab is caught; a scripted caller driving the same HTTP surface
+   * (which is how the engine tests act as the operator) simply omits it and is
+   * treated as deliberate. Refusing is the honest answer: the question that
+   * console was asking has already been answered, and the one on screen now is
+   * a different question.
+   */
+  const staleSubmission = (
+    pending: PendingIntervention,
+    body: { interventionId?: unknown },
+    res: { status: (n: number) => { send: (b: string) => unknown } },
+  ): boolean => {
+    const submitted = body.interventionId;
+    if (typeof submitted !== "string" || submitted === pending.interventionId) return false;
+    res
+      .status(409)
+      .send(
+        "This console was showing an earlier intervention for this run, which has already been resolved. " +
+          "Reload to see the one that is waiting now.",
+      );
+    return true;
+  };
+
   router.get("/", async (req, res) => {
     const pending = resolvePending(req, res);
     if (!pending) return;
@@ -52,6 +79,7 @@ export function escalationRouter(registry: InterventionRegistry): Router {
     res.send(
       renderConsole(pending.context, pending.actions, {
         basePath: basePath(pending.runId),
+        interventionId: pending.interventionId,
         waitingMs: Date.now() - new Date(pending.raisedAt).getTime(),
         currentUrl: pending.page.url(),
         targets,
@@ -81,15 +109,20 @@ export function escalationRouter(registry: InterventionRegistry): Router {
   router.post("/action", async (req, res) => {
     const pending = resolvePending(req, res);
     if (!pending) return;
-    const raw = (req.body ?? {}) as { type?: string; target?: string; value?: string; pick?: string };
+    const raw = (req.body ?? {}) as { type?: string; target?: string; value?: string; pick?: string; frame?: string; interventionId?: string };
+    if (staleSubmission(pending, raw, res)) return;
     // A picked target carries its own selector and frame; the raw selector
     // field carries only a selector, in the main document. Either way what
     // reaches the policy below is the same shape, so the picker is an input
     // method and not a second code path with its own rules.
     const picked = decodePick(raw.pick);
+    // A pick carries its own frame; the raw field carries one only if the
+    // operator chose it from the frames this render discovered.
+    const frame = picked ? picked.frame : decodeFramePath(raw.frame);
     const body = {
       ...raw,
-      ...(picked ? { target: picked.selector, frame: picked.frame } : {}),
+      ...(picked ? { target: picked.selector } : {}),
+      frame,
     };
 
     // Policy first, always. This is the check the console used to skip
@@ -131,6 +164,7 @@ export function escalationRouter(registry: InterventionRegistry): Router {
   router.post("/approve", async (req, res) => {
     const pending = resolvePending(req, res);
     if (!pending) return;
+    if (staleSubmission(pending, (req.body ?? {}) as { interventionId?: string }, res)) return;
     if (!pending.executeApprovedStep) {
       return res.status(400).send("No pending step to approve.");
     }
@@ -160,6 +194,7 @@ export function escalationRouter(registry: InterventionRegistry): Router {
   router.post("/reject", (req, res) => {
     const pending = resolvePending(req, res);
     if (!pending) return;
+    if (staleSubmission(pending, (req.body ?? {}) as { interventionId?: string }, res)) return;
     pending.record({ timestamp: new Date().toISOString(), type: "reject", detail: "operator rejected the pending action" });
     pending.resolve("aborted");
     res.redirect(303, `/runs/${pending.runId}`);
@@ -168,6 +203,7 @@ export function escalationRouter(registry: InterventionRegistry): Router {
   router.post("/resume", async (req, res) => {
     const pending = resolvePending(req, res);
     if (!pending) return;
+    if (staleSubmission(pending, (req.body ?? {}) as { interventionId?: string }, res)) return;
     const refusal = await pending.preResumeCheck?.(pending);
     if (refusal) {
       pending.record({ timestamp: new Date().toISOString(), type: "abort", detail: refusal, blocked: true });
@@ -182,6 +218,7 @@ export function escalationRouter(registry: InterventionRegistry): Router {
   router.post("/abort", (req, res) => {
     const pending = resolvePending(req, res);
     if (!pending) return;
+    if (staleSubmission(pending, (req.body ?? {}) as { interventionId?: string }, res)) return;
     pending.record({ timestamp: new Date().toISOString(), type: "abort", detail: "operator signaled abort" });
     pending.resolve("aborted");
     res.redirect(303, `/runs/${pending.runId}`);

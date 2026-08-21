@@ -16,6 +16,14 @@ import { encodePick, type PageTarget } from "./page-targets.js";
 export interface ConsoleViewOptions {
   basePath: string;
   /**
+   * Identifies *this* intervention, submitted with every form.
+   *
+   * A run can escalate more than once and both consoles live at the same URL,
+   * so a tab left open on the first one could otherwise resolve the second.
+   * Carrying the id turns that into a refusal the operator can read.
+   */
+  interventionId?: string;
+  /**
    * What the live page currently offers, enumerated per render.
    *
    * The console used to ask the operator to type a CSS selector, which on a
@@ -47,6 +55,9 @@ export function renderConsole(
   opts: ConsoleViewOptions,
 ): string {
   const basePath = opts.basePath;
+  const stamp = opts.interventionId
+    ? `<input type="hidden" name="interventionId" value="${escape(opts.interventionId)}" />`
+    : "";
   const isConfirmation = ctx.kind === "irreversible_confirmation";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>Operator Console</title>
@@ -163,15 +174,15 @@ export function renderConsole(
     <legend>Pending irreversible action</legend>
     <p>${escape(ctx.pendingAction?.description ?? "")}</p>
     <p class="meta">${escape(ctx.pendingAction?.locatorSummary ?? "")}</p>
-    <form class="inline" method="post" action="${basePath}/approve"><button class="danger" type="submit">Approve &amp; Execute</button></form>
-    <form class="inline" method="post" action="${basePath}/reject"><button class="safe" type="submit">Reject</button></form>
+    <form class="inline" method="post" action="${basePath}/approve">${stamp}<button class="danger" type="submit">Approve &amp; Execute</button></form>
+    <form class="inline" method="post" action="${basePath}/reject">${stamp}<button class="safe" type="submit">Reject</button></form>
   </fieldset>`
       : `
-  ${manualActionPanel(basePath, opts.targets ?? [])}
+  ${manualActionPanel(basePath, opts.targets ?? [], stamp)}
   <fieldset>
     <legend>When you are done</legend>
-    <form class="inline" method="post" action="${basePath}/resume"><button class="safe" type="submit">Hand back to automation</button></form>
-    <form class="inline" method="post" action="${basePath}/abort"><button class="danger" type="submit">Abort run</button></form>
+    <form class="inline" method="post" action="${basePath}/resume">${stamp}<button class="safe" type="submit">Hand back to automation</button></form>
+    <form class="inline" method="post" action="${basePath}/abort">${stamp}<button class="danger" type="submit">Abort run</button></form>
     <p class="meta">${escape(handBackNote(ctx.kind))}</p>
   </fieldset>`
   }
@@ -284,7 +295,7 @@ function guidancePanel(ctx: InterventionContext): string {
  * works on a page and an application this code has never seen — nothing about
  * any target is written down here.
  */
-function manualActionPanel(basePath: string, targets: PageTarget[]): string {
+function manualActionPanel(basePath: string, targets: PageTarget[], stamp: string): string {
   const clickable = targets.filter((t) => t.kind === "click");
   const fillable = targets.filter((t) => t.kind === "fill");
   const selectable = targets.filter((t) => t.kind === "select");
@@ -304,7 +315,7 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
       "press a link or button that is already on this page",
       clickable.length
         ? `<form method="post" action="${basePath}/action" class="row">
-             <input type="hidden" name="type" value="click" />
+             ${stamp}<input type="hidden" name="type" value="click" />
              <label>Which one <select name="pick">${optionsFor(clickable)}</select></label>
              <button type="submit">Click it</button>
            </form>`
@@ -315,7 +326,7 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
       "type a value into a text field on this page",
       fillable.length
         ? `<form method="post" action="${basePath}/action" class="row">
-             <input type="hidden" name="type" value="fill" />
+             ${stamp}<input type="hidden" name="type" value="fill" />
              <label>Type into <select name="pick">${optionsFor(fillable)}</select></label>
              <label>the value <input name="value" size="24" /></label>
              <button type="submit">Fill it</button>
@@ -326,14 +337,14 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
       "Select",
       "choose one of the options a dropdown on this page offers",
       selectable.length
-        ? selectable.map((target) => selectRow(basePath, target)).join("")
+        ? selectable.map((target) => selectRow(basePath, target, stamp)).join("")
         : absent("No dropdowns on this page."),
     )}
     ${verb(
       "Go to",
       "jump straight to another page of this application, without clicking your way there",
       `<form method="post" action="${basePath}/action" class="row">
-         <input type="hidden" name="type" value="navigate" />
+         ${stamp}<input type="hidden" name="type" value="navigate" />
          <input name="value" size="34" placeholder="/menu" />
          <button type="submit">Go</button>
        </form>
@@ -344,7 +355,7 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
   <details>
     <summary>Raw selector (for anything not listed above)</summary>
     <form method="post" action="${basePath}/action" class="row">
-      <select name="type">
+      ${stamp}<select name="type">
         <option value="click">click</option>
         <option value="fill">fill</option>
         <option value="select">select</option>
@@ -352,10 +363,10 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
       </select>
       <input name="target" placeholder="CSS selector" size="28" />
       <input name="value" placeholder="value / URL" size="20" />
+      ${frameChooser(targets)}
       <button type="submit">Perform action</button>
     </form>
-    <p class="meta">A selector matching more than one element is refused rather than guessed at.
-    This addresses the main document only &mdash; a control inside a frame has to come from the lists above.</p>
+    <p class="meta">A selector matching more than one element is refused rather than guessed at.</p>
   </details>`;
 }
 
@@ -365,6 +376,33 @@ function verb(name: string, what: string, body: string): string {
     <div class="verb-head"><span class="verb-name">${escape(name)}</span><span class="verb-what">${escape(what)}</span></div>
     ${body}
   </div>`;
+}
+
+/**
+ * Which document a raw selector applies to.
+ *
+ * The escape hatch used to post a selector and nothing else, so it always
+ * resolved against the main document — while `page-targets.ts` claimed a
+ * control too deep for the picker was "still reachable through the raw selector
+ * escape hatch, which is exactly what that escape hatch is for". It was not:
+ * CSS cannot cross a frame boundary, so on the nested framesets this project
+ * exists for, the picker missed the control and the fallback could not address
+ * it either. Two mechanisms blind to the same case.
+ *
+ * The frames offered are the ones the picker already discovered on this render,
+ * so this adds a way to *aim* at a known frame rather than a way to name an
+ * arbitrary one. It is rendered only when the page actually has frames.
+ */
+function frameChooser(targets: PageTarget[]): string {
+  const byLabel = new Map<string, PageTarget["frame"]>();
+  for (const t of targets) {
+    if (t.frameLabel && t.frame.length > 0 && !byLabel.has(t.frameLabel)) byLabel.set(t.frameLabel, t.frame);
+  }
+  if (byLabel.size === 0) return "";
+  const options = [...byLabel.entries()]
+    .map(([label, frame]) => `<option value="${escape(JSON.stringify(frame))}">${escape(label)}</option>`)
+    .join("");
+  return `<label>in <select name="frame"><option value="">the main document</option>${options}</select></label>`;
 }
 
 /**
@@ -379,12 +417,12 @@ function verb(name: string, what: string, body: string): string {
  * on this kind of app a share's label embeds a balance that changes whenever
  * money moves, while its value is stable.
  */
-function selectRow(basePath: string, target: PageTarget): string {
+function selectRow(basePath: string, target: PageTarget, stamp: string): string {
   const options = (target.options ?? [])
     .map((o) => `<option value="${escape(o.value)}">${escape(o.label)}</option>`)
     .join("");
   return `<form method="post" action="${basePath}/action" class="row" style="margin:4px 0;">
-    <input type="hidden" name="type" value="select" />
+    ${stamp}<input type="hidden" name="type" value="select" />
     <input type="hidden" name="pick" value="${escape(encodePick(target))}" />
     <label>Set <strong>${escape(labelOf(target))}</strong> to <select name="value">${options}</select></label>
     <button type="submit">Set it</button>

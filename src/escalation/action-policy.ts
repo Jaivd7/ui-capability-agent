@@ -196,7 +196,14 @@ export async function performHumanAction(
   }
 
   let escaped: string | undefined;
-  const after = evaluateGuardrails({ type: "navigate" }, { currentUrl: page.url(), targetUrl: page.url() }, policy.guardrails);
+  // Scope only. This used to call `evaluateGuardrails` with a synthetic
+  // `navigate` step, which also runs the *action type* check — so for an app
+  // whose config omits "navigate", every click would have come back "not
+  // allowed" and been reported as having left the allowlist, then walked back.
+  // The question here is only "is the page still somewhere we may be", and
+  // conflating that with "may we navigate" made the answer wrong for a reason
+  // that has nothing to do with where the page is.
+  const after = urlWithinScope(page.url(), policy.guardrails);
   if (!after.allowed) {
     escaped = page.url();
     await page.goBack({ timeout: 10_000 }).catch(() => undefined);
@@ -211,6 +218,27 @@ export async function performHumanAction(
     ...(escaped !== undefined ? { blocked: true, blockReason: `left the allowlist (${escaped}); page was walked back` } : {}),
   };
   return { action, ...(escaped !== undefined ? { escaped } : {}) };
+}
+
+/**
+ * Whether a URL is inside the app's allowlist, independent of what action might
+ * be performed there. `evaluateGuardrails` answers a bigger question; this is
+ * the half of it that describes the *page*.
+ */
+function urlWithinScope(url: string, guardrails: GuardrailsConfig): { allowed: boolean; reason?: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { allowed: false, reason: `Malformed URL: "${url}".` };
+  }
+  if (!guardrails.allowedOrigins.includes(parsed.origin)) {
+    return { allowed: false, reason: `Origin "${parsed.origin}" is not in the allowed origins.` };
+  }
+  if (!guardrails.allowedRoutePatterns.some((pattern) => new RegExp(pattern).test(parsed.pathname))) {
+    return { allowed: false, reason: `Route "${parsed.pathname}" does not match any allowed route pattern.` };
+  }
+  return { allowed: true };
 }
 
 export class HumanActionError extends Error {
@@ -231,17 +259,28 @@ export class HumanActionError extends Error {
  */
 export function targetsIrreversibleStep(target: string, artifact?: CapabilityArtifact): boolean {
   if (!artifact || !target) return false;
-  const needle = target.toLowerCase();
+  const needle = target.toLowerCase().trim();
+  // Below this, a substring match says nothing. The recorded text for a Post
+  // button is literally "Post", which matched every selector containing the
+  // letters p-o-s-t -- `#postcode`, `[name=postal]`, `.compose-post` -- and
+  // flagged ordinary actions as touching an irreversible step. A flag that
+  // fires on unrelated fields trains the reader to ignore it, which costs more
+  // than the occasional missed match: this is a visibility aid, and the
+  // artifact's own guardrail is what actually gates the step.
+  const MIN_MATCH = 4;
+  if (needle.length < MIN_MATCH) return false;
   return artifact.steps.some((step) => {
     if (!step.irreversible || !("locator" in step)) return false;
     return step.locator.some((c) => {
-      const text =
+      const raw =
         c.strategy === "role" ? c.name
         : c.strategy === "css" ? c.selector
         : c.strategy === "xpath" ? c.expression
         : "text" in c ? c.text
         : "";
-      return Boolean(text) && (needle.includes(text!.toLowerCase()) || text!.toLowerCase().includes(needle));
+      const text = (raw ?? "").toLowerCase().trim();
+      if (text.length < MIN_MATCH) return false;
+      return needle.includes(text) || text.includes(needle);
     });
   });
 }

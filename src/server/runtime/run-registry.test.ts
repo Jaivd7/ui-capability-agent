@@ -292,7 +292,7 @@ describe("createRunRegistry: list and events", () => {
     ]);
     writeLog("meridian-core", "discovery-run", "cap-c-1787248999999", [
       { timestamp: "2026-08-20T18:10:00.000Z", type: "run_start", kind: "discovery", capabilityId: "cap-c", role: "teller" },
-      { timestamp: "2026-08-20T18:10:30.000Z", type: "run_end", outcome: "escalated_completed", status: "success", humanIntervened: true },
+      { timestamp: "2026-08-20T18:10:30.000Z", type: "run_end", outcome: "escalated_completed", status: "hard_failure", humanIntervened: true },
     ]);
 
     const runs = registry();
@@ -315,7 +315,13 @@ describe("createRunRegistry: list and events", () => {
     expect(runs.list({ app: "meridian-core" }).map((r) => r.runId)).toEqual(["cap-c-1787248999999"]);
     expect(runs.list({ capabilityId: "cap-b" }).map((r) => r.runId)).toEqual(["cap-b-1787248923292"]);
     expect(runs.list({ kind: "discovery" }).map((r) => r.runId)).toEqual(["cap-c-1787248999999"]);
-    expect(runs.list({ status: "failed" }).map((r) => r.runId)).toEqual(["cap-b-1787248923292"]);
+    // Two failures now: cap-b is a replay hard failure, and cap-c is the
+    // escalated discovery -- resumed by a human, but no artifact was built,
+    // so it did not succeed.
+    expect(runs.list({ status: "failed" }).map((r) => r.runId)).toEqual([
+      "cap-c-1787248999999",
+      "cap-b-1787248923292",
+    ]);
     expect(runs.list({ escalated: true }).map((r) => r.runId)).toEqual(["cap-c-1787248999999"]);
     expect(runs.list({ limit: 2 })).toHaveLength(2);
   });

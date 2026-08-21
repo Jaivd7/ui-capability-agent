@@ -20,6 +20,17 @@ import type { EscalationOutcome, HumanAction, InterventionContext } from "./type
  */
 export interface PendingIntervention {
   runId: string;
+  /**
+   * Unique per intervention, not per run.
+   *
+   * A single replay can escalate twice — an irreversible confirmation, then a
+   * hard failure later in the same flow — and the registry is keyed by run, so
+   * both consoles live at the same URL. The first console's tab is still open
+   * and still has a Resume button; without an identity to check, submitting it
+   * resolved whichever intervention happened to be pending, which by then was a
+   * different one asking a different question.
+   */
+  interventionId: string;
   context: InterventionContext;
   raisedAt: string;
   page: Page;
@@ -37,7 +48,7 @@ export interface PendingIntervention {
 
 export interface InterventionRegistry {
   register(
-    pending: Omit<PendingIntervention, "record" | "resolve">,
+    pending: Omit<PendingIntervention, "record" | "resolve" | "interventionId">,
     settle: (outcome: EscalationOutcome) => void,
   ): PendingIntervention;
   get(runId: string): PendingIntervention | undefined;
@@ -48,11 +59,14 @@ export interface InterventionRegistry {
 
 export function createInterventionRegistry(): InterventionRegistry {
   const pending = new Map<string, PendingIntervention>();
+  let counter = 0;
 
   return {
     register(base, settle) {
+      counter += 1;
       const entry: PendingIntervention = {
         ...base,
+        interventionId: `${base.runId}#${counter}`,
         record(action) {
           entry.actions.push(action);
           entry.logger.log({
@@ -65,7 +79,10 @@ export function createInterventionRegistry(): InterventionRegistry {
           });
         },
         resolve(decision) {
-          if (!pending.has(entry.runId)) return; // already settled; a stale tab double-submitted
+          // Identity, not presence: `pending.has(runId)` was true again as soon
+          // as a *second* intervention registered for the same run, so a stale
+          // submission from the first console resolved the second one.
+          if (pending.get(entry.runId)?.interventionId !== entry.interventionId) return;
           pending.delete(entry.runId);
           entry.logger.log({
             type: "escalation_resolved",

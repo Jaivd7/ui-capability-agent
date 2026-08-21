@@ -152,11 +152,18 @@ function fromReplayVocabulary(status: unknown): RunStatus | undefined {
 
 /**
  * Discovery's outcomes collapse to two: it either produced a usable recording
- * or it didn't. `escalated_completed` counts as success because a human
- * unblocking the loop is a supported path to a recording, not a degraded one.
+ * or it didn't.
+ *
+ * `escalated_completed` is *not* success, though it was until this comment was
+ * written. A human unblocking a stuck discovery does not produce a recording —
+ * their console actions are not appended to `steps`, and both `cli.ts` and
+ * `discovery-runner.ts` already decline to build an artifact for any outcome
+ * other than `success`. Counting it here contradicted them, and put a run that
+ * yielded nothing into history as succeeded. What the human did is still
+ * recorded on the run; it just did not produce the artifact the run existed for.
  */
 function fromDiscoveryOutcome(outcome: string): RunStatus {
-  return outcome === "success" || outcome === "escalated_completed" ? "succeeded" : "failed";
+  return outcome === "success" ? "succeeded" : "failed";
 }
 
 // ---------------------------------------------------------------------------

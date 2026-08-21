@@ -684,7 +684,7 @@ function resultSection(record: RunRecord): string {
         {
           html: parsed
             ? `<span class="text-stone-500">${escapeHtml(describeTable(parsed))}</span>`
-            : `<span class="font-mono text-stone-900">${escapeHtml(String(value))}</span>`,
+            : outputValueCell(value),
         },
       ];
     });
@@ -762,6 +762,29 @@ function resultSection(record: RunRecord): string {
 // ---------------------------------------------------------------------------
 // Human intervention
 // ---------------------------------------------------------------------------
+
+/**
+ * A value that came back from disk rather than from the live run.
+ *
+ * Live records hold unredacted outputs; records rebuilt from disk hold whatever
+ * the persisted evidence holds, which is redacted. That asymmetry is
+ * intentional (see RunRegistry) but it has a confusing surface: `shares` on a
+ * restarted dashboard is the twelve characters `S[REDACTED]]`, which has no
+ * tabs, so it is not recognised as a table and renders as a stub with no
+ * explanation. The reader is left unsure whether the run captured anything.
+ *
+ * The stub is kept rather than hidden — its first and last characters are real,
+ * which is the whole point of shape-preserving masking — and labelled.
+ */
+function outputValueCell(value: string | number): string {
+  const text = String(value);
+  const redacted = text.includes("[REDACTED]");
+  return `<span class="font-mono text-stone-900">${escapeHtml(text)}</span>${
+    redacted
+      ? `<span class="ml-2 text-xs text-muted">redacted in stored evidence; the live run showed the full value</span>`
+      : ""
+  }`;
+}
 
 /**
  * One table-valued output, drawn full width under the outputs list.
