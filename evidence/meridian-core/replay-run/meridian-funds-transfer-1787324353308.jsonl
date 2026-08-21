@@ -1,0 +1,30 @@
+{"timestamp":"2026-08-21T14:59:14.213Z","type":"run_start","kind":"replay","runId":"meridian-funds-transfer-1787324353308","capabilityId":"meridian-funds-transfer","capabilityVersion":2,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"100987","fromShareCode":"S0001-13","toShareCode":"S0070","amount":100.97,"memo":"Test"}}
+{"timestamp":"2026-08-21T14:59:14.312Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T14:59:20.335Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T14:59:26.429Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T14:59:32.574Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T14:59:38.596Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T14:59:44.609Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T14:59:50.628Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T14:59:56.645Z","type":"step_result","stepId":"step-8","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T15:00:02.732Z","type":"step_result","stepId":"step-9","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T15:00:08.785Z","type":"escalation_raised","runId":"meridian-funds-transfer-1787324353308","kind":"irreversible_confirmation","reason":"Step is marked irreversible and its amount (100.97) is at or above the 100 approval threshold.","currentUrl":"https://web-sample.interface-hiring.com/members/100987/transfer/review","currentStepId":"step-10","screenshotPath":"/Users/jaidamani/Desktop/Projects/interface.ai take-home/.claude/worktrees/ui-ledger-restyle/evidence/meridian-core/replay-run/meridian-funds-transfer-1787324353308.escalation.png"}
+{"timestamp":"2026-08-21T15:00:08.785Z","type":"escalation_console_started","runId":"meridian-funds-transfer-1787324353308","consoleUrl":"/runs/meridian-funds-transfer-1787324353308/escalation"}
+{"timestamp":"2026-08-21T15:00:13.779Z","type":"human_action","runId":"meridian-funds-transfer-1787324353308","actionType":"approve_step","detail":"Post Transfer button - commits the transfer"}
+{"timestamp":"2026-08-21T15:00:13.780Z","type":"escalation_resolved","runId":"meridian-funds-transfer-1787324353308","decision":"resumed","actionCount":1}
+{"timestamp":"2026-08-21T15:00:13.781Z","type":"step_result","stepId":"step-10","ok":true,"attempt":1,"humanApproved":true}
+{"timestamp":"2026-08-21T15:00:19.805Z","type":"locator_resolved","stepId":"step-11","candidateIndex":1,"strategy":"css","matchCount":1,"usedFallback":true}
+{"timestamp":"2026-08-21T15:00:19.806Z","type":"extracted","stepId":"step-11","outputName":"confirmationNumber","value":"C[REDACTED]8"}
+{"timestamp":"2026-08-21T15:00:19.806Z","type":"step_result","stepId":"step-11","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T15:00:25.831Z","type":"locator_resolved","stepId":"step-12","candidateIndex":1,"strategy":"css","matchCount":1,"usedFallback":true}
+{"timestamp":"2026-08-21T15:00:25.832Z","type":"extracted","stepId":"step-12","outputName":"fromNewBalance","value":"$[REDACTED])"}
+{"timestamp":"2026-08-21T15:00:25.832Z","type":"step_result","stepId":"step-12","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T15:00:31.857Z","type":"locator_resolved","stepId":"step-13","candidateIndex":1,"strategy":"css","matchCount":1,"usedFallback":true}
+{"timestamp":"2026-08-21T15:00:31.859Z","type":"extracted","stepId":"step-13","outputName":"toNewBalance","value":"$[REDACTED])"}
+{"timestamp":"2026-08-21T15:00:31.860Z","type":"step_result","stepId":"step-13","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T15:00:37.878Z","type":"checkpoint_passed","description":"URL reflects the posted transfer page for the specified member"}
+{"timestamp":"2026-08-21T15:00:37.884Z","type":"checkpoint_passed","description":"Posted screen shows heading confirming transaction completion (static chrome)"}
+{"timestamp":"2026-08-21T15:00:37.891Z","type":"checkpoint_passed","description":"Posted screen shows the Amount label with the exact amount entered"}
+{"timestamp":"2026-08-21T15:00:37.896Z","type":"checkpoint_passed","description":"Posted screen amount cell (sibling of Amount: label) shows the exact input amount"}
+{"timestamp":"2026-08-21T15:00:37.901Z","type":"checkpoint_passed","description":"Posted screen shows a Confirmation number field (static label)"}
+{"timestamp":"2026-08-21T15:00:37.902Z","type":"run_end","status":"success","stepsExecuted":13,"outputNames":["confirmationNumber","fromNewBalance","toNewBalance"],"humanIntervened":true}

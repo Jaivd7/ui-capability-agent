@@ -1,0 +1,30 @@
+{
+  "status": "success",
+  "outputs": {
+    "confirmationNumber": "C[REDACTED]8",
+    "fromNewBalance": "$[REDACTED])",
+    "toNewBalance": "$[REDACTED])"
+  },
+  "checkpointsPassed": [
+    "URL reflects the posted transfer page for the specified member",
+    "Posted screen shows heading confirming transaction completion (static chrome)",
+    "Posted screen shows the Amount label with the exact amount entered",
+    "Posted screen amount cell (sibling of Amount: label) shows the exact input amount",
+    "Posted screen shows a Confirmation number field (static label)"
+  ],
+  "stepsExecuted": 13,
+  "humanIntervention": {
+    "raisedAt": "2026-08-21T15:00:08.747Z",
+    "resolvedAt": "2026-08-21T15:00:13.781Z",
+    "kind": "irreversible_confirmation",
+    "reason": "Step is marked irreversible and its amount (100.97) is at or above the 100 approval threshold.",
+    "decision": "resumed",
+    "actions": [
+      {
+        "timestamp": "2026-08-21T15:00:13.779Z",
+        "type": "approve_step",
+        "detail": "Post Transfer button - commits the transfer"
+      }
+    ]
+  }
+}

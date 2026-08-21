@@ -1,0 +1,21 @@
+{
+  "status": "hard_failure",
+  "stepId": "step-2",
+  "stepDescription": "Extract Share ID for the row matching member number + shareCode",
+  "reason": "Step execution failed and no known outcome matched the resulting state.",
+  "observed": "Could not resolve any locator candidate. Tried 2 candidate(s):\n  [0] role(cell, name=\"101555-BOGUS-9\") -> locator.waitFor: Timeout 5000ms exceeded.\n  [1] xpath(\"//table//tr[td[1][normalize-space(text())='101555-BOGUS-9']]/td[1]\") -> locator.waitFor: Timeout 5000ms exceeded.",
+  "humanIntervention": {
+    "raisedAt": "2026-08-21T15:01:24.070Z",
+    "resolvedAt": "2026-08-21T15:01:42.795Z",
+    "kind": "replay_hard_failure",
+    "reason": "Step execution failed and no known outcome matched the resulting state.",
+    "decision": "aborted",
+    "actions": [
+      {
+        "timestamp": "2026-08-21T15:01:42.793Z",
+        "type": "abort",
+        "detail": "operator signaled abort"
+      }
+    ]
+  }
+}

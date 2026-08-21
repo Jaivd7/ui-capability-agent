@@ -1,0 +1,21 @@
+{
+  "status": "hard_failure",
+  "stepId": "(checkpoint)",
+  "stepDescription": "Success screen shows the opening balance matching the deposit parameter entered",
+  "reason": "Checkpoint not met: Success screen shows the opening balance matching the deposit parameter entered",
+  "observed": "Expected text to contain \"$3000.00\", got \"SHARE OPENED\n\n\nNEW SHARE ESTABLISHED\n\n\nConfirmation:\tCN480224\nNew Share ID:\t100234-MMKT-10\nType:\tMoney Market\nOpening Balance:\t$3,000.00\n\nReturn to Member Record  ·  Main Menu\".",
+  "humanIntervention": {
+    "raisedAt": "2026-08-21T05:30:23.498Z",
+    "resolvedAt": "2026-08-21T05:30:41.440Z",
+    "kind": "replay_hard_failure",
+    "reason": "Checkpoint not met: Success screen shows the opening balance matching the deposit parameter entered",
+    "decision": "resumed",
+    "actions": [
+      {
+        "timestamp": "2026-08-21T05:30:41.439Z",
+        "type": "resume",
+        "detail": "operator signaled resume"
+      }
+    ]
+  }
+}

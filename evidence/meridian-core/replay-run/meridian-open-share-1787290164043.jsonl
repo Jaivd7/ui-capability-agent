@@ -1,0 +1,30 @@
+{"timestamp":"2026-08-21T05:29:24.933Z","type":"run_start","kind":"replay","runId":"meridian-open-share-1787290164043","capabilityId":"meridian-open-share","capabilityVersion":1,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"100234","shareType":"MMKT","deposit":3000}}
+{"timestamp":"2026-08-21T05:29:25.105Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T05:29:30.126Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T05:29:35.201Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T05:29:40.342Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T05:29:45.362Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T05:29:50.374Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T05:29:55.471Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T05:30:00.502Z","type":"escalation_raised","runId":"meridian-open-share-1787290164043","kind":"irreversible_confirmation","reason":"Step is marked irreversible and its amount (3000) is at or above the 100 approval threshold.","currentUrl":"https://web-sample.interface-hiring.com/members/100234/open-share/review","currentStepId":"step-8","screenshotPath":"/Users/jaidamani/Desktop/Projects/interface.ai take-home/.claude/worktrees/ui-ledger-restyle/evidence/meridian-core/replay-run/meridian-open-share-1787290164043.escalation.png"}
+{"timestamp":"2026-08-21T05:30:00.502Z","type":"escalation_console_started","runId":"meridian-open-share-1787290164043","consoleUrl":"/runs/meridian-open-share-1787290164043/escalation"}
+{"timestamp":"2026-08-21T05:30:08.414Z","type":"human_action","runId":"meridian-open-share-1787290164043","actionType":"approve_step","detail":"Click Open Share to finalize opening the new share"}
+{"timestamp":"2026-08-21T05:30:08.414Z","type":"escalation_resolved","runId":"meridian-open-share-1787290164043","decision":"resumed","actionCount":1}
+{"timestamp":"2026-08-21T05:30:08.415Z","type":"step_result","stepId":"step-8","ok":true,"attempt":1,"humanApproved":true}
+{"timestamp":"2026-08-21T05:30:13.438Z","type":"extracted","stepId":"step-9","outputName":"confirmationNumber","value":"C[REDACTED]4"}
+{"timestamp":"2026-08-21T05:30:13.439Z","type":"step_result","stepId":"step-9","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T05:30:18.454Z","type":"extracted","stepId":"step-10","outputName":"newShareId","value":"1[REDACTED]0"}
+{"timestamp":"2026-08-21T05:30:18.455Z","type":"step_result","stepId":"step-10","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T05:30:23.472Z","type":"checkpoint_passed","description":"URL indicates we landed on the share opened success page"}
+{"timestamp":"2026-08-21T05:30:23.483Z","type":"checkpoint_passed","description":"Success screen shows a Confirmation label static text"}
+{"timestamp":"2026-08-21T05:30:23.490Z","type":"checkpoint_passed","description":"Success screen shows the New Share ID label static text"}
+{"timestamp":"2026-08-21T05:30:23.497Z","type":"checkpoint_failed","description":"Success screen shows the opening balance matching the deposit parameter entered","observed":"Expected text to contain \"$3000.00\", got \"SHARE OPENED\n\n\nNEW SHARE ESTABLISHED\n\n\nConfirmation:\tCN480224\nNew Share ID:\t100234-MMKT-10\nType:\tMoney Market\nOpening Balance:\t$3,000.00\n\nReturn to Member Record  ·  Main Menu\"."}
+{"timestamp":"2026-08-21T05:30:23.515Z","type":"escalation_raised","runId":"meridian-open-share-1787290164043","kind":"replay_hard_failure","reason":"Checkpoint not met: Success screen shows the opening balance matching the deposit parameter entered","currentUrl":"https://web-sample.interface-hiring.com/members/100234/open-share/post","currentStepId":"(checkpoint)","screenshotPath":"/Users/jaidamani/Desktop/Projects/interface.ai take-home/.claude/worktrees/ui-ledger-restyle/evidence/meridian-core/replay-run/meridian-open-share-1787290164043.escalation.png"}
+{"timestamp":"2026-08-21T05:30:23.515Z","type":"escalation_console_started","runId":"meridian-open-share-1787290164043","consoleUrl":"/runs/meridian-open-share-1787290164043/escalation"}
+{"timestamp":"2026-08-21T05:30:41.439Z","type":"human_action","runId":"meridian-open-share-1787290164043","actionType":"resume","detail":"operator signaled resume"}
+{"timestamp":"2026-08-21T05:30:41.439Z","type":"escalation_resolved","runId":"meridian-open-share-1787290164043","decision":"resumed","actionCount":1}
+{"timestamp":"2026-08-21T05:30:41.446Z","type":"checkpoint_passed","description":"URL indicates we landed on the share opened success page"}
+{"timestamp":"2026-08-21T05:30:41.455Z","type":"checkpoint_passed","description":"Success screen shows a Confirmation label static text"}
+{"timestamp":"2026-08-21T05:30:41.472Z","type":"checkpoint_passed","description":"Success screen shows the New Share ID label static text"}
+{"timestamp":"2026-08-21T05:30:41.478Z","type":"checkpoint_failed","description":"Success screen shows the opening balance matching the deposit parameter entered","observed":"Expected text to contain \"$3000.00\", got \"SHARE OPENED\n\n\nNEW SHARE ESTABLISHED\n\n\nConfirmation:\tCN480224\nNew Share ID:\t100234-MMKT-10\nType:\tMoney Market\nOpening Balance:\t$3,000.00\n\nReturn to Member Record  ·  Main Menu\"."}
+{"timestamp":"2026-08-21T05:30:41.478Z","type":"run_end","status":"hard_failure","stepId":"(checkpoint)","reason":"Checkpoint not met: Success screen shows the opening balance matching the deposit parameter entered","humanIntervened":true}
