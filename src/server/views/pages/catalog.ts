@@ -1,19 +1,27 @@
 import type { CapabilityArtifact, CheckpointCondition, LocatorCandidate, Step } from "../../../artifact/schema.js";
-import type { CatalogEntry } from "../../types.js";
+import type { CatalogEntry, RunStatus, RunSummary } from "../../types.js";
 import { escapeHtml, escapeUrl } from "../layout.js";
+import { icon } from "../icons.js";
+import { CONTROL, TYPE } from "../theme.js";
 import {
+  cheatSheet,
   code,
   emptyState,
+  infoNote,
   irreversibleBadge,
   roleBadge,
   shortHash,
+  statRow,
+  statTile,
   statusChip,
   timeAgo,
   typedFieldChip,
+  type CheatSheetData,
 } from "../components.js";
 
 /**
- * The catalog: what an agent can call, grouped by the app it belongs to.
+ * The catalog: what an agent can call, grouped by the app it belongs to. Also
+ * the console's landing page, since it is where the work starts.
  *
  * The card is deliberately split in two. Above the fold is the *call contract*
  * — name, typed inputs, typed outputs, the business-outcome codes you may get
@@ -27,39 +35,60 @@ import {
  * that the app has an iframe.
  */
 
-export function catalogPage(entries: CatalogEntry[]): string {
+export interface DemoLink {
+  label: string;
+  description: string;
+  href: string;
+}
+
+export interface CatalogPageOptions {
+  /** The single in-flight run, if any. The runner is single-flight. */
+  active?: RunSummary;
+  counts?: Record<RunStatus, number>;
+  demoLinks?: DemoLink[];
+  /** Known-good sign-on and member values, keyed by app id. */
+  cheatSheets?: Record<string, CheatSheetData>;
+}
+
+export function catalogPage(entries: CatalogEntry[], opts: CatalogPageOptions = {}): string {
+  const head = `${pageHeader(entries.length)}
+    ${runnerStrip(opts.active)}
+    ${opts.counts ? `<div class="mt-5">${statRow(COUNT_ORDER.map((s) => statTile(s, opts.counts![s] ?? 0)))}</div>` : ""}
+    ${demoStrip(opts.demoLinks ?? [])}`;
+
   if (entries.length === 0) {
-    return `${pageHeader(0)}${emptyState(
+    return `${head}<div class="mt-8">${emptyState(
       "No capabilities recorded yet. Run discovery to record one, then it will appear here.",
-    )}`;
+    )}</div>`;
   }
 
-  const groups = groupByApp(entries);
-  const sections = groups
-    .map(
-      (group) => `<section class="mb-10">
-        <div class="mb-3 flex flex-wrap items-baseline gap-3 border-b border-slate-200 pb-2">
-          <h2 class="text-base font-semibold tracking-tight text-slate-900">${escapeHtml(
+  const sections = groupByApp(entries)
+    .map((group) => {
+      const sheet = opts.cheatSheets?.[group.app];
+      return `<section class="mt-10">
+        <div class="mb-3 flex flex-wrap items-baseline gap-3 border-b border-rule pb-2">
+          <h2 class="font-serif text-lg font-semibold tracking-tight text-ink">${escapeHtml(
             group.appDisplayName,
           )}</h2>
-          <span class="font-mono text-xs text-slate-400">${escapeHtml(group.app)}</span>
-          <span class="text-xs text-slate-400">${escapeHtml(group.baseUrl)}</span>
-          <span class="ml-auto text-xs text-slate-500">${group.entries.length} ${
+          <span class="font-mono text-xs text-stone-400">${escapeHtml(group.app)}</span>
+          <span class="${TYPE.meta}">${escapeHtml(group.baseUrl)}</span>
+          <span class="ml-auto ${TYPE.meta}">${group.entries.length} ${
             group.entries.length === 1 ? "capability" : "capabilities"
           }</span>
         </div>
+        ${sheet ? `<div class="mb-4">${cheatSheet(sheet)}</div>` : ""}
         <div class="grid grid-cols-1 gap-4">${group.entries.map(capabilityCard).join("")}</div>
-      </section>`,
-    )
+      </section>`;
+    })
     .join("");
 
-  return `${pageHeader(entries.length)}${sections}`;
+  return `${head}${sections}`;
 }
 
 function pageHeader(count: number): string {
   return `<div class="mb-6">
-    <h1 class="text-xl font-semibold tracking-tight text-slate-900">Capabilities</h1>
-    <p class="mt-1 max-w-2xl text-sm text-slate-500">${
+    <h1 class="${TYPE.pageTitle}">Capabilities</h1>
+    <p class="mt-1.5 max-w-2xl ${TYPE.body}">${
       count === 0
         ? "Recorded capability artifacts, grouped by target app."
         : `${count} recorded ${
@@ -68,6 +97,91 @@ function pageHeader(count: number): string {
     }</p>
   </div>`;
 }
+
+// ---------------------------------------------------------------------------
+// Header strips
+// ---------------------------------------------------------------------------
+
+const SINGLE_FLIGHT =
+  "The runner is single-flight: one browser session, one run at a time. That is why Invoke disables itself while something else is going.";
+
+/**
+ * Runner state, at the top of the page you invoke from.
+ *
+ * It reads as a status line rather than a card because it is true of the whole
+ * console rather than of anything on the page under it, and because for most of
+ * a session it says "idle" and should cost almost nothing to skip over.
+ */
+function runnerStrip(active: RunSummary | undefined): string {
+  if (!active) {
+    return `<div data-runner-state="idle" class="flex flex-wrap items-center gap-2.5 rounded-lg border border-rule bg-surface px-4 py-2.5">
+      <span class="h-1.5 w-1.5 rounded-full bg-emerald-600" aria-hidden="true"></span>
+      <p class="text-sm font-medium text-ink">Runner idle</p>
+      <p class="${TYPE.meta}">Nothing in flight. Any capability can be invoked now.</p>
+      ${infoNote(SINGLE_FLIGHT)}
+    </div>`;
+  }
+
+  const href = `/runs/${escapeUrl(active.runId)}`;
+
+  if (active.status === "escalation_pending") {
+    return `<div data-runner-state="paused" class="flex flex-wrap items-center gap-2.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5">
+      <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" aria-hidden="true"></span>
+      <p class="text-sm font-semibold text-amber-900">Paused &mdash; awaiting you</p>
+      <p class="text-xs text-amber-900">${escapeHtml(
+        active.capabilityId,
+      )} stopped and handed the browser session over. Nothing else can run until you resolve it.</p>
+      <a href="${href}/escalation" class="ml-auto inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700">
+        Take control ${icon("arrowRight", { class: "h-3.5 w-3.5" })}
+      </a>
+    </div>`;
+  }
+
+  return `<div data-runner-state="running" class="flex flex-wrap items-center gap-2.5 rounded-lg border border-blue-200 bg-surface px-4 py-2.5">
+    <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" aria-hidden="true"></span>
+    <p class="text-sm font-medium text-ink">Running ${escapeHtml(active.capabilityId)}</p>
+    ${statusChip(active.status, active.escalated)}
+    ${infoNote(SINGLE_FLIGHT)}
+    <a href="${href}" class="ml-auto ${CONTROL.link} text-sm">Watch it &rarr;</a>
+  </div>`;
+}
+
+/**
+ * One link per branch of the result contract, so a reviewer is one click from
+ * the interesting behaviour instead of guessing which member id triggers it.
+ * A strip rather than a grid of cards: these matter enormously on the first
+ * visit and never again, so they should not outrank the catalog itself.
+ */
+function demoStrip(links: DemoLink[]): string {
+  if (links.length === 0) return "";
+  const items = links
+    .map(
+      (link) => `<a href="${escapeHtml(link.href)}" title="${escapeHtml(link.description)}"
+        class="group inline-flex items-center gap-1.5 rounded-md border border-rule bg-surface px-2.5 py-1.5 text-xs font-medium text-stone-700 transition-colors hover:border-accent/40 hover:text-accent">
+        ${escapeHtml(link.label)}
+        <span class="text-stone-300 transition-colors group-hover:text-accent">${icon("arrowRight", {
+          class: "h-3 w-3",
+        })}</span>
+      </a>`,
+    )
+    .join("");
+  return `<div class="mt-5 flex flex-wrap items-center gap-2">
+    <span class="${TYPE.label}">Try</span>
+    ${items}
+    ${infoNote("Each opens a prefilled invoke form — nothing runs until you submit.")}
+  </div>`;
+}
+
+const COUNT_ORDER: RunStatus[] = [
+  "succeeded",
+  "business_outcome",
+  "failed",
+  "crashed",
+  "running",
+  "escalation_pending",
+];
+
+// ---------------------------------------------------------------------------
 
 interface AppGroup {
   app: string;
@@ -94,49 +208,47 @@ function capabilityCard(entry: CatalogEntry): string {
 
   const inputs = entry.inputParams.length
     ? entry.inputParams
-        .map((p) =>
-          typedFieldChip(p.required ? p.name : `${p.name}?`, p.type, { sensitive: p.sensitive }),
-        )
+        .map((p) => typedFieldChip(p.required ? p.name : `${p.name}?`, p.type, { sensitive: p.sensitive }))
         .join(" ")
-    : `<span class="text-xs text-slate-400">none</span>`;
+    : `<span class="${TYPE.meta}">none</span>`;
 
   const outputs = entry.outputs.length
     ? entry.outputs.map((o) => typedFieldChip(o.name, o.type, { sensitive: o.sensitive })).join(" ")
-    : `<span class="text-xs text-slate-400">none</span>`;
+    : `<span class="${TYPE.meta}">none</span>`;
 
   const businessCodes = entry.knownOutcomes.filter((o) => o.classification === "business");
   const codes = businessCodes.length
     ? businessCodes
         .map(
           (o) =>
-            `<span class="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-600 ring-1 ring-inset ring-slate-200" title="${escapeHtml(
+            `<span class="inline-flex items-center rounded-md bg-paper px-2 py-1 font-mono text-[11px] text-stone-600 ring-1 ring-inset ring-rule" title="${escapeHtml(
               o.message ?? o.description,
             )}">${escapeHtml(o.code ?? o.id)}</span>`,
         )
         .join(" ")
-    : `<span class="text-xs text-slate-400">none recorded</span>`;
+    : `<span class="${TYPE.meta}">none recorded</span>`;
 
   const lastRun = entry.lastRun
     ? `<a href="/runs/${escapeUrl(entry.lastRun.runId)}" class="inline-flex items-center gap-2 hover:underline">${statusChip(
         entry.lastRun.status,
-      )}<span class="text-xs text-slate-400">${escapeHtml(
+      )}<span class="${TYPE.meta}">${escapeHtml(
         entry.lastRun.finishedAt ? timeAgo(entry.lastRun.finishedAt) : "in flight",
       )}</span></a>`
-    : `<span class="text-xs text-slate-400">never run</span>`;
+    : `<span class="${TYPE.meta}">never run</span>`;
 
-  return `<article class="rounded-xl bg-white shadow-sm ring-1 ring-inset ring-slate-200">
+  return `<article class="rounded-lg border border-rule bg-surface transition-colors hover:border-stone-300">
     <div class="flex flex-wrap items-start gap-4 px-5 py-4">
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-2">
-          <h3 class="text-sm font-semibold text-slate-900">${escapeHtml(entry.name)}</h3>
-          <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">v${escapeHtml(
+          <h3 class="text-[15px] font-semibold text-ink">${escapeHtml(entry.name)}</h3>
+          <span class="rounded bg-stone-100 px-1.5 py-0.5 font-mono text-[11px] text-muted">v${escapeHtml(
             String(entry.version),
           )}</span>
           ${roleBadge(entry.requiredRole)}
           ${irreversibleBadge(entry.irreversible)}
         </div>
-        <p class="mt-1 text-sm text-slate-600">${escapeHtml(entry.description)}</p>
-        <p class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+        <p class="mt-1 ${TYPE.body}">${escapeHtml(entry.description)}</p>
+        <p class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-stone-400">
           <span class="font-mono">${escapeHtml(entry.id)}</span>
           <span title="content hash of the semantically meaningful artifact content">hash ${escapeHtml(
             shortHash(entry.contentHash),
@@ -145,15 +257,14 @@ function capabilityCard(entry: CatalogEntry): string {
         </p>
       </div>
       <div class="flex shrink-0 flex-col items-end gap-2">
-        <a href="${invokeHref}" data-runner-lock-link
-           class="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-700">
-          Invoke <span aria-hidden="true">&rarr;</span>
+        <a href="${invokeHref}" data-runner-lock-link class="${CONTROL.primary}">
+          Invoke ${icon("arrowRight", { class: "h-3.5 w-3.5" })}
         </a>
         ${lastRun}
       </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 border-t border-slate-100 px-5 py-4 sm:grid-cols-3">
+    <div class="grid grid-cols-1 gap-4 border-t border-rule px-5 py-4 sm:grid-cols-3">
       ${contractBlock("Inputs", inputs)}
       ${contractBlock("Outputs", outputs)}
       ${contractBlock("Business outcomes", codes)}
@@ -165,9 +276,7 @@ function capabilityCard(entry: CatalogEntry): string {
 
 function contractBlock(label: string, body: string): string {
   return `<div>
-    <h4 class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">${escapeHtml(
-      label,
-    )}</h4>
+    <h4 class="mb-1.5 ${TYPE.label}">${escapeHtml(label)}</h4>
     <div class="flex flex-wrap gap-1.5">${body}</div>
   </div>`;
 }
@@ -181,7 +290,7 @@ function contractBlock(label: string, body: string): string {
 function detailsBlock(entry: CatalogEntry): string {
   const artifact = artifactOf(entry);
   if (!artifact) {
-    return `<div class="border-t border-slate-100 px-5 py-3 text-xs text-slate-400">
+    return `<div class="border-t border-rule px-5 py-3 ${TYPE.meta}">
       Recorded step recipe available on the capability detail view.
     </div>`;
   }
@@ -189,18 +298,18 @@ function detailsBlock(entry: CatalogEntry): string {
   const steps = artifact.steps
     .map(
       (step, i) => `<li class="flex gap-3 py-2">
-        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold tabular-nums text-slate-600">${
+        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-100 text-[11px] font-semibold tabular-nums text-stone-600">${
           i + 1
         }</span>
         <div class="min-w-0">
-          <p class="text-sm text-slate-700">${escapeHtml(step.description)}${
+          <p class="text-sm text-stone-700">${escapeHtml(step.description)}${
             step.irreversible ? ` ${irreversibleBadge()}` : ""
           }${
             step.retryable
-              ? ` <span class="inline-flex items-center rounded bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500 ring-1 ring-inset ring-slate-200">retryable</span>`
+              ? ` <span class="inline-flex items-center rounded bg-paper px-1.5 py-0.5 text-[10px] text-muted ring-1 ring-inset ring-rule">retryable</span>`
               : ""
           }</p>
-          <p class="mt-0.5 font-mono text-[11px] text-slate-400">${escapeHtml(step.type)} &middot; ${escapeHtml(
+          <p class="mt-0.5 font-mono text-[11px] text-stone-400">${escapeHtml(step.type)} &middot; ${escapeHtml(
             locatorSummary(step),
           )}</p>
         </div>
@@ -210,12 +319,10 @@ function detailsBlock(entry: CatalogEntry): string {
 
   const checkpoints = artifact.checkpoints
     .map(
-      (c) => `<li class="flex gap-2 py-1.5 text-sm text-slate-700">
-        <span class="text-emerald-600" aria-hidden="true">&#10003;</span>
+      (c) => `<li class="flex gap-2 py-1.5 text-sm text-stone-700">
+        <span class="mt-0.5 text-emerald-600">${icon("check", { class: "h-3.5 w-3.5" })}</span>
         <div><span>${escapeHtml(c.description)}</span>
-        <span class="ml-1 font-mono text-[11px] text-slate-400">${escapeHtml(
-          checkpointSummary(c),
-        )}</span></div>
+        <span class="ml-1 font-mono text-[11px] text-stone-400">${escapeHtml(checkpointSummary(c))}</span></div>
       </li>`,
     )
     .join("");
@@ -225,43 +332,45 @@ function detailsBlock(entry: CatalogEntry): string {
         .map((o) => {
           const tag =
             o.classification === "business"
-              ? `<span class="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">${escapeHtml(
+              ? `<span class="inline-flex items-center rounded bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-600">${escapeHtml(
                   o.outcome.code,
                 )}</span>`
               : `<span class="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">recover: ${escapeHtml(
                   o.recovery.action,
                 )}</span>`;
-          return `<li class="flex flex-wrap items-center gap-2 py-1.5 text-sm text-slate-700">${tag}<span class="font-mono text-[11px] text-slate-500">${escapeHtml(
+          return `<li class="flex flex-wrap items-center gap-2 py-1.5 text-sm text-stone-700">${tag}<span class="font-mono text-[11px] text-muted">${escapeHtml(
             o.id,
-          )}</span><span>${escapeHtml(o.description)}</span><span class="font-mono text-[11px] text-slate-400">${escapeHtml(
+          )}</span><span>${escapeHtml(o.description)}</span><span class="font-mono text-[11px] text-stone-400">${escapeHtml(
             o.checkAfterStepId ? `after ${o.checkAfterStepId}` : "checked after every step",
           )}</span></li>`;
         })
         .join("")
-    : `<li class="py-1.5 text-sm text-slate-400">None recorded.</li>`;
+    : `<li class="py-1.5 text-sm text-stone-400">None recorded.</li>`;
 
-  return `<details class="border-t border-slate-100">
-    <summary class="flex items-center gap-2 px-5 py-2.5 text-xs font-medium text-slate-500 hover:bg-slate-50">
-      <span class="chev inline-block transition-transform" aria-hidden="true">&#9656;</span>
+  return `<details class="border-t border-rule">
+    <summary class="flex items-center gap-2 px-5 py-2.5 text-xs font-medium text-muted hover:bg-paper">
+      <span class="chev inline-flex transition-transform" aria-hidden="true">${icon("chevronRight", {
+        class: "h-3.5 w-3.5",
+      })}</span>
       How it does it &mdash; ${escapeHtml(String(artifact.steps.length))} recorded steps,
       ${escapeHtml(String(artifact.checkpoints.length))} checkpoints
-      <span class="ml-2 font-normal text-slate-400">(UI knowledge; a caller never needs this)</span>
+      <span class="ml-2 font-normal text-stone-400">(UI knowledge; a caller never needs this)</span>
     </summary>
-    <div class="grid grid-cols-1 gap-6 border-t border-slate-100 bg-slate-50/50 px-5 py-4 lg:grid-cols-2">
+    <div class="grid grid-cols-1 gap-6 border-t border-rule bg-paper px-5 py-4 lg:grid-cols-2">
       <div>
-        <h4 class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Recorded steps</h4>
-        <ol class="divide-y divide-slate-200/70">${steps}</ol>
+        <h4 class="mb-1 ${TYPE.label}">Recorded steps</h4>
+        <ol class="divide-y divide-rule">${steps}</ol>
       </div>
       <div class="space-y-5">
         <div>
-          <h4 class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Checkpoints</h4>
-          <ul class="divide-y divide-slate-200/70">${checkpoints}</ul>
+          <h4 class="mb-1 ${TYPE.label}">Checkpoints</h4>
+          <ul class="divide-y divide-rule">${checkpoints}</ul>
         </div>
         <div>
-          <h4 class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Known outcomes</h4>
-          <ul class="divide-y divide-slate-200/70">${outcomes}</ul>
+          <h4 class="mb-1 ${TYPE.label}">Known outcomes</h4>
+          <ul class="divide-y divide-rule">${outcomes}</ul>
         </div>
-        <div class="text-[11px] text-slate-400">
+        <div class="text-[11px] text-stone-400">
           Entry route ${code(artifact.target.entryRoute)} &middot; recorded by
           ${escapeHtml(artifact.discovery.model)} on ${escapeHtml(artifact.discovery.discoveredAt)}
         </div>

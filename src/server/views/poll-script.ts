@@ -108,23 +108,31 @@ export function pollScript(opts: PollScriptOptions): string {
   // and this is the one place that text would otherwise reach innerHTML.
   function appendEvent(event) {
     if (!timeline) return;
+    // The rail itself is a border on the <ol>, so a live row only has to carry
+    // its own node and the same left padding the server renders. Geometry lives
+    // in one place; this stays a list of classes rather than a layout.
     var li = document.createElement("li");
-    li.className = "flex gap-3 py-2.5 bg-blue-50/40";
+    li.className = "relative flex gap-3 py-2.5 pl-5 bg-blue-50/40";
     li.setAttribute("data-event-index", String(event.index));
 
+    var node = document.createElement("span");
+    node.className = "absolute -left-[4.5px] top-4 h-2 w-2 rounded-full ring-2 ring-white bg-blue-400";
+    node.setAttribute("aria-hidden", "true");
+
     var when = document.createElement("span");
-    when.className = "w-14 shrink-0 pt-0.5 text-right font-mono text-[11px] tabular-nums text-slate-400";
+    when.className = "w-12 shrink-0 pt-0.5 text-right font-mono text-[11px] tabular-nums text-stone-400";
     when.textContent = "live";
     when.title = String(event.timestamp || "");
 
     var kind = document.createElement("span");
-    kind.className = "inline-flex h-5 shrink-0 items-center gap-1 rounded px-1.5 text-[11px] font-medium ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-400/25";
+    kind.className = "inline-flex h-5 shrink-0 items-center gap-1 rounded px-1.5 text-[11px] font-medium ring-1 ring-inset bg-stone-100 text-stone-600 ring-stone-400/25";
     kind.textContent = String(event.type || "event");
 
     var body = document.createElement("span");
-    body.className = "min-w-0 flex-1 break-words text-sm text-slate-700";
+    body.className = "min-w-0 flex-1 break-words text-sm text-stone-700";
     body.textContent = fieldText(event);
 
+    li.appendChild(node);
     li.appendChild(when);
     li.appendChild(kind);
     li.appendChild(body);
@@ -204,8 +212,8 @@ export function runnerPollScript(opts?: { pollMs?: number }): string {
   // Both directions. This used to only ever *enable*: a run started in another
   // tab left every Invoke button live, so the next click lost the race for the
   // single-flight runner and got an error instead of a disabled control.
-  var ENABLED = ["bg-slate-900", "text-white"];
-  var DISABLED = ["bg-slate-300", "text-slate-500", "cursor-not-allowed"];
+  var ENABLED = ["bg-accent", "text-white"];
+  var DISABLED = ["bg-stone-200", "text-stone-400", "cursor-not-allowed"];
 
   function swapClasses(el, remove, add) {
     var classes = el.className.split(/\s+/).filter(function (c) {

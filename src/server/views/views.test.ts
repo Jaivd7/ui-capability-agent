@@ -15,8 +15,7 @@ import { escapeHtml, layout } from "./layout.js";
 import { duration, statusChip, table, timeAgo } from "./components.js";
 import { catalogPage } from "./pages/catalog.js";
 import { invokePage } from "./pages/invoke.js";
-import { overviewPage } from "./pages/overview.js";
-import { runDetailPage } from "./pages/run-detail.js";
+import { describeEvent, runDetailPage } from "./pages/run-detail.js";
 import { runsPage } from "./pages/runs.js";
 import { pollScript, runnerPollScript } from "./poll-script.js";
 import { faultsPage } from "./pages/faults.js";
@@ -190,7 +189,7 @@ describe("layout", () => {
     expect(html).toContain("<!DOCTYPE html>");
     expect(html).toContain("https://cdn.tailwindcss.com");
     expect(html).toContain("<p>hello</p>");
-    for (const label of ["Overview", "Capabilities", "Runs", "Faults"]) expect(html).toContain(label);
+    for (const label of ["Capabilities", "Discovery", "Runs", "Faults"]) expect(html).toContain(label);
     expect(html).toContain('aria-current="page"');
   });
 
@@ -368,7 +367,7 @@ describe("invokePage", () => {
     expect(html).toContain('value="not-a-member"');
     expect(html).toContain('value="12.50"');
     expect(html).toContain("must be numeric");
-    expect(html).toContain("ring-red-400");
+    expect(html).toContain("border-red-400");
   });
 
   it("escapes hostile submitted values", () => {
@@ -399,56 +398,76 @@ describe("runsPage", () => {
   });
 });
 
-describe("overviewPage", () => {
-  it("shows an idle runner, the apps, counts, recent runs and the demo script", () => {
-    const html = overviewPage({
-      apps: [{ id: "legacy-core-banking", displayName: "Legacy Core Banking", baseUrl: "http://localhost:4000" }],
-      recent: [runSummary(), runSummary({ runId: "r2" })],
+/**
+ * The catalog is the landing page, so runner state, the status counts and the
+ * demo links are part of its header. These assertions moved here wholesale when
+ * the Overview page was removed: three of its five cards were digests of pages
+ * you would rather just open, and the two that were not are these.
+ */
+describe("catalog page header", () => {
+  it("shows an idle runner, the status counts and the demo strip", () => {
+    const html = catalogPage([catalogEntry()], {
       counts: COUNTS,
       demoLinks: [
         { label: "Happy path", description: "member 1001", href: "/capabilities/lookup-member-balance/invoke?memberId=1001" },
         { label: "Business outcome", description: "member 9999", href: "/capabilities/lookup-member-balance/invoke?memberId=9999" },
-        { label: "Injected fault", description: "arm the slow lever first", href: "/faults" },
       ],
     });
     expect(html).toContain("Runner idle");
-    expect(html).toContain("Legacy Core Banking");
-    expect(html).toContain("Demo script");
+    expect(html).toContain('data-runner-state="idle"');
     expect(html).toContain("Happy path");
     expect(html).toContain("memberId=1001");
-    expect(html).toContain("Recent runs");
-    expect(html).toContain("Success");
-  });
-
-  it("caps recent runs at five", () => {
-    const many = Array.from({ length: 9 }, (_, i) => runSummary({ runId: `run-${i}` }));
-    const html = overviewPage({ apps: [], recent: many, counts: COUNTS });
-    expect(html).toContain("run-0");
-    expect(html).toContain("run-4");
-    expect(html).not.toContain("run-5");
+    expect(html).toContain('data-stat="succeeded"');
+    expect(html).toContain('data-stat="business_outcome"');
   });
 
   it("makes a paused runner prominent with a link to the escalation", () => {
-    const html = overviewPage({
-      apps: [],
+    const html = catalogPage([catalogEntry()], {
       active: runSummary({ runId: "paused-run", status: "escalation_pending", escalated: true }),
-      recent: [],
       counts: COUNTS,
     });
     expect(html).toContain("awaiting you");
     expect(html).toContain('href="/runs/paused-run/escalation"');
-    expect(html).toContain("bg-amber-50");
+    expect(html).toContain('data-runner-state="paused"');
   });
 
   it("names the running capability", () => {
-    const html = overviewPage({
-      apps: [],
+    const html = catalogPage([catalogEntry()], {
       active: runSummary({ runId: "live-run", status: "running" }),
-      recent: [],
       counts: COUNTS,
     });
     expect(html).toContain("Running lookup-member-balance");
     expect(html).toContain('href="/runs/live-run"');
+    expect(html).toContain('data-runner-state="running"');
+  });
+
+  it("prints demo member and share codes, and never an environment-supplied password", () => {
+    const html = catalogPage([catalogEntry()], {
+      cheatSheets: {
+        "legacy-core-banking": {
+          credentials: [
+            { role: "teller", username: "teller1", password: "bankdemo123" },
+            { role: "supervisor", username: "super1", passwordFrom: "MERIDIAN_SUPERVISOR_PASSWORD" },
+          ],
+          members: [{ id: "100234", note: "The default member.", shares: ["S0001", "MMKT-4"] }],
+          verifiedOn: "2026-08-20",
+          volatile: true,
+        },
+      },
+    });
+    expect(html).toContain("Demo data");
+    expect(html).toContain("100234");
+    expect(html).toContain("MMKT-4");
+    expect(html).toContain("bankdemo123");
+    expect(html).toContain("Share codes drift");
+    // The whole point of the env-var indirection: the name, never the value.
+    expect(html).toContain("set via MERIDIAN_SUPERVISOR_PASSWORD");
+  });
+
+  it("omits the demo strip and the cheat sheet when there is nothing to show", () => {
+    const html = catalogPage([catalogEntry()], { counts: COUNTS });
+    expect(html).not.toContain("Demo data");
+    expect(html).not.toContain(">Try<");
   });
 });
 
@@ -477,9 +496,47 @@ describe("runDetailPage", () => {
     expect(html).toContain("session-expired");
     expect(html).toContain("Receipt shown");
     expect(html).toContain("Clicked Confirm");
-    expect(html).toContain("savingsBalance = $3,482.10");
+    // An extracted value renders as a name/value pair rather than one flat
+    // string, so both halves are asserted separately.
+    expect(html).toContain("savingsBalance");
+    expect(html).toContain("$3,482.10");
     expect(html).toContain("+1.2s");
     expect(html).toContain('data-event-index="10"');
+  });
+
+  /**
+   * `renderEvent` gives the interesting event types real markup, but
+   * `describeEvent` still has to produce the flat one-line form: it is exported,
+   * the fallback path uses it, and `poll-script.ts` carries a client-side twin
+   * of it that has to agree.
+   */
+  it("keeps describeEvent's flat one-line output for the client-side twin", () => {
+    const extracted = EVENTS.find((e) => e.type === "extracted")!;
+    expect(describeEvent(extracted)).toBe("savingsBalance = $3,482.10");
+    const restart = EVENTS.find((e) => e.type === "flow_restart")!;
+    expect(describeEvent(restart)).toBe("whole flow restarted, attempt 2");
+  });
+
+  it("gives a model turn its own structure instead of one run of grey text", () => {
+    const html = runDetailPage(
+      runRecord({ kind: "discovery" }),
+      [
+        {
+          index: 0,
+          timestamp: "2026-08-20T10:00:00.000Z",
+          type: "model_decision",
+          tool: "click",
+          reasoning: "The Search button submits the member lookup form.",
+          input: { description: "Click Search", locator: [{ strategy: "role", role: "button", name: "Search" }] },
+        },
+      ],
+      { evidence: [], live: false },
+    );
+    expect(html).toContain("Click Search");
+    expect(html).toContain("role(button, &quot;Search&quot;)");
+    // The reasoning is the reason to watch a discovery run; it gets its own line.
+    expect(html).toContain("border-l-2 border-indigo-200");
+    expect(html).toContain("The Search button submits the member lookup form.");
   });
 
   it("shows a live screenshot only while the run is not terminal", () => {
@@ -536,7 +593,7 @@ describe("runDetailPage", () => {
     expect(failure).toContain("Locator never resolved");
     expect(failure).toContain("Search button");
     expect(failure).toContain("nothing matched");
-    expect(failure).toMatch(/ring-red-300/);
+    expect(failure).toMatch(/border-red-300/);
     expect(failure).toContain("/api/runs/lookup-member-balance-1787246804295/evidence/failure.png");
     expect(failure).toContain("/api/runs/lookup-member-balance-1787246804295/evidence/failure.dom.html");
   });
@@ -560,6 +617,41 @@ describe("runDetailPage", () => {
     expect(html).toContain("Confirm button never appeared");
     expect(html).toContain('href="/runs/lookup-member-balance-1787246804295/escalation"');
     expect(html).toContain("bg-amber-50");
+  });
+
+  /**
+   * The operator console comes up over the run page rather than in a tab. It is
+   * the same document the escalation router already serves, framed — so the
+   * policy in action-policy.ts is enforced in one place and the standalone
+   * console a CLI escalation opens is the identical surface.
+   */
+  it("opens the operator console over the page while a run is paused", () => {
+    const html = runDetailPage(
+      runRecord({
+        status: "escalation_pending",
+        result: undefined,
+        escalationPending: {
+          kind: "replay_hard_failure",
+          reason: "Confirm button never appeared",
+          raisedAt: "2026-08-20T10:00:06.000Z",
+          consoleUrl: "/runs/lookup-member-balance-1787246804295/escalation",
+        },
+      }),
+      EVENTS,
+      { evidence: [], live: true },
+    );
+    expect(html).toContain("<dialog open");
+    expect(html).toContain(
+      '<iframe src="/runs/lookup-member-balance-1787246804295/escalation"',
+    );
+    // The link out survives: it is the route with JavaScript off, or without <dialog>.
+    expect(html).toContain('target="_blank"');
+  });
+
+  it("renders no overlay once the run is no longer paused", () => {
+    const html = runDetailPage(runRecord(), EVENTS, { evidence: [], live: false });
+    expect(html).not.toContain("<dialog");
+    expect(html).not.toContain("<iframe");
   });
 
   it("drops the banner once nobody is waiting, whatever escalationPending still holds", () => {

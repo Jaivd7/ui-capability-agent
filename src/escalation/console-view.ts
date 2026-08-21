@@ -51,22 +51,58 @@ export function renderConsole(
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>Operator Console</title>
 <style>
-  body { font-family: -apple-system, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; color: #1a1a1a; }
-  .banner { background: #fff3cd; border: 1px solid #ffcc00; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; }
-  .meta { color: #555; font-size: 13px; }
-  img { max-width: 100%; border: 1px solid #ccc; border-radius: 4px; margin: 12px 0; }
-  button { padding: 8px 14px; margin-right: 8px; border-radius: 4px; border: 1px solid #888; cursor: pointer; }
-  .danger { background: #ffe0e0; }
-  .safe { background: #e0ffe0; }
+  /*
+   * Hand-written CSS, not the dashboard's Tailwind.
+   *
+   * This document is served standalone to a CLI escalation as well as being
+   * framed by the run page, so it cannot depend on the console's stylesheet
+   * being present. The tokens below are the Ledger palette copied by value —
+   * duplication, but the alternative is a build dependency between the
+   * escalation package and the dashboard's view layer for the sake of six
+   * colours, on the one surface that has to work when everything else is on
+   * fire. Keep in step with views/theme.ts by hand.
+   */
+  :root {
+    --paper: #FAFAF9; --surface: #FFFFFF; --rule: #E7E5E4;
+    --ink: #1C1917; --muted: #78716C; --accent: #0F4C5C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 20px 16px 32px;
+    color: var(--ink); background: var(--paper); font-size: 14px; line-height: 1.5;
+  }
+  .banner {
+    background: #FFFBEB; border: 1px solid #FCD34D; padding: 12px 14px;
+    border-radius: 8px; margin-bottom: 16px; color: #78350F;
+  }
+  .meta { color: var(--muted); font-size: 12px; }
+  img { max-width: 100%; border: 1px solid var(--rule); border-radius: 8px; margin: 12px 0; background: var(--surface); }
+  button {
+    padding: 7px 13px; margin-right: 8px; border-radius: 6px; font: inherit; font-weight: 500;
+    font-size: 13px; border: 1px solid var(--rule); background: var(--surface);
+    color: var(--ink); cursor: pointer; transition: background .12s, border-color .12s;
+  }
+  button:hover { border-color: #A8A29E; }
+  .danger { background: #FEF2F2; border-color: #FCA5A5; color: #991B1B; }
+  .danger:hover { background: #FEE2E2; border-color: #F87171; }
+  .safe { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .safe:hover { background: #0B3A46; border-color: #0B3A46; }
   form.inline { display: inline; }
-  fieldset { margin: 16px 0; }
-  input, select { padding: 4px; margin: 2px; }
-  ul.log { font-size: 12px; color: #444; }
+  fieldset { margin: 16px 0; border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; background: var(--surface); }
+  legend { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 0 4px; }
+  input, select {
+    padding: 6px 8px; margin: 2px; font: inherit; font-size: 13px;
+    border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); color: var(--ink);
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  ul.log { font-size: 12px; color: var(--muted); padding-left: 18px; }
   form.row { margin: 6px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   form.row label { display: flex; gap: 6px; align-items: center; }
   select { max-width: 380px; }
   details { margin: 16px 0; }
-  summary { cursor: pointer; font-size: 13px; color: #555; }
+  summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+  code, .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
 </style></head>
 <body>
   <div class="banner">

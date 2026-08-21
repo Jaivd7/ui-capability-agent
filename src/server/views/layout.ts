@@ -8,6 +8,9 @@
  * the server that will eventually call it.
  */
 
+import { icon } from "./icons.js";
+import { THEME_HEAD } from "./theme.js";
+
 /**
  * Escapes a value for interpolation into HTML text or a double/single quoted
  * attribute. Applied to *every* interpolated value in this package, without
@@ -40,9 +43,19 @@ interface NavItem {
   href: string;
 }
 
+/**
+ * Four items, and the catalog is the root.
+ *
+ * There was a fifth — an Overview at `/` — and three of its five cards were
+ * digests of pages you would rather just open: recent runs (all of them are at
+ * `/runs`), target apps (the catalog prints each app's base URL in its group
+ * header), and runner state (already on the two pages where it changes what you
+ * can do). An index page for a four-page console is a hop, not a summary. The
+ * two cards that were not duplicates — the status counts and the demo links —
+ * moved onto the catalog, which is where the work starts anyway.
+ */
 const NAV: NavItem[] = [
-  { key: "overview", label: "Overview", href: "/" },
-  { key: "capabilities", label: "Capabilities", href: "/capabilities" },
+  { key: "capabilities", label: "Capabilities", href: "/" },
   { key: "discovery", label: "Discovery", href: "/discovery" },
   { key: "runs", label: "Runs", href: "/runs" },
   { key: "faults", label: "Faults", href: "/faults" },
@@ -71,17 +84,19 @@ export function layout(opts: LayoutOptions): string {
   const nav = NAV.map((item) => {
     const active = item.key === activeNav;
     const cls = active
-      ? "text-slate-900 bg-white shadow-sm ring-1 ring-slate-200"
-      : "text-slate-500 hover:text-slate-900 hover:bg-slate-100";
-    return `<a href="${escapeHtml(item.href)}" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${cls}"${
+      ? "text-ink after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:bg-accent"
+      : "text-muted hover:text-ink";
+    return `<a href="${escapeHtml(
+      item.href,
+    )}" class="relative px-2 py-4 text-sm font-medium transition-colors ${cls}"${
       active ? ' aria-current="page"' : ""
     }>${escapeHtml(item.label)}</a>`;
   }).join("");
 
   const banner = faultBanner
     ? `<div class="border-b border-amber-300 bg-amber-50">
-        <div class="mx-auto max-w-6xl px-6 py-2.5 flex items-start gap-2.5 text-sm text-amber-900">
-          <span aria-hidden="true" class="mt-px font-semibold">&#9888;</span>
+        <div class="mx-auto flex max-w-6xl items-start gap-2.5 px-6 py-2.5 text-sm text-amber-900">
+          <span class="mt-0.5 text-amber-700">${icon("warning")}</span>
           <p class="flex-1"><span class="font-semibold">Fault injection armed.</span> ${escapeHtml(
             faultBanner,
           )} Runs may fail by design until this is cleared.</p>
@@ -96,30 +111,24 @@ export function layout(opts: LayoutOptions): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} &middot; Capability Console</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-  body { font-feature-settings: "cv02","cv03","cv04","cv11"; }
-  details > summary { list-style: none; cursor: pointer; }
-  details > summary::-webkit-details-marker { display: none; }
-  details[open] > summary .chev { transform: rotate(90deg); }
-</style>
+${THEME_HEAD}
 </head>
-<body class="h-full bg-slate-50 text-slate-800 antialiased">
-<header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
-  <div class="mx-auto max-w-6xl px-6 h-14 flex items-center gap-6">
-    <a href="/" class="flex items-center gap-2 shrink-0">
-      <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-slate-900 text-[11px] font-bold text-white">UC</span>
-      <span class="text-sm font-semibold tracking-tight text-slate-900">Capability Console</span>
+<body class="h-full bg-paper font-sans text-stone-800 antialiased">
+<header class="sticky top-0 z-20 border-b border-rule bg-surface/95 backdrop-blur">
+  <div class="mx-auto flex max-w-6xl items-center gap-8 px-6">
+    <a href="/" class="flex shrink-0 items-center gap-2.5 py-3.5">
+      <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-accent font-serif text-[13px] font-semibold text-white">C</span>
+      <span class="font-serif text-[15px] font-semibold tracking-tight text-ink">Capability Console</span>
     </a>
-    <nav class="flex items-center gap-1 rounded-lg bg-slate-50 p-1 ring-1 ring-slate-200/70">${nav}</nav>
+    <nav class="flex items-center gap-5">${nav}</nav>
   </div>
   ${banner}
 </header>
-<main class="mx-auto max-w-6xl px-6 py-8">
+<main class="mx-auto max-w-6xl px-6 py-10">
 ${body}
 </main>
-<footer class="mx-auto max-w-6xl px-6 pb-10 pt-2 text-xs text-slate-400">
-  Server-rendered. Every result on this page was rendered by the server; the browser only polls for liveness.
+<footer class="mx-auto max-w-6xl px-6 pb-10 pt-2 text-[11px] text-stone-400">
+  Server-rendered &middot; the browser only polls for liveness
 </footer>
 ${pollScript ?? ""}
 </body>

@@ -1,14 +1,15 @@
-import { Router } from "express";
-import { listAppAdapters, listRoles } from "../apps/index.js";
+import { Router, type Response } from "express";
+import { getAppAdapter, listRoles } from "../apps/index.js";
+import { demoDataFor } from "../apps/demo-data.js";
+import type { CheatSheetData } from "./views/components.js";
 import { ParamValidationError } from "../replay/coerce.js";
 import { invokeError } from "./api.js";
 import { CapabilityNotFoundError } from "./runtime/run-executor.js";
 import { listAvailableEvidence } from "./runtime/evidence-reader.js";
 import { livePlaceholderSvg } from "./runtime/live-view.js";
 import { layout } from "./views/layout.js";
-import { catalogPage } from "./views/pages/catalog.js";
+import { catalogPage, type DemoLink } from "./views/pages/catalog.js";
 import { invokePage } from "./views/pages/invoke.js";
-import { overviewPage, type DemoLink } from "./views/pages/overview.js";
 import { runDetailPage } from "./views/pages/run-detail.js";
 import { runsPage } from "./views/pages/runs.js";
 import { faultsPage } from "./views/pages/faults.js";
@@ -45,49 +46,45 @@ export function createUiRouter(deps: ServerDeps): Router {
    */
   let armed: FaultSettings | undefined;
   const banner = () => describeArmedFault(armed);
+  /** The demo-data panel for one app, or undefined if that app has none listed. */
+  const demoFor = (app: string): CheatSheetData | undefined => cheatSheets([app])[app];
   const page = (opts: { title: string; activeNav?: string; body: string; pollScript?: string }) =>
     layout({
       ...opts,
       ...(banner() ? { faultBanner: banner()! } : {}),
     });
 
-  ui.get("/", (_req, res) => {
-    const recent = deps.runs.list({ limit: 5 });
-    const counts = countByStatus(deps);
-    res.send(
-      page({
-        title: "Overview",
-        activeNav: "overview",
-        body: overviewPage({
-          apps: listAppAdapters().map((a) => ({
-            id: a.id,
-            displayName: a.displayName,
-            baseUrl: a.target(process.env).baseUrl,
-          })),
-          ...(deps.runs.active() ? { active: deps.runs.active()! } : {}),
-          recent,
-          counts,
-          demoLinks: demoLinks(deps),
-        }),
-        pollScript: runnerPollScript(),
-      }),
-    );
-  });
-
-  ui.get("/capabilities", (_req, res) => {
+  /**
+   * The catalog, served at both `/` and `/capabilities`.
+   *
+   * Two paths rather than a redirect because `/capabilities` is linked from
+   * inside the console (Invoke's cancel, the run detail breadcrumb) and from
+   * whatever anyone has already bookmarked, and a redirect would put a pointless
+   * round trip on the most-followed link in the app.
+   */
+  const renderCatalog = (_req: unknown, res: Response) => {
     // Pass the *detail* entries: the catalog type deliberately omits steps and
     // locators, because those are UI knowledge an agent shouldn't need — but a
     // human reviewer reading the page wants the recipe.
     const details = deps.catalog.list().map((e) => deps.catalog.get(e.id) ?? e);
+    const active = deps.runs.active();
     res.send(
       page({
         title: "Capabilities",
         activeNav: "capabilities",
-        body: catalogPage(details),
+        body: catalogPage(details, {
+          ...(active ? { active } : {}),
+          counts: countByStatus(deps),
+          demoLinks: demoLinks(deps),
+          cheatSheets: cheatSheets(details.map((e) => e.app)),
+        }),
         pollScript: runnerPollScript(),
       }),
     );
-  });
+  };
+
+  ui.get("/", renderCatalog);
+  ui.get("/capabilities", renderCatalog);
 
   ui.get("/capabilities/:id/invoke", (req, res) => {
     const entry = deps.catalog.get(req.params.id);
@@ -99,6 +96,7 @@ export function createUiRouter(deps: ServerDeps): Router {
         activeNav: "capabilities",
         body: invokePage(entry, {
           roles: listRoles(entry.app),
+              ...(demoFor(entry.app) ? { demo: demoFor(entry.app)! } : {}),
           ...(active ? { busyWith: active } : {}),
           values: queryValues(req.query),
         }),
@@ -135,6 +133,7 @@ export function createUiRouter(deps: ServerDeps): Router {
             activeNav: "capabilities",
             body: invokePage(entry, {
               roles: listRoles(entry.app),
+              ...(demoFor(entry.app) ? { demo: demoFor(entry.app)! } : {}),
               ...(active ? { busyWith: active } : {}),
               values: form,
               errors: err instanceof ParamValidationError ? err.fields : [{ name: "capability", problem: err.message }],
@@ -152,6 +151,7 @@ export function createUiRouter(deps: ServerDeps): Router {
             activeNav: "capabilities",
             body: invokePage(entry, {
               roles: listRoles(entry.app),
+              ...(demoFor(entry.app) ? { demo: demoFor(entry.app)! } : {}),
               busyWith: err.activeRun,
               values: form,
             }),
@@ -194,6 +194,9 @@ export function createUiRouter(deps: ServerDeps): Router {
         body: runDetailPage(record, events, {
           evidence: listAvailableEvidence(record.app, record.evidenceDir, record.runId),
           live,
+          // The values you would need to drive this app by hand, on the page
+          // where you are most likely to be taking over from the machine.
+          ...(demoFor(record.app) ? { demo: demoFor(record.app)! } : {}),
         }),
         ...(live ? { pollScript: pollScript({ runId: record.runId }) } : {}),
       }),
@@ -344,6 +347,47 @@ function presetRows(deps: ServerDeps): DiscoveryPreset[] {
     .sort((a, b) => a.app.localeCompare(b.app) || a.name.localeCompare(b.name));
 }
 
+/**
+ * Known-good sign-on and member values for each app on the page.
+ *
+ * Assembled here rather than in the view because the view layer is pure by
+ * construction — no data access, no `process.env` — and reading the environment
+ * is exactly what makes this correct. Every adapter credential is
+ * `env("SOME_VAR", "default")`, so on a machine where the real variable is set,
+ * printing the effective value would publish a working password to anyone who
+ * opens the console. The panel gets the checked-in default, or the *name* of
+ * the variable that overrode it, and never the override itself.
+ */
+function cheatSheets(apps: string[]): Record<string, CheatSheetData> {
+  const out: Record<string, CheatSheetData> = {};
+  for (const app of new Set(apps)) {
+    const demo = demoDataFor(app);
+    if (!demo) continue;
+    let adapter;
+    try {
+      adapter = getAppAdapter(app);
+    } catch {
+      continue;
+    }
+    out[app] = {
+      credentials: Object.entries(adapter.roles).map(([role, creds]) => {
+        const envVars = demo.credentialEnv[role];
+        const overridden = envVars ? process.env[envVars.password] !== undefined : false;
+        return {
+          role,
+          username: creds.username,
+          ...(overridden ? { passwordFrom: envVars!.password } : { password: creds.password }),
+          ...(creds.extra ? { extra: creds.extra } : {}),
+        };
+      }),
+      members: demo.members.map((m) => ({ id: m.id, note: m.note, shares: m.shares })),
+      verifiedOn: demo.verifiedOn,
+      volatile: demo.volatile,
+    };
+  }
+  return out;
+}
+
 function countByStatus(deps: ServerDeps): Record<RunStatus, number> {
   const counts: Record<RunStatus, number> = {
     running: 0,
@@ -405,9 +449,11 @@ function queryValues(query: unknown): Record<string, string> {
 }
 
 function notFoundBody(what: string): string {
-  return `<div class="rounded-lg border border-slate-200 bg-white p-8 text-center">
-    <p class="text-sm text-slate-600">Nothing here for <code class="rounded bg-slate-100 px-1">${escapeText(what)}</code>.</p>
-    <a class="mt-4 inline-block text-sm font-medium text-slate-900 underline" href="/">Back to overview</a>
+  return `<div class="rounded-lg border border-rule bg-surface p-8 text-center">
+    <p class="text-sm text-stone-600">Nothing here for <code class="rounded bg-stone-100 px-1 font-mono">${escapeText(
+      what,
+    )}</code>.</p>
+    <a class="mt-4 inline-block text-sm font-medium text-accent underline underline-offset-2" href="/">Back to capabilities</a>
   </div>`;
 }
 

@@ -1,5 +1,6 @@
 import type { RunSummary } from "../../types.js";
 import { escapeHtml, escapeUrl } from "../layout.js";
+import { TYPE } from "../theme.js";
 import { appBadge, card, emptyState, roleBadge, statusChip, table, timestampCell } from "../components.js";
 
 /**
@@ -40,8 +41,8 @@ export function discoveryPage(opts: DiscoveryPageOptions): string {
   }
 
   return `<div class="mb-6">
-    <h1 class="text-xl font-semibold tracking-tight text-slate-900">Discovery</h1>
-    <p class="mt-1 max-w-3xl text-sm text-slate-500">
+    <h1 class="${TYPE.pageTitle}">Discovery</h1>
+    <p class="mt-1 max-w-3xl text-sm text-stone-500">
       Re-record a capability from scratch. ${escapeHtml(opts.model)} is given the goal below and a browser, and it
       drives the real application &mdash; observe, decide, act &mdash; until it can prove it reached the goal. The
       successful run is compiled into a typed artifact that replays with no model in the loop, ever again.
@@ -60,18 +61,18 @@ export function discoveryPage(opts: DiscoveryPageOptions): string {
           ["Run", "Capability", "Status", "Started", "Outcome"],
           opts.recent.map((run) => [
             {
-              html: `<a class="font-mono text-[12px] text-slate-800 underline underline-offset-2" href="/runs/${escapeUrl(
+              html: `<a class="font-mono text-[12px] text-stone-800 underline underline-offset-2" href="/runs/${escapeUrl(
                 run.runId,
               )}">${escapeHtml(run.runId)}</a>`,
             },
-            { html: `<span class="text-slate-800">${escapeHtml(run.capabilityId)}</span>` },
+            { html: `<span class="text-stone-800">${escapeHtml(run.capabilityId)}</span>` },
             { html: statusChip(run.status, run.escalated) },
             { html: timestampCell(run.startedAt) },
-            { html: `<span class="text-xs text-slate-500">${escapeHtml(run.role)}</span>` },
+            { html: `<span class="text-xs text-stone-500">${escapeHtml(run.role)}</span>` },
           ]),
         )
       : emptyState("No discovery runs recorded yet."),
-    { actions: `<a href="/runs?kind=discovery" class="text-xs font-medium text-slate-600 underline underline-offset-2">All discovery runs</a>` },
+    { actions: `<a href="/runs?kind=discovery" class="text-xs font-medium text-stone-600 underline underline-offset-2">All discovery runs</a>` },
   )}`;
 }
 
@@ -86,13 +87,13 @@ function explainer(): string {
     "What you will watch",
     `<ol class="grid grid-cols-1 gap-3 sm:grid-cols-2">${steps
       .map(
-        ([title, body], i) => `<li class="rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-3">
-          <p class="text-sm font-semibold text-slate-900"><span class="mr-1.5 text-slate-400">${i + 1}.</span>${escapeHtml(title)}</p>
-          <p class="mt-1 text-xs leading-relaxed text-slate-600">${escapeHtml(body)}</p>
+        ([title, body], i) => `<li class="rounded-lg border border-stone-200 bg-stone-50/60 px-4 py-3">
+          <p class="text-sm font-semibold text-stone-900"><span class="mr-1.5 text-stone-400">${i + 1}.</span>${escapeHtml(title)}</p>
+          <p class="mt-1 text-xs leading-relaxed text-stone-600">${escapeHtml(body)}</p>
         </li>`,
       )
       .join("")}</ol>
-     <p class="mt-3 text-xs text-slate-500">
+     <p class="mt-3 text-xs text-stone-500">
        The run page streams a live screenshot of the browser beside the model's turn-by-turn reasoning, so the loop is
        watchable as it happens.
      </p>`,
@@ -123,22 +124,22 @@ function presetTable(presets: DiscoveryPreset[], opts: DiscoveryPageOptions): st
   const rows = presets.map((preset) => {
     const disabled = opts.busyWith !== undefined || !opts.modelConfigured;
     const classes = disabled
-      ? "cursor-not-allowed bg-slate-300 text-slate-500"
-      : "bg-slate-900 text-white hover:bg-slate-700";
+      ? "cursor-not-allowed bg-stone-300 text-stone-500"
+      : "bg-stone-900 text-white hover:bg-stone-700";
     return [
       {
         html: `<div class="max-w-xl">
-          <p class="text-sm font-medium text-slate-900">${escapeHtml(preset.name)}</p>
-          <p class="font-mono text-[11px] text-slate-400">${escapeHtml(preset.id)}</p>
+          <p class="text-sm font-medium text-stone-900">${escapeHtml(preset.name)}</p>
+          <p class="font-mono text-[11px] text-stone-400">${escapeHtml(preset.id)}</p>
           <details class="mt-1.5">
-            <summary class="text-xs text-slate-500 hover:text-slate-800">The goal the model is given</summary>
-            <p class="mt-1 rounded bg-slate-50 px-2.5 py-2 text-xs leading-relaxed text-slate-600 ring-1 ring-inset ring-slate-200">${escapeHtml(
+            <summary class="text-xs text-stone-500 hover:text-stone-800">The goal the model is given</summary>
+            <p class="mt-1 rounded bg-stone-50 px-2.5 py-2 text-xs leading-relaxed text-stone-600 ring-1 ring-inset ring-stone-200">${escapeHtml(
               preset.goal,
             )}</p>
-            <p class="mt-1.5 text-[11px] text-slate-500">Recorded with ${
+            <p class="mt-1.5 text-[11px] text-stone-500">Recorded with ${
               preset.params.length
                 ? preset.params
-                    .map((p) => `<code class="rounded bg-slate-100 px-1">${escapeHtml(p.name)}=${escapeHtml(p.exampleValue)}</code>`)
+                    .map((p) => `<code class="rounded bg-stone-100 px-1">${escapeHtml(p.name)}=${escapeHtml(p.exampleValue)}</code>`)
                     .join(" ")
                 : "no arguments"
             }</p>
@@ -148,12 +149,12 @@ function presetTable(presets: DiscoveryPreset[], opts: DiscoveryPageOptions): st
       { html: roleBadge(preset.role) },
       {
         html: preset.hasArtifact
-          ? `<span class="font-mono text-xs text-slate-600">v${escapeHtml(String(preset.currentVersion ?? 1))}</span>
-             <span class="block text-[11px] text-slate-400">&rarr; will save v${escapeHtml(
+          ? `<span class="font-mono text-xs text-stone-600">v${escapeHtml(String(preset.currentVersion ?? 1))}</span>
+             <span class="block text-[11px] text-stone-400">&rarr; will save v${escapeHtml(
                String((preset.currentVersion ?? 0) + 1),
              )}</span>`
-          : `<span class="text-xs text-slate-500">not recorded</span>
-             <span class="block text-[11px] text-slate-400">&rarr; will save v1</span>`,
+          : `<span class="text-xs text-stone-500">not recorded</span>
+             <span class="block text-[11px] text-stone-400">&rarr; will save v1</span>`,
       },
       {
         html: `<form method="post" action="/discovery/${escapeUrl(preset.id)}/run">
@@ -167,8 +168,8 @@ function presetTable(presets: DiscoveryPreset[], opts: DiscoveryPageOptions): st
   });
 
   return `${table(["Capability", "Records as", "Artifact", ""], rows)}
-    <p class="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
-      A re-recording overwrites <code class="rounded bg-slate-100 px-1">capabilities/&lt;app&gt;/&lt;id&gt;.json</code>
+    <p class="mt-3 border-t border-stone-100 pt-3 text-xs text-stone-500">
+      A re-recording overwrites <code class="rounded bg-stone-100 px-1">capabilities/&lt;app&gt;/&lt;id&gt;.json</code>
       as the next version, and costs a few cents of model spend. It skips the differential probe the CLI runs
       (that replays the new artifact with a second argument set, which on a shared target means a second real
       transaction) &mdash; the quality report says so rather than counting the missing check as passed.
