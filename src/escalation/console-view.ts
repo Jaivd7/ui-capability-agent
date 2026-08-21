@@ -1,4 +1,4 @@
-import type { HumanAction, InterventionContext } from "./types.js";
+import type { HumanAction, InterventionContext, InterventionKind } from "./types.js";
 import { encodePick, type PageTarget } from "./page-targets.js";
 
 /**
@@ -97,18 +97,48 @@ export function renderConsole(
   }
   input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   ul.log { font-size: 12px; color: var(--muted); padding-left: 18px; }
-  form.row { margin: 6px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  form.row { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   form.row label { display: flex; gap: 6px; align-items: center; }
   select { max-width: 380px; }
   details { margin: 16px 0; }
   summary { cursor: pointer; font-size: 13px; color: var(--muted); }
   code, .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
+
+  /*
+   * The guidance block. The console used to show only the engine's raw failure
+   * string, which says what broke but never why a *human* was called or what
+   * handing back will do — so an operator's first question had no answer on the
+   * page. Each kind gets those three answers explicitly; the raw string stays,
+   * demoted to the technical line a debugger still needs.
+   */
+  .why { border: 1px solid var(--rule); border-left: 3px solid var(--accent); background: var(--surface);
+         border-radius: 8px; padding: 12px 14px; margin: 16px 0; }
+  .why h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+            color: var(--muted); margin: 0 0 8px; }
+  .why dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; }
+  .why dt { font-weight: 600; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .why dd { margin: 0; font-size: 13px; }
+  .why .raw { margin: 10px 0 0; padding-top: 8px; border-top: 1px dashed var(--rule); }
+
+  /*
+   * One row per verb, always all four, present whether or not this page can
+   * take them. The panel this replaces showed an enabled Click control and put
+   * fill/select into muted prose about their own absence, with navigate in a
+   * separate box that never named itself as an action — so the console read as
+   * "this thing clicks". Naming every verb, and saying in plain words what each
+   * one does to the page, is the difference between a vocabulary and a button.
+   */
+  .verb { padding: 10px 0; border-top: 1px solid var(--rule); }
+  .verb:first-of-type { border-top: 0; padding-top: 2px; }
+  .verb-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .verb-name { font-weight: 600; font-size: 13px; }
+  .verb-what { color: var(--muted); font-size: 12px; }
+  .verb-off { margin: 0; color: var(--muted); font-size: 12px; font-style: italic; }
 </style></head>
 <body>
   <div class="banner">
     <strong>Automation paused — intervention requested</strong><br/>
-    Run: ${escape(ctx.runId)} (${escape(ctx.capabilityId)})<br/>
-    Reason: ${escape(ctx.reason)}
+    Run: ${escape(ctx.runId)} (${escape(ctx.capabilityId)})
   </div>
   ${
     opts.notice
@@ -117,6 +147,7 @@ export function renderConsole(
         }"><strong>Refused:</strong> ${escape(opts.notice.message)}</div>`
       : ""
   }
+  ${guidancePanel(ctx)}
   <p class="meta">
     Waiting for ${Math.round(opts.waitingMs / 1000)}s. This session can time out while you decide.<br/>
     Current URL: ${escape(opts.currentUrl ?? ctx.currentUrl)}<br/>
@@ -141,8 +172,7 @@ export function renderConsole(
     <legend>When you are done</legend>
     <form class="inline" method="post" action="${basePath}/resume"><button class="safe" type="submit">Hand back to automation</button></form>
     <form class="inline" method="post" action="${basePath}/abort"><button class="danger" type="submit">Abort run</button></form>
-    <p class="meta">Handing back re-checks the capability's own checkpoints from wherever you leave the page.
-    It does not re-run steps, so a capability whose outputs were never extracted still reports a failure — with what you did recorded against it.</p>
+    <p class="meta">${escape(handBackNote(ctx.kind))}</p>
   </fieldset>`
   }
 
@@ -153,18 +183,106 @@ export function renderConsole(
 </body></html>`;
 }
 
+// ---------------------------------------------------------------------------
+// Why you are here
+// ---------------------------------------------------------------------------
+
+interface Guidance {
+  /** What stopped the run, and — the part that was missing — *who* decided to stop it. */
+  what: string;
+  /** What this operator is actually being asked to contribute. */
+  askedFor: string;
+}
+
 /**
- * The manual-action panel: one small form per verb, each showing only the
- * inputs that verb needs.
+ * Plain-language guidance, chosen by intervention kind.
  *
- * The single generic form this replaces asked for a CSS selector, an action
- * type and a value all at once, and left it to the operator to work out which
- * two of the three applied. Worse, it asked a human staring at a screenshot to
- * author a selector against markup with no ids, no test IDs and no labels.
+ * The distinction worth drawing explicitly is *who* raised the escalation,
+ * because only one of the three is the model asking for help. Replay runs with
+ * no model in the loop at all, and an irreversible confirmation is the
+ * guardrail policy refusing to act unattended — neither is a model deciding it
+ * is stuck. An operator who assumes "the AI got confused" will go looking for
+ * the wrong thing on two of these three screens.
+ */
+function guidanceFor(kind: InterventionKind): Guidance {
+  switch (kind) {
+    case "discovery_stuck":
+      return {
+        what:
+          "The model was exploring this application to record a new capability and could not reach the goal below. " +
+          "This is the one escalation the model itself raises.",
+        askedFor:
+          "Drive the page to where the model was trying to get, or abort so the goal can be rewritten. " +
+          "What you do here is recorded as part of the run.",
+      };
+    case "replay_hard_failure":
+      return {
+        what:
+          "A recorded step stopped working against the live page. No model is involved in replay — this is the " +
+          "recording and the application disagreeing, usually because the page moved or the data changed.",
+        askedFor:
+          "Get the page into the state the capability expects, then hand back. A human can normally tell in seconds " +
+          "whether the recording is stale or the page is simply in an unexpected state.",
+      };
+    case "irreversible_confirmation":
+      return {
+        what:
+          "Policy stopped this step, not the model. It is marked irreversible, and the guardrail will not let it " +
+          "run unattended without a person authorizing it.",
+        askedFor:
+          "Decide whether this action should happen. Approving runs the step exactly as recorded — you are " +
+          "authorizing it, not re-typing it.",
+      };
+  }
+}
+
+/** What "Hand back to automation" will actually do, which differs by kind and is easy to guess wrong. */
+function handBackNote(kind: InterventionKind): string {
+  if (kind === "discovery_stuck") {
+    return (
+      "Handing back ends the run as completed-with-help. Nothing is re-verified, so hand back only if the goal " +
+      "was actually reached; otherwise abort, which records the same actions against an honest failure."
+    );
+  }
+  return (
+    "Handing back re-checks the capability's own checkpoints from wherever you leave the page. It does not re-run " +
+    "steps, so a capability whose outputs were never extracted still reports a failure — with what you did recorded against it."
+  );
+}
+
+function guidancePanel(ctx: InterventionContext): string {
+  const g = guidanceFor(ctx.kind);
+  return `
+  <div class="why">
+    <h2>Why you are seeing this</h2>
+    <dl>
+      <dt>What happened</dt><dd>${escape(g.what)}</dd>
+      <dt>What you can do</dt><dd>${escape(g.askedFor)}</dd>
+    </dl>
+    <p class="meta raw"><strong>Reported by the engine:</strong> <span class="mono">${escape(ctx.reason)}</span></p>
+  </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// What a human can do to the page
+// ---------------------------------------------------------------------------
+
+/**
+ * The manual-action panel: every verb the console has, one row each, in one
+ * place.
  *
- * Every option below is read off the live page at render time, so this works
- * on a page and an application this code has never seen — nothing about any
- * target is written down here.
+ * Three things were wrong with the panel this replaces. It rendered `navigate`
+ * in a *separate* fieldset that never used the word — so on a read-only screen,
+ * where fill and select are both unavailable, the console appeared to offer
+ * exactly one verb. The unavailable verbs were reported as muted sentences
+ * about their own absence rather than as named-but-disabled members of a set.
+ * And nothing anywhere said what the verbs *mean*, which leaves "click" and
+ * "go to" looking like two words for the same thing when they are the two
+ * genuinely different ways to move: through the page, or around it.
+ *
+ * Every option below is still read off the live page at render time, so this
+ * works on a page and an application this code has never seen — nothing about
+ * any target is written down here.
  */
 function manualActionPanel(basePath: string, targets: PageTarget[]): string {
   const clickable = targets.filter((t) => t.kind === "click");
@@ -173,7 +291,7 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
 
   return `
   <fieldset>
-    <legend>Do something on this page</legend>
+    <legend>What you can do to this page</legend>
     ${
       targets.length === 0
         ? `<p class="meta">No controls could be read off this page &mdash; it may still be loading, or its
@@ -181,16 +299,20 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
            Use the raw selector below.</p>`
         : ""
     }
-    ${
+    ${verb(
+      "Click",
+      "press a link or button that is already on this page",
       clickable.length
         ? `<form method="post" action="${basePath}/action" class="row">
              <input type="hidden" name="type" value="click" />
-             <label>Click <select name="pick">${optionsFor(clickable)}</select></label>
+             <label>Which one <select name="pick">${optionsFor(clickable)}</select></label>
              <button type="submit">Click it</button>
            </form>`
-        : absent("Nothing on this page is clickable.")
-    }
-    ${
+        : absent("Nothing on this page is clickable."),
+    )}
+    ${verb(
+      "Fill",
+      "type a value into a text field on this page",
       fillable.length
         ? `<form method="post" action="${basePath}/action" class="row">
              <input type="hidden" name="type" value="fill" />
@@ -198,23 +320,25 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
              <label>the value <input name="value" size="24" /></label>
              <button type="submit">Fill it</button>
            </form>`
-        : absent("No text fields on this page — it is a read-only screen. Click through to a form to fill anything.")
-    }
-    ${
+        : absent("No text fields on this page — it is a read-only screen. Click through to a form to fill anything."),
+    )}
+    ${verb(
+      "Select",
+      "choose one of the options a dropdown on this page offers",
       selectable.length
         ? selectable.map((target) => selectRow(basePath, target)).join("")
-        : absent("No dropdowns on this page.")
-    }
-  </fieldset>
-
-  <fieldset>
-    <legend>Go to another page</legend>
-    <form method="post" action="${basePath}/action" class="row">
-      <input type="hidden" name="type" value="navigate" />
-      <input name="value" size="34" placeholder="/menu" />
-      <button type="submit">Go</button>
-    </form>
-    <p class="meta">Only paths on this application are permitted; anything else is refused and recorded.</p>
+        : absent("No dropdowns on this page."),
+    )}
+    ${verb(
+      "Go to",
+      "jump straight to another page of this application, without clicking your way there",
+      `<form method="post" action="${basePath}/action" class="row">
+         <input type="hidden" name="type" value="navigate" />
+         <input name="value" size="34" placeholder="/menu" />
+         <button type="submit">Go</button>
+       </form>
+       <p class="meta" style="margin:6px 0 0;">Only paths on this application are permitted; anything else is refused and recorded.</p>`,
+    )}
   </fieldset>
 
   <details>
@@ -230,8 +354,17 @@ function manualActionPanel(basePath: string, targets: PageTarget[]): string {
       <input name="value" placeholder="value / URL" size="20" />
       <button type="submit">Perform action</button>
     </form>
-    <p class="meta">A selector matching more than one element is refused rather than guessed at.</p>
+    <p class="meta">A selector matching more than one element is refused rather than guessed at.
+    This addresses the main document only &mdash; a control inside a frame has to come from the lists above.</p>
   </details>`;
+}
+
+/** One verb: its name, what it does to the page, and either its control or why it is unavailable here. */
+function verb(name: string, what: string, body: string): string {
+  return `<div class="verb">
+    <div class="verb-head"><span class="verb-name">${escape(name)}</span><span class="verb-what">${escape(what)}</span></div>
+    ${body}
+  </div>`;
 }
 
 /**
@@ -250,7 +383,7 @@ function selectRow(basePath: string, target: PageTarget): string {
   const options = (target.options ?? [])
     .map((o) => `<option value="${escape(o.value)}">${escape(o.label)}</option>`)
     .join("");
-  return `<form method="post" action="${basePath}/action" class="row">
+  return `<form method="post" action="${basePath}/action" class="row" style="margin:4px 0;">
     <input type="hidden" name="type" value="select" />
     <input type="hidden" name="pick" value="${escape(encodePick(target))}" />
     <label>Set <strong>${escape(labelOf(target))}</strong> to <select name="value">${options}</select></label>
@@ -267,7 +400,7 @@ function selectRow(basePath: string, target: PageTarget): string {
  * Naming the absence costs a line and removes the doubt.
  */
 function absent(reason: string): string {
-  return `<p class="meta" style="margin:6px 0;">&mdash; ${escape(reason)}</p>`;
+  return `<p class="verb-off">${escape(reason)}</p>`;
 }
 
 function optionsFor(targets: PageTarget[]): string {
@@ -284,4 +417,3 @@ function labelOf(target: PageTarget): string {
 function escape(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
-
