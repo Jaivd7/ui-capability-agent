@@ -1,0 +1,21 @@
+{
+  "status": "hard_failure",
+  "stepId": "step-3",
+  "stepDescription": "Extract the Balance for the row matching memberId-shareCode",
+  "reason": "Step execution failed and no known outcome matched the resulting state.",
+  "observed": "Could not resolve any locator candidate. Tried 1 candidate(s):\n  [0] css(\"#noSuchBalanceCell\") -> locator.waitFor: Timeout 10000ms exceeded.",
+  "humanIntervention": {
+    "raisedAt": "2026-08-21T17:11:31.285Z",
+    "resolvedAt": "2026-08-21T17:13:29.642Z",
+    "kind": "replay_hard_failure",
+    "reason": "Step execution failed and no known outcome matched the resulting state.",
+    "decision": "aborted",
+    "actions": [
+      {
+        "timestamp": "2026-08-21T17:13:29.640Z",
+        "type": "abort",
+        "detail": "operator signaled abort"
+      }
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "status": "success",
+  "outputs": {
+    "shareId": "101555-S0001",
+    "balance": "$[REDACTED]8",
+    "status": "HOLD [HOLD]"
+  },
+  "checkpointsPassed": [
+    "URL is the member record page for the given memberId",
+    "Member number cell shows the memberId parameter",
+    "SHARES / BALANCES section heading exists on the page",
+    "A row exists in the shares table whose Share ID cell contains both the memberId and shareCode parameters (structurally identifies the target share row without hardcoding the extracted value)"
+  ],
+  "stepsExecuted": 4,
+  "humanIntervention": {
+    "raisedAt": "2026-08-21T17:13:54.553Z",
+    "resolvedAt": "2026-08-21T17:14:11.162Z",
+    "kind": "replay_hard_failure",
+    "reason": "Step execution failed and no known outcome matched the resulting state.",
+    "decision": "resumed",
+    "actions": [
+      {
+        "timestamp": "2026-08-21T17:14:11.140Z",
+        "type": "extract",
+        "detail": "read \"balance\" = [REDACTED] from \"body > table > tbody > tr:nth-of-type(3) > td > table:nth-of-type(2) > tbody > tr:nth-of-type(2) > td:nth-of-type(3)\"",
+        "target": "body > table > tbody > tr:nth-of-type(3) > td > table:nth-of-type(2) > tbody > tr:nth-of-type(2) > td:nth-of-type(3)"
+      },
+      {
+        "timestamp": "2026-08-21T17:14:11.151Z",
+        "type": "extract",
+        "detail": "read \"status\" = HOLD [HOLD] from \"body > table > tbody > tr:nth-of-type(3) > td > table:nth-of-type(2) > tbody > tr:nth-of-type(2) > td:nth-of-type(4)\"",
+        "target": "body > table > tbody > tr:nth-of-type(3) > td > table:nth-of-type(2) > tbody > tr:nth-of-type(2) > td:nth-of-type(4)"
+      },
+      {
+        "timestamp": "2026-08-21T17:14:11.161Z",
+        "type": "resume",
+        "detail": "operator signaled resume"
+      }
+    ]
+  }
+}

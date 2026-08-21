@@ -1,0 +1,18 @@
+{
+  "status": "success",
+  "outputs": {
+    "memberName": "H[REDACTED]e",
+    "email": "g[REDACTED]m",
+    "phone": "5[REDACTED]8",
+    "address": "8[REDACTED]n",
+    "shares": "S[REDACTED]]"
+  },
+  "checkpointsPassed": [
+    "URL is the member record page for the requested memberId",
+    "Page shows the MEMBER RECORD heading, confirming we are on a member record page",
+    "Member No. label cell exists, confirming member number field is displayed",
+    "SHARES / BALANCES section heading text exists on the page, confirming the shares table section is present",
+    "The shares table's Share ID column heading cell exists, confirming the shares table was located"
+  ],
+  "stepsExecuted": 6
+}
