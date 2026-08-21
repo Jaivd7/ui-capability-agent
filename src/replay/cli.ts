@@ -6,7 +6,7 @@ import { startAuthenticatedSession } from "../shared/session.js";
 import { createRunLogger } from "../logging/logger.js";
 import { loadGuardrailsConfig } from "../guardrails/config.js";
 import { evaluateGuardrails } from "../guardrails/policy.js";
-import { startCliEscalation } from "../escalation/index.js";
+import { sensitiveParamValues, startCliEscalation } from "../escalation/index.js";
 import { redactValue } from "../guardrails/redact.js";
 import type { CapabilityArtifact } from "../artifact/schema.js";
 import { runReplay } from "./engine.js";
@@ -135,6 +135,7 @@ async function main() {
         evidenceDir: evidenceOutDir,
         app,
         artifact,
+        sensitiveValues: sensitiveParamValues(artifact, params),
       })
     : undefined;
   if (cliEscalation) console.log(`Operator console will be served at ${cliEscalation.url}`);

@@ -15,6 +15,35 @@ export { createEscalationHandler, raiseIntervention } from "./intervention.js";
 export { startStandaloneConsole } from "./standalone-console.js";
 export type { HumanActionPolicy } from "./action-policy.js";
 
+/**
+ * The values from *this invocation* that the artifact marks sensitive.
+ *
+ * `HumanActionPolicy.sensitiveValues` existed and was passed an empty array at
+ * every construction site, so `describeAction`'s known-sensitive branch was
+ * dead code and an operator retyping a member's e-mail during an escalation got
+ * it logged as `a[REDACTED]m` — shape-preserving partial masking, which is the
+ * fallback for values nothing knows about, not the treatment a declared
+ * sensitive param is supposed to get.
+ *
+ * Inputs rather than outputs, deliberately: this exists for a value the
+ * operator *retypes*, and re-entering an e-mail or phone number into a form the
+ * automation failed on is the realistic case. Nobody retypes a balance.
+ */
+export function sensitiveParamValues(
+  artifact: CapabilityArtifact | undefined,
+  params: Record<string, unknown> | undefined,
+): (string | number)[] {
+  if (!artifact || !params) return [];
+  const out: (string | number)[] = [];
+  for (const param of artifact.inputParams) {
+    if (!param.sensitive) continue;
+    const value = params[param.name];
+    if (typeof value === "string" && value !== "") out.push(value);
+    else if (typeof value === "number" && Number.isFinite(value)) out.push(value);
+  }
+  return out;
+}
+
 export interface CliEscalationOptions {
   page: Page;
   logger: RunLogger;

@@ -65,6 +65,8 @@ export interface RunExecutorDeps {
     app: string;
     /** Absent for discovery: there is no artifact yet, that is what the run is for. */
     artifact?: CapabilityArtifact;
+    /** This invocation's arguments, so the console can mask the sensitive ones. */
+    params?: Record<string, unknown>;
   }) => EscalationHandler | undefined;
   /**
    * Where the run's page is published so the dashboard can screenshot it while
@@ -258,7 +260,7 @@ export function createRunExecutor(
 
       const guardrailsConfig = loadGuardrailsConfig(artifact.target.app);
       const escalate = ctx.escalateEnabled
-        ? wrapEscalation(runId, evidenceOutDir, session.page, logger, artifact.target.app, artifact)
+        ? wrapEscalation(runId, evidenceOutDir, session.page, logger, artifact.target.app, artifact, ctx.params)
         : undefined;
 
       result = await replay({
@@ -377,8 +379,9 @@ export function createRunExecutor(
     logger: RunLogger,
     app: string,
     artifact: CapabilityArtifact,
+    params: Record<string, unknown>,
   ): EscalationHandler | undefined {
-    const handler = deps.escalate?.({ runId, evidenceDir: evidenceOutDir, page, logger, app, artifact });
+    const handler = deps.escalate?.({ runId, evidenceDir: evidenceOutDir, page, logger, app, artifact, params });
     if (!handler) return undefined;
     return async (ctx: InterventionContext, executeApprovedStep?: () => Promise<void>) => {
       const raisedAt = new Date().toISOString();

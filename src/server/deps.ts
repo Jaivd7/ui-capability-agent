@@ -8,6 +8,7 @@ import type { ServerDeps } from "./types.js";
 import { getAppAdapter } from "../apps/index.js";
 import { loadGuardrailsConfig } from "../guardrails/config.js";
 import { createEscalationHandler } from "../escalation/intervention.js";
+import { sensitiveParamValues } from "../escalation/index.js";
 import { createInterventionRegistry, type InterventionRegistry } from "../escalation/intervention-registry.js";
 
 export interface BuiltDeps extends ServerDeps {
@@ -41,7 +42,7 @@ export async function buildDeps(): Promise<BuiltDeps> {
     liveView,
     // The console is a few routes on *this* server now, so the handler only
     // needs to know where it is mounted. Nothing is started per run.
-    escalate: ({ evidenceDir, page, logger, app, artifact }) =>
+    escalate: ({ evidenceDir, page, logger, app, artifact, params }) =>
       createEscalationHandler({
         page,
         logger,
@@ -51,7 +52,7 @@ export async function buildDeps(): Promise<BuiltDeps> {
           guardrails: loadGuardrailsConfig(app),
           app,
           artifact,
-          sensitiveValues: [],
+          sensitiveValues: sensitiveParamValues(artifact, params),
         },
         basePathFor: (id) => `/runs/${id}/escalation`,
         preResumeCheck: async (pending) => {
