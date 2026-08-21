@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { safeRouter } from "../shared/express-safety.js";
 import {
   checkHumanAction,
   HumanActionError,
@@ -18,7 +19,7 @@ import type { InterventionRegistry, PendingIntervention } from "./intervention-r
  * `action-policy.ts` cannot be enforced in one and skipped in the other.
  */
 export function escalationRouter(registry: InterventionRegistry): Router {
-  const router = Router({ mergeParams: true });
+  const router = safeRouter(Router({ mergeParams: true }));
 
   const resolvePending = (
     req: { params: Record<string, string> },

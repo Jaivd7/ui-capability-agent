@@ -1,4 +1,5 @@
 import { Router, type Response } from "express";
+import { safeRouter } from "../shared/express-safety.js";
 import { getAppAdapter, listRoles } from "../apps/index.js";
 import { demoDataFor } from "../apps/demo-data.js";
 import type { CheatSheetData } from "./views/components.js";
@@ -38,7 +39,7 @@ import { isTerminalStatus, RunnerBusyError, type RunStatus, type ServerDeps } fr
 const FAULT_APP = "meridian-core";
 
 export function createUiRouter(deps: ServerDeps): Router {
-  const ui = Router();
+  const ui = safeRouter(Router());
 
   /**
    * Last known fault state, refreshed whenever the panel is opened or changed.

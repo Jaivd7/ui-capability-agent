@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import { errorHandler } from "../shared/express-safety.js";
 import { createApiRouter } from "./api.js";
 import { createUiRouter } from "./ui.js";
 import type { ServerDeps } from "./types.js";
@@ -21,5 +22,8 @@ export function createDashboardApp(deps: ServerDeps & { interventions?: Interven
     app.use("/runs/:runId/escalation", escalationRouter(deps.interventions));
   }
   app.use("/", createUiRouter(deps));
+  // Last, so a rejection escaping any router above lands here instead of
+  // becoming an unhandled rejection that exits the process.
+  app.use(errorHandler);
   return app;
 }

@@ -1,5 +1,6 @@
 import { createReadStream, existsSync } from "node:fs";
 import { Router } from "express";
+import { safeRouter } from "../shared/express-safety.js";
 import { listAppAdapters } from "../apps/index.js";
 import { ParamValidationError } from "../replay/coerce.js";
 import { CapabilityNotFoundError } from "./runtime/run-executor.js";
@@ -22,7 +23,7 @@ import { EVIDENCE_FILES, RunnerBusyError, type EvidenceFile, type ServerDeps } f
  * this layer is a 500.
  */
 export function createApiRouter(deps: ServerDeps): Router {
-  const api = Router();
+  const api = safeRouter(Router());
 
   api.get("/capabilities", (req, res) => {
     const app = typeof req.query.app === "string" ? req.query.app : undefined;

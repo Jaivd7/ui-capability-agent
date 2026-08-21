@@ -1,5 +1,6 @@
 import type { AddressInfo } from "node:net";
 import express from "express";
+import { errorHandler } from "../shared/express-safety.js";
 import { escalationRouter } from "./routes.js";
 import type { InterventionRegistry } from "./intervention-registry.js";
 
@@ -42,6 +43,8 @@ export async function startStandaloneConsole(registry: InterventionRegistry): Pr
         ` You can close this window; the terminal is showing the rest of the run.</p></body>`,
     );
   });
+
+  app.use(errorHandler);
 
   return new Promise<StandaloneConsole>((resolve) => {
     const server = app.listen(0, () => {
