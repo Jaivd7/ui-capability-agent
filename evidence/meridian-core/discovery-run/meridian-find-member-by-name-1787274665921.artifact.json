@@ -1,14 +1,14 @@
 {
   "schemaVersion": "1.1.0",
-  "id": "meridian-read-member-record",
-  "name": "Read member record",
-  "description": "Reads a member's name and contact details, plus every share they hold (id, type, balance and status) as a single table. Pairs with the update-contact capability, which needs those current values.",
-  "version": 3,
-  "contentHash": "f98820a524af699382e273e87b742a1d9af729336bb7d70a1988b1768351fd8f",
-  "createdAt": "2026-08-21T01:03:24.615Z",
+  "id": "meridian-find-member-by-name",
+  "name": "Find member by last name",
+  "description": "Looks up a member by last name in MERIDIAN CORE, returning the member number, name and share count shown on the inquiry results row. Reports MULTIPLE_MATCHES if the search is not unique.",
+  "version": 5,
+  "contentHash": "c7d261730986393545d0117277685265c8ac1c974fecfdf6e4f700fcdd6d0414",
+  "createdAt": "2026-08-21T01:11:48.042Z",
   "discovery": {
     "model": "claude-sonnet-5",
-    "discoveredAt": "2026-08-21T01:03:24.615Z"
+    "discoveredAt": "2026-08-21T01:11:48.042Z"
   },
   "target": {
     "app": "meridian-core",
@@ -22,66 +22,137 @@
   },
   "inputParams": [
     {
-      "name": "memberId",
+      "name": "lastName",
       "type": "string",
       "required": true,
-      "description": "Member number.",
+      "description": "Member surname, or part of it, to search for.",
       "sensitive": false,
-      "example": "100234"
+      "example": "Lovelace"
     }
   ],
   "outputs": [
     {
+      "name": "memberId",
+      "type": "string",
+      "description": "Extract Member No. from matching row",
+      "sensitive": true
+    },
+    {
       "name": "memberName",
       "type": "string",
-      "description": "Extract member's full name from the cell next to the 'Name:' label",
+      "description": "Extract Name from matching row",
       "sensitive": true
     },
     {
-      "name": "email",
-      "type": "string",
-      "description": "Extract member's email from the cell next to the 'E-mail:' label",
-      "sensitive": true
-    },
-    {
-      "name": "phone",
-      "type": "string",
-      "description": "Extract member's phone number from the cell next to the 'Phone:' label",
-      "sensitive": true
-    },
-    {
-      "name": "address",
-      "type": "string",
-      "description": "Extract member's mailing address from the cell next to the 'Address:' label",
-      "sensitive": true
-    },
-    {
-      "name": "shares",
-      "type": "string",
-      "description": "Extract the entire SHARES / BALANCES table text as a single string",
-      "sensitive": true
+      "name": "shareCount",
+      "type": "number",
+      "description": "Extract Shares from matching row",
+      "sensitive": false
     }
   ],
   "steps": [
     {
       "id": "step-1",
-      "description": "Navigate directly to member record page for member ${memberId}",
+      "description": "Member Inquiry / Selection link on main menu",
       "retryable": false,
       "irreversible": false,
-      "type": "navigate",
-      "urlTemplate": "/members/${memberId}"
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Member Inquiry / Selection",
+          "exact": false,
+          "reason": "main menu link to member inquiry"
+        }
+      ],
+      "type": "click"
     },
     {
       "id": "step-2",
-      "description": "Extract member's full name from the cell next to the 'Name:' label",
+      "description": "Change search mode to Last Name",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"by\"]",
+          "reason": "search mode select field"
+        }
+      ],
+      "type": "select",
+      "value": {
+        "kind": "literal",
+        "value": "name"
+      }
+    },
+    {
+      "id": "step-3",
+      "description": "Enter last name to search for",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"q\"]",
+          "reason": "search value input"
+        }
+      ],
+      "type": "fill",
+      "value": {
+        "kind": "param",
+        "param": "lastName"
+      }
+    },
+    {
+      "id": "step-4",
+      "description": "Click Search to submit last name search",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": false,
+          "reason": "search submit button"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-5",
+      "description": "Extract Member No. from matching row",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
           "strategy": "xpath",
-          "expression": "//td[normalize-space(text())=\"Name:\"]/following-sibling::td[1]",
-          "reason": "anchors on static 'Name:' label cell in member info table, robust across members"
+          "expression": "//tr[td[starts-with(normalize-space(text()), \"${lastName},\")]]/td[1]",
+          "reason": "Member No. cell in the row whose Name cell starts with the searched lastName"
+        }
+      ],
+      "type": "extract",
+      "outputName": "memberId",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-6",
+      "description": "Extract Name from matching row",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//tr[td[starts-with(normalize-space(text()), \"${lastName},\")]]/td[2]",
+          "reason": "Name cell in the row whose Name cell starts with the searched lastName"
         }
       ],
       "type": "extract",
@@ -91,77 +162,20 @@
       }
     },
     {
-      "id": "step-3",
-      "description": "Extract member's email from the cell next to the 'E-mail:' label",
+      "id": "step-7",
+      "description": "Extract Shares from matching row",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
           "strategy": "xpath",
-          "expression": "//td[normalize-space(text())=\"E-mail:\"]/following-sibling::td[1]",
-          "reason": "anchors on static 'E-mail:' label cell"
+          "expression": "//tr[td[starts-with(normalize-space(text()), \"${lastName},\")]]/td[3]",
+          "reason": "Shares cell in the row whose Name cell starts with the searched lastName"
         }
       ],
       "type": "extract",
-      "outputName": "email",
-      "read": {
-        "from": "innerText"
-      }
-    },
-    {
-      "id": "step-4",
-      "description": "Extract member's phone number from the cell next to the 'Phone:' label",
-      "retryable": false,
-      "irreversible": false,
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "xpath",
-          "expression": "//td[normalize-space(text())=\"Phone:\"]/following-sibling::td[1]",
-          "reason": "anchors on static 'Phone:' label cell"
-        }
-      ],
-      "type": "extract",
-      "outputName": "phone",
-      "read": {
-        "from": "innerText"
-      }
-    },
-    {
-      "id": "step-5",
-      "description": "Extract member's mailing address from the cell next to the 'Address:' label",
-      "retryable": false,
-      "irreversible": false,
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "xpath",
-          "expression": "//td[normalize-space(text())=\"Address:\"]/following-sibling::td[1]",
-          "reason": "anchors on static 'Address:' label cell"
-        }
-      ],
-      "type": "extract",
-      "outputName": "address",
-      "read": {
-        "from": "innerText"
-      }
-    },
-    {
-      "id": "step-6",
-      "description": "Extract the entire SHARES / BALANCES table text as a single string",
-      "retryable": false,
-      "irreversible": false,
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "xpath",
-          "expression": "(//td[normalize-space(text())=\"Share ID\"])/ancestor::table[1]",
-          "reason": "finds the innermost table ancestor of the 'Share ID' column heading cell, i.e. the shares/balances table itself, not the outer layout table"
-        }
-      ],
-      "type": "extract",
-      "outputName": "shares",
+      "outputName": "shareCount",
       "read": {
         "from": "innerText"
       }
@@ -169,72 +183,60 @@
   ],
   "checkpoints": [
     {
-      "description": "URL is the member record page for the requested memberId",
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "css",
-          "selector": "body",
-          "reason": "urlMatches checkpoint checks the page URL itself, locator is just an anchor to the document"
-        }
-      ],
-      "assertion": "urlMatches",
-      "expected": "/members/${memberId:regexEscape}"
-    },
-    {
-      "description": "Page shows the MEMBER RECORD heading, confirming we are on a member record page",
+      "description": "URL reflects a name-based search for the given lastName parameter",
       "frame": [],
       "locator": [
         {
           "strategy": "role",
           "role": "heading",
-          "name": "MEMBER RECORD",
+          "name": "MEMBER INQUIRY / SELECTION",
           "exact": false,
-          "reason": "static page heading present on every member record page"
+          "reason": "static page heading confirming we are on the member inquiry search results page"
         }
       ],
       "assertion": "exists"
     },
     {
-      "description": "Member No. label cell exists, confirming member number field is displayed",
+      "description": "Results table has the expected static column headers",
       "frame": [],
       "locator": [
         {
           "strategy": "role",
           "role": "cell",
-          "name": "Member No.:",
+          "name": "Member No.",
           "exact": false,
-          "reason": "static label cell present on every member record regardless of which member is loaded"
+          "reason": "static column header present regardless of search results"
         }
       ],
       "assertion": "exists"
     },
     {
-      "description": "SHARES / BALANCES section heading text exists on the page, confirming the shares table section is present",
+      "description": "Name cell in results contains the searched lastName parameter",
       "frame": [],
       "locator": [
         {
-          "strategy": "text",
-          "text": "SHARES / BALANCES",
-          "exact": false,
-          "reason": "static section heading present on every member record page"
+          "strategy": "xpath",
+          "expression": "//tr[td[starts-with(normalize-space(text()), \"${lastName},\")]]/td[2]",
+          "reason": "row anchored by Name cell text starting with the searched lastName, per instructions"
         }
       ],
-      "assertion": "exists"
+      "assertion": "textContains",
+      "expected": "${lastName}"
     },
     {
-      "description": "The shares table's Share ID column heading cell exists, confirming the shares table was located",
+      "description": "URL query parameter reflects search by name for the lastName parameter",
       "frame": [],
       "locator": [
         {
           "strategy": "role",
-          "role": "cell",
-          "name": "Share ID",
+          "role": "heading",
+          "name": "MEMBER INQUIRY / SELECTION",
           "exact": false,
-          "reason": "static column heading in the shares/balances table, present regardless of how many shares a member has"
+          "reason": "static heading present on the page whose URL we are checking"
         }
       ],
-      "assertion": "exists"
+      "assertion": "urlMatches",
+      "expected": "by=name&q=${lastName:regexEscape}"
     }
   ],
   "knownOutcomes": [
@@ -347,6 +349,25 @@
       "outcome": {
         "code": "PERMISSION_DENIED",
         "message": "The signed-on operator is not authorized to perform this function; a supervisor must complete it."
+      }
+    },
+    {
+      "id": "multiple-matches",
+      "description": "The search matched more than one member, so no single record could be selected.",
+      "detect": {
+        "frame": [],
+        "locator": [
+          {
+            "strategy": "css",
+            "selector": ":nth-match(a:text-is(\"Select\"), 2)",
+            "reason": "A second Select link in the results table means the search was not unique."
+          }
+        ]
+      },
+      "classification": "business",
+      "outcome": {
+        "code": "MULTIPLE_MATCHES",
+        "message": "More than one member matched; narrow the search or use the member number."
       }
     }
   ]

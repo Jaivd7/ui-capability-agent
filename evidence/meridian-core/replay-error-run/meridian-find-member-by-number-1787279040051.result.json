@@ -1,0 +1,6 @@
+{
+  "status": "business_outcome",
+  "code": "MEMBER_NOT_FOUND",
+  "message": "No member record matches the supplied identifier.",
+  "outcomeId": "member-not-found"
+}

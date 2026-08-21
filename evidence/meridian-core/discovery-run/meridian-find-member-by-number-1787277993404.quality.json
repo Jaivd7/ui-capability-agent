@@ -1,0 +1,95 @@
+{
+  "capabilityId": "meridian-find-member-by-number",
+  "score": 81,
+  "grade": "B",
+  "metrics": {
+    "steps": 7,
+    "chains": 10,
+    "meanChainDepth": 1.3,
+    "singleCandidateChains": 7,
+    "brittleRootedChains": 0,
+    "brittleOnlyChains": 0,
+    "checkpoints": 4,
+    "structuralCheckpoints": 4,
+    "paramsDeclared": 1,
+    "paramsBoundInSteps": 1,
+    "paramsAssertedInCheckpoints": 0,
+    "outputs": 3,
+    "outputsVerified": 0
+  },
+  "findings": [
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[0].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "info",
+      "code": "param_unverified",
+      "where": "inputParams.memberId",
+      "message": "used by a step but asserted by no checkpoint, so a wrong-target run would still pass"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.memberId",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.memberName",
+      "message": "no checkpoint touches the element this output is read from"
+    },
+    {
+      "severity": "info",
+      "code": "output_unverified",
+      "where": "outputs.shareCount",
+      "message": "no checkpoint touches the element this output is read from"
+    }
+  ]
+}

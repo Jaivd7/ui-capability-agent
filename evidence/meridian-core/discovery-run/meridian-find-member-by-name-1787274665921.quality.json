@@ -1,0 +1,98 @@
+{
+  "capabilityId": "meridian-find-member-by-name",
+  "score": 82,
+  "grade": "B",
+  "metrics": {
+    "steps": 7,
+    "chains": 10,
+    "meanChainDepth": 1,
+    "singleCandidateChains": 10,
+    "brittleRootedChains": 0,
+    "brittleOnlyChains": 0,
+    "checkpoints": 4,
+    "structuralCheckpoints": 4,
+    "paramsDeclared": 1,
+    "paramsBoundInSteps": 1,
+    "paramsAssertedInCheckpoints": 1,
+    "outputs": 3,
+    "outputsVerified": 3
+  },
+  "findings": [
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[0].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[4].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[5].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[6].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[0].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "info",
+      "code": "irreversible_unmarked",
+      "where": "steps[3]",
+      "message": "looks like a consequential action but is not marked irreversible, so the guardrail will not gate it"
+    }
+  ]
+}

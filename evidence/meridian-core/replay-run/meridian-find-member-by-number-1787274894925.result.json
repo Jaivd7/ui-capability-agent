@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "outputs": {
+    "memberId": "101555",
+    "memberName": "H[REDACTED]e",
+    "shareCount": 7
+  },
+  "checkpointsPassed": [
+    "URL is the member inquiry results route with query params for a number search",
+    "Search criteria row shows the fixed 'Search by: Member Number' label combination, confirming the search mode is Member Number",
+    "Results table header row contains the static column labels Member No., Name, Shares",
+    "A Select link exists in the results row, proving a matching member record was found and rendered as a results row rather than an error page"
+  ],
+  "stepsExecuted": 7
+}

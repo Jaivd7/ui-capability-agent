@@ -1,0 +1,16 @@
+{"timestamp":"2026-08-21T02:09:23.986Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-number-1787278084135-probe","capabilityId":"meridian-find-member-by-number","capabilityVersion":5,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"101555"}}
+{"timestamp":"2026-08-21T02:09:24.155Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:27.671Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:31.185Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:34.767Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:38.281Z","type":"extracted","stepId":"step-5","outputName":"memberId","value":"101555"}
+{"timestamp":"2026-08-21T02:09:38.282Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:41.794Z","type":"extracted","stepId":"step-6","outputName":"memberName","value":"H[REDACTED]e"}
+{"timestamp":"2026-08-21T02:09:41.795Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:45.305Z","type":"extracted","stepId":"step-7","outputName":"shareCount","value":7}
+{"timestamp":"2026-08-21T02:09:45.306Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:48.816Z","type":"checkpoint_passed","description":"URL reflects a member number search query"}
+{"timestamp":"2026-08-21T02:09:48.822Z","type":"checkpoint_passed","description":"Results table shows the standard column headers"}
+{"timestamp":"2026-08-21T02:09:48.824Z","type":"checkpoint_passed","description":"The results row (identified structurally by containing the Select link) has a Member No. cell holding a numeric value"}
+{"timestamp":"2026-08-21T02:09:48.825Z","type":"checkpoint_passed","description":"A Shares value is present in the results row for the member"}
+{"timestamp":"2026-08-21T02:09:48.825Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":["memberId","memberName","shareCount"],"humanIntervened":false}

@@ -1,0 +1,16 @@
+{"timestamp":"2026-08-21T01:09:31.953Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-name-1787274494799-probe","capabilityId":"meridian-find-member-by-name","capabilityVersion":4,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"lastName":"Hopper"}}
+{"timestamp":"2026-08-21T01:09:32.109Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:09:36.140Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:09:40.159Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:09:44.227Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:09:48.240Z","type":"extracted","stepId":"step-5","outputName":"memberId","value":"1[REDACTED]5"}
+{"timestamp":"2026-08-21T01:09:48.240Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:09:52.246Z","type":"extracted","stepId":"step-6","outputName":"memberName","value":"H[REDACTED]e"}
+{"timestamp":"2026-08-21T01:09:52.246Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:09:56.259Z","type":"extracted","stepId":"step-7","outputName":"shareCount","value":"[REDACTED]"}
+{"timestamp":"2026-08-21T01:09:56.261Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:10:00.272Z","type":"checkpoint_passed","description":"URL reflects a Last Name search for the lastName parameter"}
+{"timestamp":"2026-08-21T01:10:00.283Z","type":"checkpoint_passed","description":"Results table header row with Member No., Name, Shares columns exists"}
+{"timestamp":"2026-08-21T01:10:00.292Z","type":"checkpoint_passed","description":"The Name cell in the results table contains the searched lastName"}
+{"timestamp":"2026-08-21T01:10:00.294Z","type":"checkpoint_passed","description":"Shares cell in the matching row shows a numeric value"}
+{"timestamp":"2026-08-21T01:10:00.294Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":["memberId","memberName","shareCount"],"humanIntervened":false}

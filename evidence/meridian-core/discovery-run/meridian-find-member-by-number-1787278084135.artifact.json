@@ -1,14 +1,14 @@
 {
   "schemaVersion": "1.1.0",
-  "id": "meridian-read-member-record",
-  "name": "Read member record",
-  "description": "Reads a member's name and contact details, plus every share they hold (id, type, balance and status) as a single table. Pairs with the update-contact capability, which needs those current values.",
-  "version": 3,
-  "contentHash": "f98820a524af699382e273e87b742a1d9af729336bb7d70a1988b1768351fd8f",
-  "createdAt": "2026-08-21T01:03:24.615Z",
+  "id": "meridian-find-member-by-number",
+  "name": "Find member by member number",
+  "description": "Looks up a member by their member number in MERIDIAN CORE, returning the member number, name and share count shown on the inquiry results row.",
+  "version": 5,
+  "contentHash": "ab328d32112ebe871469488e07de4d381f65b5d27b1c50bfc8920037b72a467a",
+  "createdAt": "2026-08-21T02:09:23.967Z",
   "discovery": {
     "model": "claude-sonnet-5",
-    "discoveredAt": "2026-08-21T01:03:24.615Z"
+    "discoveredAt": "2026-08-21T02:09:23.967Z"
   },
   "target": {
     "app": "meridian-core",
@@ -25,63 +25,141 @@
       "name": "memberId",
       "type": "string",
       "required": true,
-      "description": "Member number.",
+      "description": "Member number to search for.",
       "sensitive": false,
       "example": "100234"
     }
   ],
   "outputs": [
     {
+      "name": "memberId",
+      "type": "string",
+      "description": "Member No. cell in results row",
+      "sensitive": false
+    },
+    {
       "name": "memberName",
       "type": "string",
-      "description": "Extract member's full name from the cell next to the 'Name:' label",
+      "description": "Name cell in results row for the member",
       "sensitive": true
     },
     {
-      "name": "email",
-      "type": "string",
-      "description": "Extract member's email from the cell next to the 'E-mail:' label",
-      "sensitive": true
-    },
-    {
-      "name": "phone",
-      "type": "string",
-      "description": "Extract member's phone number from the cell next to the 'Phone:' label",
-      "sensitive": true
-    },
-    {
-      "name": "address",
-      "type": "string",
-      "description": "Extract member's mailing address from the cell next to the 'Address:' label",
-      "sensitive": true
-    },
-    {
-      "name": "shares",
-      "type": "string",
-      "description": "Extract the entire SHARES / BALANCES table text as a single string",
-      "sensitive": true
+      "name": "shareCount",
+      "type": "number",
+      "description": "Shares cell in results row for the member",
+      "sensitive": false
     }
   ],
   "steps": [
     {
       "id": "step-1",
-      "description": "Navigate directly to member record page for member ${memberId}",
+      "description": "Navigate to Member Inquiry page",
       "retryable": false,
       "irreversible": false,
-      "type": "navigate",
-      "urlTemplate": "/members/${memberId}"
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Member Inquiry / Selection",
+          "exact": false,
+          "reason": "main menu link to member inquiry"
+        },
+        {
+          "strategy": "role",
+          "role": "link",
+          "name": "Member Inquiry",
+          "exact": false,
+          "reason": "nav bar link fallback"
+        }
+      ],
+      "type": "click"
     },
     {
       "id": "step-2",
-      "description": "Extract member's full name from the cell next to the 'Name:' label",
+      "description": "Ensure search mode is Member Number",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"by\"]",
+          "reason": "form field name for search mode selector, part of submission contract"
+        }
+      ],
+      "type": "select",
+      "value": {
+        "kind": "literal",
+        "value": "number"
+      }
+    },
+    {
+      "id": "step-3",
+      "description": "Enter member number to search",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "css",
+          "selector": "[name=\"q\"]",
+          "reason": "form field name for search value input"
+        }
+      ],
+      "type": "fill",
+      "value": {
+        "kind": "param",
+        "param": "memberId"
+      }
+    },
+    {
+      "id": "step-4",
+      "description": "Submit member search",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": false,
+          "reason": "submit search form"
+        }
+      ],
+      "type": "click"
+    },
+    {
+      "id": "step-5",
+      "description": "Member No. cell in results row",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
           "strategy": "xpath",
-          "expression": "//td[normalize-space(text())=\"Name:\"]/following-sibling::td[1]",
-          "reason": "anchors on static 'Name:' label cell in member info table, robust across members"
+          "expression": "//tr[.//a[text()=\"Select\"] and not(.//table)]/td[1]",
+          "reason": "innermost results row (excludes ancestor rows that wrap nested tables) identified by containing the Select link, first cell is Member No."
+        }
+      ],
+      "type": "extract",
+      "outputName": "memberId",
+      "read": {
+        "from": "innerText"
+      }
+    },
+    {
+      "id": "step-6",
+      "description": "Name cell in results row for the member",
+      "retryable": false,
+      "irreversible": false,
+      "frame": [],
+      "locator": [
+        {
+          "strategy": "xpath",
+          "expression": "//tr[.//a[text()=\"Select\"] and not(.//table)]/td[2]",
+          "reason": "innermost results row (excludes ancestor rows wrapping nested tables), second cell is Name"
         }
       ],
       "type": "extract",
@@ -91,77 +169,20 @@
       }
     },
     {
-      "id": "step-3",
-      "description": "Extract member's email from the cell next to the 'E-mail:' label",
+      "id": "step-7",
+      "description": "Shares cell in results row for the member",
       "retryable": false,
       "irreversible": false,
       "frame": [],
       "locator": [
         {
           "strategy": "xpath",
-          "expression": "//td[normalize-space(text())=\"E-mail:\"]/following-sibling::td[1]",
-          "reason": "anchors on static 'E-mail:' label cell"
+          "expression": "//tr[.//a[text()=\"Select\"] and not(.//table)]/td[3]",
+          "reason": "innermost results row (excludes ancestor rows wrapping nested tables), third cell is Shares"
         }
       ],
       "type": "extract",
-      "outputName": "email",
-      "read": {
-        "from": "innerText"
-      }
-    },
-    {
-      "id": "step-4",
-      "description": "Extract member's phone number from the cell next to the 'Phone:' label",
-      "retryable": false,
-      "irreversible": false,
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "xpath",
-          "expression": "//td[normalize-space(text())=\"Phone:\"]/following-sibling::td[1]",
-          "reason": "anchors on static 'Phone:' label cell"
-        }
-      ],
-      "type": "extract",
-      "outputName": "phone",
-      "read": {
-        "from": "innerText"
-      }
-    },
-    {
-      "id": "step-5",
-      "description": "Extract member's mailing address from the cell next to the 'Address:' label",
-      "retryable": false,
-      "irreversible": false,
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "xpath",
-          "expression": "//td[normalize-space(text())=\"Address:\"]/following-sibling::td[1]",
-          "reason": "anchors on static 'Address:' label cell"
-        }
-      ],
-      "type": "extract",
-      "outputName": "address",
-      "read": {
-        "from": "innerText"
-      }
-    },
-    {
-      "id": "step-6",
-      "description": "Extract the entire SHARES / BALANCES table text as a single string",
-      "retryable": false,
-      "irreversible": false,
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "xpath",
-          "expression": "(//td[normalize-space(text())=\"Share ID\"])/ancestor::table[1]",
-          "reason": "finds the innermost table ancestor of the 'Share ID' column heading cell, i.e. the shares/balances table itself, not the outer layout table"
-        }
-      ],
-      "type": "extract",
-      "outputName": "shares",
+      "outputName": "shareCount",
       "read": {
         "from": "innerText"
       }
@@ -169,72 +190,57 @@
   ],
   "checkpoints": [
     {
-      "description": "URL is the member record page for the requested memberId",
+      "description": "URL reflects a member number search query",
       "frame": [],
       "locator": [
         {
           "strategy": "css",
           "selector": "body",
-          "reason": "urlMatches checkpoint checks the page URL itself, locator is just an anchor to the document"
+          "reason": "page body always present; assertion checks the URL itself"
         }
       ],
       "assertion": "urlMatches",
-      "expected": "/members/${memberId:regexEscape}"
+      "expected": "/members\\?by=number&q=\\d+"
     },
     {
-      "description": "Page shows the MEMBER RECORD heading, confirming we are on a member record page",
-      "frame": [],
-      "locator": [
-        {
-          "strategy": "role",
-          "role": "heading",
-          "name": "MEMBER RECORD",
-          "exact": false,
-          "reason": "static page heading present on every member record page"
-        }
-      ],
-      "assertion": "exists"
-    },
-    {
-      "description": "Member No. label cell exists, confirming member number field is displayed",
+      "description": "Results table shows the standard column headers",
       "frame": [],
       "locator": [
         {
           "strategy": "role",
           "role": "cell",
-          "name": "Member No.:",
+          "name": "Member No.",
           "exact": false,
-          "reason": "static label cell present on every member record regardless of which member is loaded"
+          "reason": "static column heading present regardless of which member was searched"
         }
       ],
       "assertion": "exists"
     },
     {
-      "description": "SHARES / BALANCES section heading text exists on the page, confirming the shares table section is present",
+      "description": "The results row (identified structurally by containing the Select link) has a Member No. cell holding a numeric value",
       "frame": [],
       "locator": [
         {
-          "strategy": "text",
-          "text": "SHARES / BALANCES",
-          "exact": false,
-          "reason": "static section heading present on every member record page"
+          "strategy": "xpath",
+          "expression": "//tr[.//a[text()=\"Select\"] and not(.//table)]/td[1]",
+          "reason": "innermost results row identified structurally by containing the Select link, first cell is Member No."
         }
       ],
-      "assertion": "exists"
+      "assertion": "textMatches",
+      "expected": "^[0-9]+$"
     },
     {
-      "description": "The shares table's Share ID column heading cell exists, confirming the shares table was located",
+      "description": "A Shares value is present in the results row for the member",
       "frame": [],
       "locator": [
         {
-          "strategy": "role",
-          "role": "cell",
-          "name": "Share ID",
-          "exact": false,
-          "reason": "static column heading in the shares/balances table, present regardless of how many shares a member has"
+          "strategy": "xpath",
+          "expression": "//tr[.//a[text()=\"Select\"] and not(.//table)]/td[3]",
+          "reason": "innermost results row's third cell is the Shares count"
         }
       ],
-      "assertion": "exists"
+      "assertion": "textMatches",
+      "expected": "^[0-9]+$"
     }
   ],
   "knownOutcomes": [

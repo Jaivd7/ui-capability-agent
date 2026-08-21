@@ -1,0 +1,16 @@
+{"timestamp":"2026-08-21T01:05:56.548Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-number-1787274236863-probe","capabilityId":"meridian-find-member-by-number","capabilityVersion":4,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"101555"}}
+{"timestamp":"2026-08-21T01:05:56.712Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:06:00.233Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:06:03.751Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:06:07.326Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:06:10.836Z","type":"extracted","stepId":"step-5","outputName":"memberId","value":"101555"}
+{"timestamp":"2026-08-21T01:06:10.837Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:06:14.346Z","type":"extracted","stepId":"step-6","outputName":"memberName","value":"H[REDACTED]e"}
+{"timestamp":"2026-08-21T01:06:14.346Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:06:17.860Z","type":"extracted","stepId":"step-7","outputName":"shareCount","value":7}
+{"timestamp":"2026-08-21T01:06:17.862Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:06:21.375Z","type":"checkpoint_passed","description":"URL is the member inquiry results route with query params for a number search"}
+{"timestamp":"2026-08-21T01:06:21.389Z","type":"checkpoint_passed","description":"Search criteria row shows the fixed 'Search by: Member Number' label combination, confirming the search mode is Member Number"}
+{"timestamp":"2026-08-21T01:06:21.396Z","type":"checkpoint_passed","description":"Results table header row contains the static column labels Member No., Name, Shares"}
+{"timestamp":"2026-08-21T01:06:21.398Z","type":"checkpoint_passed","description":"A Select link exists in the results row, proving a matching member record was found and rendered as a results row rather than an error page"}
+{"timestamp":"2026-08-21T01:06:21.398Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":["memberId","memberName","shareCount"],"humanIntervened":false}

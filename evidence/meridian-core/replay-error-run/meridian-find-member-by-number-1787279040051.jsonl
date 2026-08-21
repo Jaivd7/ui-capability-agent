@@ -1,0 +1,7 @@
+{"timestamp":"2026-08-21T02:24:00.487Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-number-1787279040051","capabilityId":"meridian-find-member-by-number","capabilityVersion":7,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"999999"}}
+{"timestamp":"2026-08-21T02:24:00.594Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:24:04.113Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:24:07.630Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:24:11.249Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:24:13.760Z","type":"known_outcome","outcomeId":"member-not-found","classification":"business"}
+{"timestamp":"2026-08-21T02:24:13.761Z","type":"run_end","status":"business_outcome","code":"MEMBER_NOT_FOUND","outcomeId":"member-not-found"}

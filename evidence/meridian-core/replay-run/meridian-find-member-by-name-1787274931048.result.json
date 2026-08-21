@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "outputs": {
+    "memberId": "101555",
+    "memberName": "H[REDACTED]e",
+    "shareCount": 7
+  },
+  "checkpointsPassed": [
+    "URL reflects a Last Name search for the given lastName parameter",
+    "Results table header row with Member No., Name, Shares columns is present",
+    "The matching row's Name cell contains the searched last name",
+    "A Select link exists for the matching member row, confirming a result was found"
+  ],
+  "stepsExecuted": 7
+}

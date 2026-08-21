@@ -45,9 +45,9 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
     app: "meridian-core",
     name: "Find member by member number",
     description:
-      "Looks up a member by their member number in MERIDIAN CORE and opens their record, returning the member's name and how many shares they hold.",
+      "Looks up a member by their member number in MERIDIAN CORE, returning the member number, name and share count shown on the inquiry results row.",
     goal:
-      "From the main menu, go to Member Inquiry. Search by Member Number for the member identified by the memberId parameter, then click Select on the matching row to open their record. Extract the member's full name as memberName and the number of share rows shown in the SHARES / BALANCES table as shareCount.",
+      "From the main menu, go to Member Inquiry. Make sure the search mode is Member Number, search for the member identified by the memberId parameter, and stay on the search results page. The results table has the columns Member No., Name and Shares. From the row for that member, extract the Member No. cell as memberId (a string), the Name cell as memberName (a string), and the Shares cell as shareCount (a number). Anchor the row on the memberId parameter — the Member No. cell holds exactly that value — rather than on its position in the table. Include a checkpoint asserting that the results row's Member No. cell holds the member number you searched for. Assert the concrete value, exactly as you would any other assertion — do not write a ${...} placeholder yourself; recorded literals are parameterised afterwards by the compiler. Note the distinction that makes this safe: the member number is a caller-supplied parameter, not something discovered on the page, so the rule against asserting values you read off the page does not apply to it. This capability's whole job is finding the right member, so landing on the wrong one must fail rather than pass. Do not click Select: everything this capability returns is on the results page, and opening the record would add steps that can fail for no benefit. Mark memberName sensitive because it is personal data, and mark memberId and shareCount not sensitive — the member number is this system's lookup key and is already declared a non-sensitive input everywhere else, so redacting it as an output would be inconsistent with the contract it is read from.",
     params: [
       {
         name: "memberId",
@@ -67,9 +67,9 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
     app: "meridian-core",
     name: "Find member by last name",
     description:
-      "Looks up a member by last name in MERIDIAN CORE. Returns the single matching member's number and name; reports MULTIPLE_MATCHES if the search is not unique.",
+      "Looks up a member by last name in MERIDIAN CORE, returning the member number, name and share count shown on the inquiry results row. Reports MULTIPLE_MATCHES if the search is not unique.",
     goal:
-      "From the main menu, go to Member Inquiry. Change the search mode to Last Name, search for the value given by the lastName parameter, then click Select on the matching row to open that member's record. Extract the member number as memberId and the member's full name as memberName. Include a checkpoint asserting that the opened record's Name contains the lastName that was searched for — this capability's whole job is finding the right member, so landing on the wrong one must fail rather than pass.",
+      "From the main menu, go to Member Inquiry. Change the search mode to Last Name, search for the value given by the lastName parameter, and stay on the search results page. The results table has the columns Member No., Name and Shares. From the matching row, extract the Member No. cell as memberId (a string), the Name cell as memberName (a string), and the Shares cell as shareCount (a number). Anchor the row on the *text* of its Name cell, which is rendered \"Surname, Forename\" and so begins with the lastName parameter: write the predicate with normalize-space(text()), for example //tr[td[starts-with(normalize-space(text()), \"${lastName},\")]]/td[N]. Do not identify the row with an indexed predicate such as td[2] or count(td)=4, and do not use contains(., ...) — a row found by position rather than by content is recorded as brittle and fails the recording score. Include a checkpoint asserting that the Name cell contains the lastName that was searched for: this capability's whole job is finding the right member, so landing on the wrong one must fail rather than pass. Do not click Select: everything this capability returns is on the results page. Mark memberName sensitive because it is personal data, and mark memberId and shareCount not sensitive — the member number is this system's lookup key and is already declared a non-sensitive input everywhere else, so redacting it as an output would be inconsistent with the contract it is read from. Note that every extract you perform is recorded as a step even if you immediately redo it — there is no undo — so a locator naming the member number you just read off the page fails the compile for the whole recording, however quickly you correct it afterwards. Anchor on the lastName parameter the first time.",
     params: [
       {
         name: "lastName",
@@ -89,9 +89,9 @@ export const MERIDIAN_PRESETS: Record<string, CapabilityPreset> = {
     app: "meridian-core",
     name: "Read member record",
     description:
-      "Reads a member's name and contact details. Pairs with the update-contact capability, which needs those current values.",
+      "Reads a member's name and contact details, plus every share they hold (id, type, balance and status) as a single table. Pairs with the update-contact capability, which needs those current values.",
     goal:
-      "Navigate directly to the member record page for the member identified by the memberId parameter (the URL is /members/ followed by that member number). Extract the member's full name as memberName, their e-mail address as email, their phone number as phone, and their mailing address as address.",
+      "Navigate directly to the member record page for the member identified by the memberId parameter (the URL is /members/ followed by that member number). Extract the member's full name as memberName, their e-mail address as email, their phone number as phone, and their mailing address as address. Then extract the whole SHARES / BALANCES table as a single string output named shares, marked sensitive because it contains balances: read the text of the table element itself in ONE extract step, not cell by cell, because the number of shares differs from member to member and per-cell steps would record one member's share count as the recipe. Anchor that table on its own \"Share ID\" column heading; the page nests tables inside a layout table, so check the locator matches the shares table alone and not an ancestor.",
     params: [
       { name: "memberId", type: "string", exampleValue: MEMBER, sensitive: false, description: "Member number." },
     ],

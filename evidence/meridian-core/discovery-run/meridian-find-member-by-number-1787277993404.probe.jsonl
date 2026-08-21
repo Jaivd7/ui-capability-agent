@@ -1,0 +1,16 @@
+{"timestamp":"2026-08-21T02:09:02.838Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-number-1787277993404-probe","capabilityId":"meridian-find-member-by-number","capabilityVersion":5,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"101555"}}
+{"timestamp":"2026-08-21T02:09:03.023Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:06.535Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:10.055Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:13.631Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:17.144Z","type":"extracted","stepId":"step-5","outputName":"memberId","value":"101555"}
+{"timestamp":"2026-08-21T02:09:17.146Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:20.656Z","type":"extracted","stepId":"step-6","outputName":"memberName","value":"H[REDACTED]e"}
+{"timestamp":"2026-08-21T02:09:20.656Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:24.165Z","type":"extracted","stepId":"step-7","outputName":"shareCount","value":7}
+{"timestamp":"2026-08-21T02:09:24.165Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:09:27.671Z","type":"checkpoint_passed","description":"URL shows the member inquiry results page with a member-number search query present"}
+{"timestamp":"2026-08-21T02:09:27.680Z","type":"checkpoint_passed","description":"Results table header row with static column labels is present"}
+{"timestamp":"2026-08-21T02:09:27.682Z","type":"checkpoint_passed","description":"A Select link is present in the results row, confirming a matching member record was found (without having been clicked)"}
+{"timestamp":"2026-08-21T02:09:27.687Z","type":"checkpoint_passed","description":"Results row's Member No. header cell is present"}
+{"timestamp":"2026-08-21T02:09:27.688Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":["memberId","memberName","shareCount"],"humanIntervened":false}

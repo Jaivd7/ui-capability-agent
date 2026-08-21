@@ -1,0 +1,18 @@
+{"timestamp":"2026-08-21T01:16:01.014Z","type":"run_start","kind":"replay","runId":"meridian-read-member-record-1787274960598","capabilityId":"meridian-read-member-record","capabilityVersion":3,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"101555"}}
+{"timestamp":"2026-08-21T01:16:01.090Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:16:04.611Z","type":"extracted","stepId":"step-2","outputName":"memberName","value":"H[REDACTED]e"}
+{"timestamp":"2026-08-21T01:16:04.612Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:16:08.123Z","type":"extracted","stepId":"step-3","outputName":"email","value":"g[REDACTED]m"}
+{"timestamp":"2026-08-21T01:16:08.123Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:16:11.635Z","type":"extracted","stepId":"step-4","outputName":"phone","value":"5[REDACTED]9"}
+{"timestamp":"2026-08-21T01:16:11.635Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:16:15.150Z","type":"extracted","stepId":"step-5","outputName":"address","value":"1[REDACTED]t"}
+{"timestamp":"2026-08-21T01:16:15.152Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:16:18.667Z","type":"extracted","stepId":"step-6","outputName":"shares","value":"S[REDACTED]]"}
+{"timestamp":"2026-08-21T01:16:18.667Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:16:22.181Z","type":"checkpoint_passed","description":"URL is the member record page for the requested memberId"}
+{"timestamp":"2026-08-21T01:16:22.189Z","type":"checkpoint_passed","description":"Page shows the MEMBER RECORD heading, confirming we are on a member record page"}
+{"timestamp":"2026-08-21T01:16:22.198Z","type":"checkpoint_passed","description":"Member No. label cell exists, confirming member number field is displayed"}
+{"timestamp":"2026-08-21T01:16:22.200Z","type":"checkpoint_passed","description":"SHARES / BALANCES section heading text exists on the page, confirming the shares table section is present"}
+{"timestamp":"2026-08-21T01:16:22.206Z","type":"checkpoint_passed","description":"The shares table's Share ID column heading cell exists, confirming the shares table was located"}
+{"timestamp":"2026-08-21T01:16:22.206Z","type":"run_end","status":"success","stepsExecuted":6,"outputNames":["memberName","email","phone","address","shares"],"humanIntervened":false}

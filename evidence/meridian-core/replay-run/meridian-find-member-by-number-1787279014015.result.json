@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "outputs": {
+    "memberId": "102777",
+    "memberName": "J[REDACTED]e",
+    "shareCount": 3
+  },
+  "checkpointsPassed": [
+    "URL reflects a member number search for the given memberId",
+    "Results table has the static column header 'Member No.'",
+    "Results row's Member No. cell holds exactly the searched member number",
+    "Results table has the static column header 'Shares'"
+  ],
+  "stepsExecuted": 7
+}

@@ -1,0 +1,16 @@
+{"timestamp":"2026-08-21T01:14:11.527Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-name-1787274815404-probe","capabilityId":"meridian-find-member-by-name","capabilityVersion":6,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"lastName":"Hopper"}}
+{"timestamp":"2026-08-21T01:14:11.688Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:14:15.715Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:14:19.735Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:14:23.821Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:14:27.846Z","type":"extracted","stepId":"step-5","outputName":"memberId","value":"101555"}
+{"timestamp":"2026-08-21T01:14:27.846Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:14:31.862Z","type":"extracted","stepId":"step-6","outputName":"memberName","value":"H[REDACTED]e"}
+{"timestamp":"2026-08-21T01:14:31.862Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:14:35.881Z","type":"extracted","stepId":"step-7","outputName":"shareCount","value":7}
+{"timestamp":"2026-08-21T01:14:35.882Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T01:14:39.900Z","type":"checkpoint_passed","description":"URL reflects a Last Name search for the given lastName parameter"}
+{"timestamp":"2026-08-21T01:14:39.911Z","type":"checkpoint_passed","description":"Results table header row with Member No., Name, Shares columns is present"}
+{"timestamp":"2026-08-21T01:14:39.913Z","type":"checkpoint_passed","description":"The matching row's Name cell contains the searched last name"}
+{"timestamp":"2026-08-21T01:14:39.915Z","type":"checkpoint_passed","description":"A Select link exists for the matching member row, confirming a result was found"}
+{"timestamp":"2026-08-21T01:14:39.916Z","type":"run_end","status":"success","stepsExecuted":7,"outputNames":["memberId","memberName","shareCount"],"humanIntervened":false}

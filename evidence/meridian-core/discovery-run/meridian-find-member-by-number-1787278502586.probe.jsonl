@@ -1,0 +1,15 @@
+{"timestamp":"2026-08-21T02:17:19.954Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-number-1787278502586-probe","capabilityId":"meridian-find-member-by-number","capabilityVersion":6,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"101555"}}
+{"timestamp":"2026-08-21T02:17:20.122Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:17:23.641Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:17:27.230Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:17:30.740Z","type":"extracted","stepId":"step-4","outputName":"memberId","value":"101555"}
+{"timestamp":"2026-08-21T02:17:30.741Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:17:34.249Z","type":"extracted","stepId":"step-5","outputName":"memberName","value":"H[REDACTED]e"}
+{"timestamp":"2026-08-21T02:17:34.250Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:17:37.761Z","type":"extracted","stepId":"step-6","outputName":"shareCount","value":7}
+{"timestamp":"2026-08-21T02:17:37.762Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T02:17:41.275Z","type":"checkpoint_passed","description":"URL is the member inquiry search page with a q query parameter present"}
+{"timestamp":"2026-08-21T02:17:41.281Z","type":"checkpoint_passed","description":"Search mode combobox still shows Member Number as the selected option"}
+{"timestamp":"2026-08-21T02:17:41.294Z","type":"checkpoint_passed","description":"Results table header row exists with expected static columns"}
+{"timestamp":"2026-08-21T02:17:41.296Z","type":"checkpoint_passed","description":"The data row directly below the Member No. header holds a numeric member number in its first cell"}
+{"timestamp":"2026-08-21T02:17:41.297Z","type":"run_end","status":"success","stepsExecuted":6,"outputNames":["memberId","memberName","shareCount"],"humanIntervened":false}

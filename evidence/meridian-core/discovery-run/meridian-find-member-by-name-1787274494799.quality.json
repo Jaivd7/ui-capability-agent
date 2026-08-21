@@ -1,0 +1,144 @@
+{
+  "capabilityId": "meridian-find-member-by-name",
+  "score": 56,
+  "grade": "D",
+  "metrics": {
+    "steps": 7,
+    "chains": 10,
+    "meanChainDepth": 1,
+    "singleCandidateChains": 10,
+    "brittleRootedChains": 4,
+    "brittleOnlyChains": 4,
+    "checkpoints": 4,
+    "structuralCheckpoints": 4,
+    "paramsDeclared": 1,
+    "paramsBoundInSteps": 1,
+    "paramsAssertedInCheckpoints": 1,
+    "outputs": 3,
+    "outputsVerified": 3
+  },
+  "findings": [
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[0].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[4].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "steps[4].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "steps[4].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[5].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "steps[5].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "steps[5].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "steps[6].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "steps[6].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "steps[6].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[1].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[2].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "single_candidate_chain",
+      "where": "checkpoints[3].locator",
+      "message": "no fallback candidate; the ordered chain degrades to a single selector",
+      "suggestion": "record 2-3 candidates, or state in the reason why no fallback exists"
+    },
+    {
+      "severity": "warn",
+      "code": "brittle_locator_root",
+      "where": "checkpoints[3].locator[0]",
+      "message": "resolves first via a positional xpath selector rather than an accessible name or an attribute"
+    },
+    {
+      "severity": "error",
+      "code": "brittle_locator_only",
+      "where": "checkpoints[3].locator",
+      "message": "every candidate is positional; nothing anchors this to an accessible name or a form attribute",
+      "suggestion": "look for an accessible name, an aria-label, or a name/id attribute — a [name=...] selector is a contract, an nth-child is a guess"
+    }
+  ]
+}

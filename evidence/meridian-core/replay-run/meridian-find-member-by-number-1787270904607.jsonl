@@ -1,0 +1,18 @@
+{"timestamp":"2026-08-21T00:08:24.973Z","type":"run_start","kind":"replay","runId":"meridian-find-member-by-number-1787270904607","capabilityId":"meridian-find-member-by-number","capabilityVersion":3,"app":"meridian-core","baseUrl":"https://web-sample.interface-hiring.com","role":"teller","params":{"memberId":"100987"}}
+{"timestamp":"2026-08-21T00:08:25.074Z","type":"step_result","stepId":"step-1","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T00:08:28.599Z","type":"step_result","stepId":"step-2","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T00:08:32.171Z","type":"step_result","stepId":"step-3","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T00:08:35.750Z","type":"step_result","stepId":"step-4","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T00:08:39.281Z","type":"locator_resolved","stepId":"step-5","candidateIndex":1,"strategy":"xpath","matchCount":1,"usedFallback":true}
+{"timestamp":"2026-08-21T00:08:39.283Z","type":"extracted","stepId":"step-5","outputName":"memberName","value":"T[REDACTED]n"}
+{"timestamp":"2026-08-21T00:08:39.283Z","type":"step_result","stepId":"step-5","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T00:08:42.832Z","type":"step_result","stepId":"step-6","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T00:08:46.356Z","type":"locator_resolved","stepId":"step-7","candidateIndex":1,"strategy":"xpath","matchCount":1,"usedFallback":true}
+{"timestamp":"2026-08-21T00:08:46.358Z","type":"extracted","stepId":"step-7","outputName":"shareCount","value":15}
+{"timestamp":"2026-08-21T00:08:46.358Z","type":"step_result","stepId":"step-7","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T00:08:49.938Z","type":"step_result","stepId":"step-8","ok":true,"attempt":1}
+{"timestamp":"2026-08-21T00:08:53.453Z","type":"checkpoint_passed","description":"URL reflects the specific member record page for the requested memberId"}
+{"timestamp":"2026-08-21T00:08:53.461Z","type":"checkpoint_passed","description":"Member Record heading is present, confirming we reached the record page"}
+{"timestamp":"2026-08-21T00:08:53.465Z","type":"checkpoint_passed","description":"SHARES / BALANCES section label is present on the page"}
+{"timestamp":"2026-08-21T00:08:53.503Z","type":"checkpoint_passed","description":"Shares table has a Share ID column header, confirming the shares table structure is present"}
+{"timestamp":"2026-08-21T00:08:53.503Z","type":"run_end","status":"success","stepsExecuted":8,"outputNames":["memberName","shareCount"],"humanIntervened":false}
