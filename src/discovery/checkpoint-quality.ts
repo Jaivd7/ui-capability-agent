@@ -95,10 +95,19 @@ export function checkCheckpointQuality(
   checkpoints.forEach((cp, index) => {
     for (const { field, value } of checkpointFields(cp)) {
       for (const [outputName, record] of Object.entries(ctx.extractedValues)) {
-        if (extractedForms(record).some((form) => value.includes(form))) {
-          violations.push({ kind: "extracted_value", index, field, outputName });
-          return;
-        }
+        const offending = extractedForms(record).find((form) => value.includes(form));
+        if (offending === undefined) continue;
+        // The same exemption the currency rule below already makes, for the
+        // same reason: a value the *caller supplied* is not page data, even
+        // when the capability also reads it back out as an output. A member
+        // lookup that returns the member number it was given is exactly that
+        // shape, and without this it cannot assert its own input — while a
+        // test in artifact/capabilities.test.ts requires that it does. The
+        // compiler templatizes the literal either way, so what lands in the
+        // artifact is `${memberId}` rather than one member's number.
+        if (spellings.has(offending)) continue;
+        violations.push({ kind: "extracted_value", index, field, outputName });
+        return;
       }
       const currency = CURRENCY_LITERAL.exec(value);
       // A param's own value is fine — that comes from the caller, not the

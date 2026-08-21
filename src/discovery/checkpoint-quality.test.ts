@@ -105,4 +105,86 @@ describe("violationMessage", () => {
   it("tells the model the input parameters are still fair game", () => {
     expect(message).toMatch(/input parameters are fine/i);
   });
+  it("allows a checkpoint asserting a value that is both an input param and an output", () => {
+    // A member lookup that returns the member number it was given reads its
+    // own input back off the page, so the value is in extractedValues. It is
+    // still caller-supplied, and the capability has to be able to assert it —
+    // otherwise "did I land on the right member?" is unassertable, which is
+    // the whole point of the lookup. The compiler templatizes the literal.
+    const violations = checkCheckpointQuality(
+      [
+        checkpoint({
+          description: "Member No. cell holds the member searched for",
+          assertion: "textEquals",
+          expected: "100234",
+        }),
+      ],
+      {
+        params: [
+          { name: "memberId", type: "string", exampleValue: "100234", sensitive: false },
+        ],
+        extractedValues: {
+          memberId: { value: "100234", raw: "100234", sensitive: false },
+        },
+      },
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("still rejects a value that was read off the page and is not a param", () => {
+    const violations = checkCheckpointQuality(
+      [
+        checkpoint({
+          description: "Name cell",
+          assertion: "textEquals",
+          expected: "Hopper, Grace",
+        }),
+      ],
+      {
+        params: [
+          { name: "memberId", type: "string", exampleValue: "100234", sensitive: false },
+        ],
+        extractedValues: {
+          memberName: { value: "Hopper, Grace", raw: "Hopper, Grace", sensitive: true },
+        },
+      },
+    );
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ kind: "extracted_value", outputName: "memberName" });
+  });
+
+  it("allows a value that is a declared param even when the run also extracted it", () => {
+    // A capability that takes a member number *and* reads it back is the case
+    // that made this necessary: the prompt requires a checkpoint asserting an
+    // input param, and this rule forbade asserting the one value available, so
+    // no legal checkpoint existed. The caller supplies the value, and the
+    // generalizer templates it, so the artifact is parameterised either way.
+    const violations = checkCheckpointQuality(
+      [checkpoint({ assertion: "textContains", expected: "100234" })],
+      {
+        extractedValues: { memberId: { value: "100234", raw: "100234", sensitive: false } },
+        params: [
+          { name: "memberId", type: "string", exampleValue: "100234", sensitive: false },
+        ],
+      },
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("still rejects an extracted value that no param accounts for", () => {
+    const violations = checkCheckpointQuality(
+      [checkpoint({ assertion: "textContains", expected: "Hopper, Grace" })],
+      {
+        extractedValues: { memberName: { value: "Hopper, Grace", raw: "Hopper, Grace", sensitive: false } },
+        params: [
+          { name: "memberId", type: "string", exampleValue: "100234", sensitive: false },
+        ],
+      },
+    );
+
+    expect(violations.map((v) => v.kind)).toEqual(["extracted_value"]);
+  });
 });
